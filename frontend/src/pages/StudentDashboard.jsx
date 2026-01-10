@@ -113,6 +113,26 @@ const CourseViewer = ({ course, onBack }) => {
     // State to track expanded chapters and modules
     const [expandedChapters, setExpandedChapters] = useState({});
     const [expandedModules, setExpandedModules] = useState({});
+    const [selectedContent, setSelectedContent] = useState(null);
+
+    useEffect(() => {
+        console.log('Selected Content Changed:', selectedContent);
+    }, [selectedContent]);
+
+    // Auto-select first content if available
+    useEffect(() => {
+        if (course.chapters.length > 0) {
+            const firstChapter = course.chapters[0];
+            setExpandedChapters({ [firstChapter._id]: true });
+            if (firstChapter.modules.length > 0) {
+                const firstModule = firstChapter.modules[0];
+                setExpandedModules({ [firstModule._id]: true });
+                if (firstModule.contents.length > 0) {
+                    setSelectedContent(firstModule.contents[0]);
+                }
+            }
+        }
+    }, [course]);
 
     const toggleChapter = (chapterId) => {
         setExpandedChapters(prev => ({
@@ -122,10 +142,31 @@ const CourseViewer = ({ course, onBack }) => {
     };
 
     const toggleModule = (moduleId) => {
-        setExpandedModules(prev => ({
-            ...prev,
-            [moduleId]: !prev[moduleId]
-        }));
+        setExpandedModules(prev => {
+            const isExpanding = !prev[moduleId];
+            if (isExpanding) {
+                // Find module and its first content
+                for (const chapter of course.chapters) {
+                    const module = chapter.modules.find(m => m._id === moduleId);
+                    if (module && module.contents.length > 0) {
+                        setSelectedContent(module.contents[0]);
+                        break;
+                    }
+                }
+            }
+            return {
+                ...prev,
+                [moduleId]: isExpanding
+            };
+        });
+    };
+
+    const getContentUrl = (url) => {
+        if (!url) return '';
+        if (url.startsWith('http')) return url;
+        const fullUrl = `http://localhost:5000${url}`;
+        // Encode URI to handle spaces and special characters in filenames
+        return encodeURI(fullUrl);
     };
 
     return (
@@ -133,74 +174,207 @@ const CourseViewer = ({ course, onBack }) => {
             <button onClick={onBack} style={{ marginBottom: '20px', border: 'none', background: 'transparent', color: '#666', cursor: 'pointer' }}>&larr; Back to Subjects</button>
             <h1 style={{ fontSize: '2rem', marginBottom: '10px' }}>Subject: {course.subject}</h1>
 
-            <div className="course-content">
-                {course.chapters.map(chapter => (
-                    <div key={chapter._id} style={{ marginBottom: '10px', border: '1px solid #eee', borderRadius: '8px', overflow: 'hidden' }}>
-                        {/* Chapter Header */}
-                        <div
-                            onClick={() => toggleChapter(chapter._id)}
-                            style={{
-                                padding: '15px',
-                                background: '#f8f9fa',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                fontWeight: 'bold'
-                            }}
-                        >
-                            <span>{chapter.title}</span>
-                            <span>{expandedChapters[chapter._id] ? '▲' : '▼'}</span>
-                        </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '350px 1fr', gap: '30px', marginTop: '20px' }}>
+                <div className="course-sidebar" style={{ maxHeight: 'calc(100vh - 250px)', overflowY: 'auto', paddingRight: '10px' }}>
+                    {course.chapters.map(chapter => (
+                        <div key={chapter._id} style={{ marginBottom: '10px', border: '1px solid #eee', borderRadius: '8px', overflow: 'hidden' }}>
+                            {/* Chapter Header */}
+                            <div
+                                onClick={() => toggleChapter(chapter._id)}
+                                style={{
+                                    padding: '12px 15px',
+                                    background: '#f8f9fa',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                    fontWeight: 'bold',
+                                    fontSize: '0.9rem'
+                                }}
+                            >
+                                <span>{chapter.title}</span>
+                                <span style={{ fontSize: '0.8rem' }}>{expandedChapters[chapter._id] ? '▲' : '▼'}</span>
+                            </div>
 
-                        {/* Modules List (shown if chapter expanded) */}
-                        {expandedChapters[chapter._id] && (
-                            <div style={{ padding: '15px' }}>
-                                {chapter.modules.map(module => (
-                                    <div key={module._id} style={{ marginBottom: '10px', marginLeft: '15px' }}>
-                                        {/* Module Header */}
-                                        <div
-                                            onClick={() => toggleModule(module._id)}
+                            {/* Modules List (shown if chapter expanded) */}
+                            {expandedChapters[chapter._id] && (
+                                <div style={{ padding: '10px' }}>
+                                    {chapter.modules.map(module => (
+                                        <div key={module._id} style={{ marginBottom: '10px' }}>
+                                            {/* Module Header */}
+                                            <div
+                                                onClick={() => toggleModule(module._id)}
+                                                style={{
+                                                    cursor: 'pointer',
+                                                    color: '#444',
+                                                    fontWeight: '600',
+                                                    padding: '8px',
+                                                    borderLeft: '3px solid #6C63FF',
+                                                    background: expandedModules[module._id] ? '#f0efff' : '#fff',
+                                                    marginBottom: '5px',
+                                                    fontSize: '0.85rem',
+                                                    display: 'flex',
+                                                    justifyContent: 'space-between'
+                                                }}
+                                            >
+                                                <span>{module.title}</span>
+                                                <span style={{ fontSize: '0.7rem' }}>{expandedModules[module._id] ? '▲' : '▼'}</span>
+                                            </div>
+
+                                            {/* Content List (shown if module expanded) */}
+                                            {expandedModules[module._id] && (
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', paddingLeft: '10px' }}>
+                                                    {module.contents.map(content => (
+                                                        <div
+                                                            key={content._id}
+                                                            onClick={() => setSelectedContent(content)}
+                                                            style={{
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                gap: '10px',
+                                                                padding: '8px 12px',
+                                                                background: selectedContent?._id === content._id ? '#6C63FF' : '#f8f9fa',
+                                                                color: selectedContent?._id === content._id ? 'white' : '#4a5568',
+                                                                borderRadius: '6px',
+                                                                cursor: 'pointer',
+                                                                fontSize: '0.8rem',
+                                                                transition: 'all 0.2s',
+                                                                border: '1px solid transparent'
+                                                            }}
+                                                            onMouseEnter={(e) => {
+                                                                if (selectedContent?._id !== content._id) {
+                                                                    e.currentTarget.style.background = '#edf2f7';
+                                                                }
+                                                            }}
+                                                            onMouseLeave={(e) => {
+                                                                if (selectedContent?._id !== content._id) {
+                                                                    e.currentTarget.style.background = '#f8f9fa';
+                                                                }
+                                                            }}
+                                                        >
+                                                            <span style={{
+                                                                fontWeight: 'bold',
+                                                                fontSize: '0.6rem',
+                                                                padding: '2px 5px',
+                                                                borderRadius: '3px',
+                                                                background: selectedContent?._id === content._id ? 'rgba(255,255,255,0.2)' : '#e2e8f0',
+                                                                textTransform: 'uppercase'
+                                                            }}>
+                                                                {content.type}
+                                                            </span>
+                                                            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                                {content.title}
+                                                            </span>
+                                                        </div>
+                                                    ))}
+                                                    {module.contents.length === 0 && <span style={{ color: '#aaa', fontSize: '0.75rem', padding: '5px' }}>No content.</span>}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                    {chapter.modules.length === 0 && <div style={{ color: '#aaa', fontStyle: 'italic', fontSize: '0.8rem' }}>No modules.</div>}
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                    {course.chapters.length === 0 && <p>No chapters in this subject yet.</p>}
+                </div>
+
+                <div className="content-view-area" style={{ background: '#f8fafc', borderRadius: '15px', padding: '20px', border: '1px solid #edf2f7', minHeight: '500px', display: 'flex', flexDirection: 'column' }}>
+                    {selectedContent ? (
+                        <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                            <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div>
+                                    <h2 style={{ margin: 0, fontSize: '1.25rem', color: '#2d3748' }}>{selectedContent.title}</h2>
+                                    <span style={{ fontSize: '0.8rem', color: '#718096' }}>Type: {selectedContent.type.toUpperCase()}</span>
+                                </div>
+                                {selectedContent.type === 'link' && (
+                                    <a
+                                        href={selectedContent.url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        style={{ padding: '8px 16px', background: '#6C63FF', color: 'white', borderRadius: '8px', textDecoration: 'none', fontSize: '0.85rem', fontWeight: 'bold' }}
+                                    >
+                                        Open Link
+                                    </a>
+                                )}
+                                {selectedContent.type !== 'link' && (
+                                    <a
+                                        href={getContentUrl(selectedContent.url)}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        style={{ padding: '8px 16px', background: '#6C63FF', color: 'white', borderRadius: '8px', textDecoration: 'none', fontSize: '0.85rem', fontWeight: 'bold' }}
+                                    >
+                                        Open In New Tab
+                                    </a>
+                                )}
+                            </div>
+
+                            <div style={{ flex: 1, background: 'white', borderRadius: '10px', overflow: 'hidden', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
+                                {selectedContent.type === 'pdf' ? (
+                                    <iframe
+                                        src={`${getContentUrl(selectedContent.url)}`}
+                                        width="100%"
+                                        height="700px"
+                                        style={{ border: 'none' }}
+                                        title={selectedContent.title}
+                                    />
+                                ) : selectedContent.type === 'link' ? (
+                                    <div style={{ padding: '60px', textAlign: 'center', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                                        <div style={{ fontSize: '3rem', marginBottom: '20px' }}>🔗</div>
+                                        <h3>External Content</h3>
+                                        <p style={{ color: '#718096', marginBottom: '20px' }}>This content is hosted on an external website.</p>
+                                        <a
+                                            href={selectedContent.url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            style={{ color: '#6C63FF', fontWeight: 'bold', fontSize: '1.1rem', wordBreak: 'break-all' }}
+                                        >
+                                            {selectedContent.url}
+                                        </a>
+                                    </div>
+                                ) : selectedContent.type === 'image' ? (
+                                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1, padding: '20px', overflow: 'auto' }}>
+                                        <img
+                                            src={getContentUrl(selectedContent.url)}
+                                            alt={selectedContent.title}
+                                            style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                                        />
+                                    </div>
+                                ) : (
+                                    <div style={{ padding: '60px', textAlign: 'center', color: '#718096', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                                        <div style={{ fontSize: '3rem', marginBottom: '20px' }}>📄</div>
+                                        <h3>Preview not available</h3>
+                                        <p style={{ marginBottom: '24px' }}>This file type ({selectedContent.type}) cannot be previewed directly.</p>
+                                        <a
+                                            href={getContentUrl(selectedContent.url)}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
                                             style={{
-                                                cursor: 'pointer',
-                                                color: '#444',
-                                                fontWeight: '500',
-                                                padding: '8px',
-                                                borderLeft: '3px solid #6C63FF',
-                                                background: '#fff',
-                                                marginBottom: '5px'
+                                                display: 'inline-block',
+                                                padding: '12px 24px',
+                                                background: '#6C63FF',
+                                                color: 'white',
+                                                borderRadius: '10px',
+                                                textDecoration: 'none',
+                                                fontWeight: 'bold'
                                             }}
                                         >
-                                            {module.title}
-                                        </div>
-
-                                        {/* Content List (shown if module expanded) */}
-                                        {expandedModules[module._id] && (
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', paddingLeft: '15px' }}>
-                                                {module.contents.map(content => (
-                                                    <div key={content._id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px', background: '#f0f0f5', borderRadius: '5px' }}>
-                                                        <span style={{ fontWeight: 'bold', fontSize: '0.7rem', padding: '2px 6px', borderRadius: '4px', background: '#ddd' }}>{content.type}</span>
-                                                        <a
-                                                            href={content.type === 'link' ? content.url : `http://localhost:5000${content.url}`}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            style={{ color: '#007bff', textDecoration: 'none' }}
-                                                        >
-                                                            {content.title}
-                                                        </a>
-                                                    </div>
-                                                ))}
-                                                {module.contents.length === 0 && <span style={{ color: '#aaa', fontSize: '0.8rem' }}>No content.</span>}
-                                            </div>
-                                        )}
+                                            Download / View File
+                                        </a>
                                     </div>
-                                ))}
-                                {chapter.modules.length === 0 && <div style={{ color: '#aaa', fontStyle: 'italic' }}>No modules.</div>}
+                                )}
                             </div>
-                        )}
-                    </div>
-                ))}
-                {course.chapters.length === 0 && <p>No chapters in this subject yet.</p>}
+                        </div>
+                    ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#a0aec0' }}>
+                            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: '20px' }}>
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" />
+                            </svg>
+                            <p>Select a lesson from the sidebar to start learning</p>
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
     );

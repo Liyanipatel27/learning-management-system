@@ -198,7 +198,35 @@ const CourseBuilder = ({ teacherId, onCourseCreated, initialCourse }) => {
                                             {module.contents.length > 0 && (
                                                 <ul style={{ listStyle: 'none', padding: 0, margin: '16px 0 0 0', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '10px' }}>
                                                     {module.contents.map((c, i) => (
-                                                        <li key={i} style={{ background: 'white', border: '1px solid #edf2f7', padding: '8px 12px', borderRadius: '10px', fontSize: '0.85rem', color: '#4a5568', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                        <li
+                                                            key={i}
+                                                            onClick={() => {
+                                                                if (!c.url) return;
+                                                                const fullUrl = c.url.startsWith('http') ? c.url : `http://localhost:5000${c.url}`;
+                                                                window.open(encodeURI(fullUrl), '_blank');
+                                                            }}
+                                                            style={{
+                                                                background: 'white',
+                                                                border: '1px solid #edf2f7',
+                                                                padding: '8px 12px',
+                                                                borderRadius: '10px',
+                                                                fontSize: '0.85rem',
+                                                                color: '#4a5568',
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                gap: '10px',
+                                                                cursor: 'pointer',
+                                                                transition: 'all 0.2s'
+                                                            }}
+                                                            onMouseEnter={(e) => {
+                                                                e.currentTarget.style.borderColor = '#6366f1';
+                                                                e.currentTarget.style.boxShadow = '0 2px 4px rgba(99, 102, 241, 0.1)';
+                                                            }}
+                                                            onMouseLeave={(e) => {
+                                                                e.currentTarget.style.borderColor = '#edf2f7';
+                                                                e.currentTarget.style.boxShadow = 'none';
+                                                            }}
+                                                        >
                                                             <div style={{ color: '#6366f1' }}>
                                                                 {c.type === 'pdf' ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg> : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>}
                                                             </div>
