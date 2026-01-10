@@ -3,6 +3,7 @@ const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 const Course = require('../models/Course');
+const Progress = require('../models/Progress');
 const fs = require('fs');
 
 // Ensure uploads directory exists
@@ -41,6 +42,42 @@ router.get('/teacher/:teacherId', async (req, res) => {
         res.json(courses);
     } catch (err) {
         res.status(500).json({ message: err.message });
+    }
+});
+
+// Diagnostic route
+router.get('/check-routing', (req, res) => res.json({ status: 'ok', route: 'course-router-v3' }));
+
+// Add/Update Quiz for a Module
+router.post('/:courseId/chapters/:chapterId/modules/:moduleId/quiz', async (req, res) => {
+    console.log('Quiz Route Hit (Primary):', req.params);
+    try {
+        const course = await Course.findById(req.params.courseId);
+        if (!course) return res.status(404).json({ message: 'Course not found' });
+
+        const chapter = course.chapters.id(req.params.chapterId);
+        if (!chapter) return res.status(404).json({ message: 'Chapter not found' });
+
+        const module = chapter.modules.id(req.params.moduleId);
+        if (!module) return res.status(404).json({ message: 'Module not found' });
+
+        console.log('Incoming Quiz Data:', req.body);
+        module.quiz = {
+            questions: req.body.questions.map(q => ({
+                question: q.question,
+                options: q.options,
+                correctAnswerIndex: q.correctAnswerIndex,
+                explanation: q.explanation // Explicitly map to be sure
+            })),
+            passingScore: req.body.passingScore || 70,
+            fastTrackScore: req.body.fastTrackScore || 85
+        };
+
+        await course.save();
+        res.json(course);
+    } catch (err) {
+        console.error('Quiz Save Error:', err);
+        res.status(400).json({ message: err.message });
     }
 });
 
@@ -132,6 +169,83 @@ router.post('/:courseId/chapters/:chapterId/modules/:moduleId/content', upload.s
 
         await course.save();
         res.json(course);
+    } catch (err) {
+        res.status(400).json({ message: err.message });
+    }
+});
+
+
+// Get Student Progress for a Course
+router.get('/:courseId/progress/:studentId', async (req, res) => {
+    try {
+        let progress = await Progress.findOne({
+            course: req.params.courseId,
+            student: req.params.studentId
+        });
+
+        if (!progress) {
+            // Initialize empty progress if not exists
+            progress = new Progress({
+                course: req.params.courseId,
+                student: req.params.studentId,
+                completedModules: []
+            });
+            await progress.save();
+        }
+        res.json(progress);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
+// Submit Quiz Result
+router.post('/:courseId/modules/:moduleId/submit-quiz', async (req, res) => {
+    const { studentId, score, isFastTrack } = req.body;
+    try {
+        const course = await Course.findById(req.params.courseId);
+        if (!course) return res.status(404).json({ message: 'Course not found' });
+
+        // Find module to get passing scores
+        let targetModule = null;
+        for (const chapter of course.chapters) {
+            targetModule = chapter.modules.id(req.params.moduleId);
+            if (targetModule) break;
+        }
+
+        if (!targetModule) return res.status(404).json({ message: 'Module not found' });
+
+        const passingScore = isFastTrack ?
+            (targetModule.quiz?.fastTrackScore || 85) :
+            (targetModule.quiz?.passingScore || 70);
+
+        const isPassed = score >= passingScore;
+
+        if (isPassed) {
+            let progress = await Progress.findOne({ course: req.params.courseId, student: studentId });
+            if (!progress) {
+                progress = new Progress({ course: req.params.courseId, student: studentId, completedModules: [] });
+            }
+
+            // Check if already completed
+            const alreadyCompleted = progress.completedModules.find(m => m.moduleId.toString() === req.params.moduleId);
+            if (!alreadyCompleted) {
+                progress.completedModules.push({
+                    moduleId: req.params.moduleId,
+                    score: score,
+                    isFastTracked: isFastTrack
+                });
+                progress.updatedAt = Date.now();
+                await progress.save();
+            }
+        }
+
+        res.json({
+            isPassed,
+            score,
+            requiredScore: passingScore,
+            message: isPassed ? 'Module Unlocked!' : 'Score too low. Try again.'
+        });
+
     } catch (err) {
         res.status(400).json({ message: err.message });
     }

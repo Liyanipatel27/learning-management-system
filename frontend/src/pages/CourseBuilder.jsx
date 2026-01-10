@@ -9,6 +9,7 @@ const CourseBuilder = ({ teacherId, onCourseCreated, initialCourse }) => {
     });
     const [chapters, setChapters] = useState(initialCourse ? initialCourse.chapters : []);
     const [currentCourseId, setCurrentCourseId] = useState(initialCourse ? initialCourse._id : null);
+    const [editingQuiz, setEditingQuiz] = useState(null);
 
     useEffect(() => {
         if (initialCourse) {
@@ -193,6 +194,21 @@ const CourseBuilder = ({ teacherId, onCourseCreated, initialCourse }) => {
                                                 <span style={{ fontSize: '0.75rem', fontWeight: '700', color: '#6366f1', background: 'rgba(99, 102, 241, 0.05)', padding: '2px 8px', borderRadius: '4px' }}>MODULE</span>
                                             </div>
 
+                                            <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
+                                                <button
+                                                    onClick={() => {
+                                                        const questions = module.quiz?.questions || [];
+                                                        const passingScore = module.quiz?.passingScore || 70;
+                                                        const fastTrackScore = module.quiz?.fastTrackScore || 85;
+                                                        const quizData = { questions, passingScore, fastTrackScore };
+                                                        setEditingQuiz({ chapterId: chapter._id, moduleId: module._id, quiz: quizData });
+                                                    }}
+                                                    style={{ padding: '8px 16px', background: '#f8fafc', color: '#6366f1', border: '1px solid #e2e8f0', borderRadius: '10px', fontSize: '0.85rem', fontWeight: 'bold', cursor: 'pointer' }}
+                                                >
+                                                    {module.quiz?.questions?.length > 0 ? `Edit Quiz (${module.quiz.questions.length} Qs)` : '+ Add Quiz'}
+                                                </button>
+                                            </div>
+
                                             <ContentUploader onUpload={(file, data) => uploadContent(chapter._id, module._id, file, data)} />
 
                                             {module.contents.length > 0 && (
@@ -244,6 +260,26 @@ const CourseBuilder = ({ teacherId, onCourseCreated, initialCourse }) => {
                             </div>
                         ))}
                     </div>
+
+                    {editingQuiz && (
+                        <QuizEditor
+                            chapterId={editingQuiz.chapterId}
+                            moduleId={editingQuiz.moduleId}
+                            quiz={editingQuiz.quiz}
+                            onClose={() => setEditingQuiz(null)}
+                            onSave={async (quizData) => {
+                                try {
+                                    const res = await axios.post(`http://localhost:5000/api/courses/${currentCourseId}/chapters/${editingQuiz.chapterId}/modules/${editingQuiz.moduleId}/quiz`, quizData);
+                                    setChapters(res.data.chapters);
+                                    setEditingQuiz(null);
+                                    alert('Quiz saved successfully!');
+                                } catch (err) {
+                                    console.error(err);
+                                    alert('Error saving quiz');
+                                }
+                            }}
+                        />
+                    )}
 
                     <div style={{ marginTop: '40px', textAlign: 'center' }}>
                         <button
@@ -322,6 +358,124 @@ const ContentUploader = ({ onUpload }) => {
                 >
                     Upload / Add
                 </button>
+            </div>
+        </div>
+    );
+};
+
+const QuizEditor = ({ quiz, onSave, onClose }) => {
+    const [questions, setQuestions] = useState(quiz?.questions || []);
+    const [passingScore, setPassingScore] = useState(quiz?.passingScore || 70);
+    const [fastTrackScore, setFastTrackScore] = useState(quiz?.fastTrackScore || 85);
+    const [showExplanation, setShowExplanation] = useState({}); // Track which explanation is visible
+
+    const addQuestion = () => {
+        setQuestions([...questions, { question: '', options: ['', '', '', ''], correctAnswerIndex: 0, explanation: '' }]);
+    };
+
+    const updateQuestion = (index, field, value) => {
+        const newQuestions = [...questions];
+        newQuestions[index][field] = value;
+        setQuestions(newQuestions);
+    };
+
+    const updateOption = (qIndex, oIndex, value) => {
+        const newQuestions = [...questions];
+        newQuestions[qIndex].options[oIndex] = value;
+        setQuestions(newQuestions);
+    };
+
+    return (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+            <div style={{ background: 'white', padding: '32px', borderRadius: '24px', width: '100%', maxWidth: '800px', maxHeight: '90vh', overflowY: 'auto' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                    <h2 style={{ margin: 0 }}>Module Quiz Editor</h2>
+                    <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }}>&times;</button>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '32px' }}>
+                    <div>
+                        <label style={{ display: 'block', fontSize: '0.9rem', fontWeight: '600', marginBottom: '8px' }}>Standard Passing Score (%)</label>
+                        <input type="number" value={passingScore} onChange={e => setPassingScore(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
+                    </div>
+                    <div>
+                        <label style={{ display: 'block', fontSize: '0.9rem', fontWeight: '600', marginBottom: '8px' }}>Fast Track Score (%)</label>
+                        <input type="number" value={fastTrackScore} onChange={e => setFastTrackScore(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
+                    </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                    {questions.map((q, qIdx) => (
+                        <div key={qIdx} style={{ padding: '20px', border: '1px solid #edf2f7', borderRadius: '16px', background: '#f8fafc' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
+                                <span style={{ fontWeight: 'bold' }}>Question {qIdx + 1}</span>
+                                <button onClick={() => setQuestions(questions.filter((_, i) => i !== qIdx))} style={{ color: '#f87171', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.8rem' }}>Remove</button>
+                            </div>
+                            <input
+                                type="text"
+                                placeholder="Enter Question"
+                                value={q.question}
+                                onChange={e => updateQuestion(qIdx, 'question', e.target.value)}
+                                style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '15px' }}
+                            />
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                {q.options.map((opt, oIdx) => (
+                                    <div key={oIdx} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                        <input
+                                            type="radio"
+                                            name={`correct-${qIdx}`}
+                                            checked={q.correctAnswerIndex === oIdx}
+                                            onChange={() => updateQuestion(qIdx, 'correctAnswerIndex', oIdx)}
+                                        />
+                                        <input
+                                            type="text"
+                                            placeholder={`Option ${oIdx + 1}`}
+                                            value={opt}
+                                            onChange={e => updateOption(qIdx, oIdx, e.target.value)}
+                                            style={{ flex: 1, padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0' }}
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+                            <div style={{ marginTop: '15px', borderTop: '1px solid #edf2f7', paddingTop: '15px' }}>
+                                <button
+                                    onClick={() => setShowExplanation(prev => ({ ...prev, [qIdx]: !prev[qIdx] }))}
+                                    style={{ background: 'none', border: 'none', color: '#6366f1', fontSize: '0.8rem', fontWeight: 'bold', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: '5px' }}
+                                >
+                                    {showExplanation[qIdx] ? 'Collapse Solution' : 'Add/Edit Solution (Description)'}
+                                </button>
+
+                                {showExplanation[qIdx] && (
+                                    <div style={{ marginTop: '10px' }}>
+                                        <textarea
+                                            placeholder="Explain why the answer is correct..."
+                                            value={q.explanation || ''}
+                                            onChange={e => updateQuestion(qIdx, 'explanation', e.target.value)}
+                                            style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', minHeight: '60px', fontFamily: 'inherit', fontSize: '0.85rem' }}
+                                        />
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                <button
+                    onClick={addQuestion}
+                    style={{ width: '100%', padding: '12px', marginTop: '20px', background: 'white', color: '#6366f1', border: '2px dashed #6366f1', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer' }}
+                >
+                    + Add Question
+                </button>
+
+                <div style={{ marginTop: '40px', display: 'flex', gap: '15px' }}>
+                    <button onClick={onClose} style={{ flex: 1, padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0', background: 'white', fontWeight: 'bold', cursor: 'pointer' }}>Cancel</button>
+                    <button
+                        onClick={() => onSave({ questions, passingScore: Number(passingScore), fastTrackScore: Number(fastTrackScore) })}
+                        style={{ flex: 1, padding: '14px', borderRadius: '12px', border: 'none', background: '#6366f1', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}
+                    >
+                        Save Quiz
+                    </button>
+                </div>
             </div>
         </div>
     );

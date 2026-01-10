@@ -22,6 +22,10 @@ app.use('/api/auth', authRoutes);
 app.use('/api/courses', require('./routes/course'));
 app.use('/uploads', express.static('uploads'));
 
+app.get('/ping', (req, res) => {
+    res.send('pong v2');
+});
+
 app.get('/', (req, res) => {
     res.send('LMS Backend is Running');
 });

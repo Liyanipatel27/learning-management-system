@@ -10,7 +10,17 @@ const ContentSchema = new mongoose.Schema({
 
 const ModuleSchema = new mongoose.Schema({
     title: { type: String, required: true },
-    contents: [ContentSchema]
+    contents: [ContentSchema],
+    quiz: {
+        questions: [{
+            question: String,
+            options: [String],
+            correctAnswerIndex: Number,
+            explanation: String
+        }],
+        passingScore: { type: Number, default: 70 },
+        fastTrackScore: { type: Number, default: 85 }
+    }
 });
 
 const ChapterSchema = new mongoose.Schema({

@@ -63,7 +63,13 @@ function StudentDashboard() {
                 </header>
 
                 {selectedCourse ? (
-                    <CourseViewer course={selectedCourse} onBack={() => setSelectedCourse(null)} />
+                    <CourseViewer
+                        course={selectedCourse}
+                        user={user}
+                        setCourses={setCourses}
+                        setSelectedCourse={setSelectedCourse}
+                        onBack={() => setSelectedCourse(null)}
+                    />
                 ) : (
                     <>
                         <section className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
@@ -109,11 +115,49 @@ function StudentDashboard() {
     );
 }
 
-const CourseViewer = ({ course, onBack }) => {
+const CourseViewer = ({ course, user, setCourses, setSelectedCourse, onBack }) => {
     // State to track expanded chapters and modules
     const [expandedChapters, setExpandedChapters] = useState({});
     const [expandedModules, setExpandedModules] = useState({});
     const [selectedContent, setSelectedContent] = useState(null);
+    const [studentProgress, setStudentProgress] = useState(null);
+    const [activeQuiz, setActiveQuiz] = useState(null);
+
+    useEffect(() => {
+        if (course) {
+            fetchProgress();
+        }
+    }, [course]);
+
+    const fetchProgress = async () => {
+        if (!course || !user.id && !user._id) return;
+        try {
+            const studentId = user.id || user._id;
+            const res = await axios.get(`http://localhost:5000/api/courses/${course._id}/progress/${studentId}`);
+            setStudentProgress(res.data);
+        } catch (err) {
+            console.error('Error fetching progress:', err);
+        }
+    };
+
+    const refreshCourse = async () => {
+        if (!course) return;
+        try {
+            const res = await axios.get(`http://localhost:5000/api/courses/${course._id}`);
+            const updatedCourse = res.data;
+            setCourses(prev => prev.map(c => c._id === updatedCourse._id ? updatedCourse : c));
+            setSelectedCourse(updatedCourse);
+            return updatedCourse;
+        } catch (err) {
+            console.error('Error refreshing course:', err);
+        }
+    };
+
+    const handleTakeQuiz = async (module, isFastTrack) => {
+        const latestCourse = await refreshCourse();
+        const latestModule = latestCourse?.chapters.flatMap(c => c.modules).find(m => m._id === module._id) || module;
+        setActiveQuiz({ module: latestModule, isFastTrack });
+    };
 
     useEffect(() => {
         console.log('Selected Content Changed:', selectedContent);
@@ -134,11 +178,48 @@ const CourseViewer = ({ course, onBack }) => {
         }
     }, [course]);
 
-    const toggleChapter = (chapterId) => {
-        setExpandedChapters(prev => ({
-            ...prev,
-            [chapterId]: !prev[chapterId]
-        }));
+    const checkIsLocked = (chapter, module) => {
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        if (user.role === 'teacher' || user.role === 'admin') return false;
+
+        // Find module index in course
+        const allModules = course.chapters.flatMap(c => c.modules);
+        const moduleIndex = allModules.findIndex(m => m._id.toString() === module._id.toString());
+
+        if (moduleIndex <= 0) return false; // First module (index 0) is always unlocked
+
+        const prevModule = allModules[moduleIndex - 1];
+
+        // Find if previous module is in completedModules
+        const isPrevCompleted = studentProgress?.completedModules?.some(m =>
+            m.moduleId.toString() === prevModule._id.toString()
+        );
+
+        return !isPrevCompleted;
+    };
+
+    const handleQuizSubmission = async (moduleId, score, isFastTrack, onFail) => {
+        try {
+            const studentId = JSON.parse(localStorage.getItem('user') || '{}').id || JSON.parse(localStorage.getItem('user') || '{}')._id;
+            const res = await axios.post(`http://localhost:5000/api/courses/${course._id}/modules/${moduleId}/submit-quiz`, {
+                studentId,
+                score,
+                isFastTrack
+            });
+
+            if (res.data.isPassed) {
+                alert(`Perfect! Score: ${score}%. ${res.data.message}`);
+                fetchProgress(); // Refresh progress
+                // We keep activeQuiz open so they can see descriptions
+            } else {
+                alert(`Score: ${score}%. Minimum required: ${res.data.requiredScore}%. Please update your answers and try again!`);
+                if (onFail) onFail(); // Reset submitted status in QuizViewer
+            }
+        } catch (err) {
+            console.error('Error submitting quiz:', err);
+            alert('Error submitting quiz. Please try again.');
+            if (onFail) onFail();
+        }
     };
 
     const toggleModule = (moduleId) => {
@@ -203,31 +284,67 @@ const CourseViewer = ({ course, onBack }) => {
                                         <div key={module._id} style={{ marginBottom: '10px' }}>
                                             {/* Module Header */}
                                             <div
-                                                onClick={() => toggleModule(module._id)}
+                                                onClick={() => {
+                                                    // Check if module is locked
+                                                    const isLocked = checkIsLocked(chapter, module);
+                                                    if (isLocked) {
+                                                        alert('🔒 This module is locked. Please pass the previous module quiz first!');
+                                                        return;
+                                                    }
+                                                    toggleModule(module._id);
+                                                }}
                                                 style={{
                                                     cursor: 'pointer',
-                                                    color: '#444',
+                                                    color: checkIsLocked(chapter, module) ? '#cbd5e0' : '#444',
                                                     fontWeight: '600',
                                                     padding: '8px',
-                                                    borderLeft: '3px solid #6C63FF',
+                                                    borderLeft: `3px solid ${checkIsLocked(chapter, module) ? '#edf2f7' : '#6C63FF'}`,
                                                     background: expandedModules[module._id] ? '#f0efff' : '#fff',
                                                     marginBottom: '5px',
                                                     fontSize: '0.85rem',
                                                     display: 'flex',
-                                                    justifyContent: 'space-between'
+                                                    justifyContent: 'space-between',
+                                                    alignItems: 'center'
                                                 }}
                                             >
-                                                <span>{module.title}</span>
+                                                <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    {checkIsLocked(chapter, module) && '🔒'}
+                                                    {module.title}
+                                                </span>
                                                 <span style={{ fontSize: '0.7rem' }}>{expandedModules[module._id] ? '▲' : '▼'}</span>
                                             </div>
 
                                             {/* Content List (shown if module expanded) */}
                                             {expandedModules[module._id] && (
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', paddingLeft: '10px' }}>
+                                                    {/* Quiz Buttons */}
+                                                    {module.quiz?.questions?.length > 0 && (
+                                                        <div style={{ display: 'flex', gap: '8px', marginBottom: '8px', padding: '5px' }}>
+                                                            <button
+                                                                onClick={() => setActiveQuiz({ module, isFastTrack: false })}
+                                                                style={{ flex: 1, padding: '6px', background: '#38A169', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer' }}
+                                                            >
+                                                                Take Quiz (Standard)
+                                                            </button>
+                                                            <button
+                                                                onClick={() => setActiveQuiz({ module, isFastTrack: true })}
+                                                                style={{ flex: 1, padding: '6px', background: '#3182CE', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer' }}
+                                                            >
+                                                                Fast Track (85%+)
+                                                            </button>
+                                                        </div>
+                                                    )}
+
                                                     {module.contents.map(content => (
                                                         <div
                                                             key={content._id}
-                                                            onClick={() => setSelectedContent(content)}
+                                                            onClick={() => {
+                                                                if (checkIsLocked(chapter, module)) {
+                                                                    alert('🔒 This module is locked.');
+                                                                    return;
+                                                                }
+                                                                setSelectedContent(content);
+                                                            }}
                                                             style={{
                                                                 display: 'flex',
                                                                 alignItems: 'center',
@@ -281,7 +398,15 @@ const CourseViewer = ({ course, onBack }) => {
                 </div>
 
                 <div className="content-view-area" style={{ background: '#f8fafc', borderRadius: '15px', padding: '20px', border: '1px solid #edf2f7', minHeight: '500px', display: 'flex', flexDirection: 'column' }}>
-                    {selectedContent ? (
+                    {activeQuiz ? (
+                        <QuizViewer
+                            quiz={activeQuiz.module.quiz}
+                            isFastTrack={activeQuiz.isFastTrack}
+                            alreadyPassed={studentProgress?.completedModules?.some(m => m.moduleId.toString() === activeQuiz.module._id.toString())}
+                            onClose={() => setActiveQuiz(null)}
+                            onSubmit={(score, onFail) => handleQuizSubmission(activeQuiz.module._id, score, activeQuiz.isFastTrack, onFail)}
+                        />
+                    ) : selectedContent ? (
                         <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
                             <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <div>
@@ -376,6 +501,151 @@ const CourseViewer = ({ course, onBack }) => {
                     )}
                 </div>
             </div>
+        </div>
+    );
+};
+
+const QuizViewer = ({ quiz, isFastTrack, alreadyPassed, onSubmit, onClose }) => {
+    const [answers, setAnswers] = useState({});
+    const [submitted, setSubmitted] = useState(false);
+    const [currentScore, setCurrentScore] = useState(0);
+
+    useEffect(() => {
+        console.log('Quiz Data received in Viewer:', quiz);
+        console.log('Already Passed Status:', alreadyPassed);
+    }, [quiz, alreadyPassed]);
+
+    const requiredScore = isFastTrack ? (quiz.fastTrackScore || 85) : (quiz.passingScore || 70);
+    const isPassed = alreadyPassed || (submitted && currentScore >= requiredScore);
+
+    const handleAnswer = (qIndex, oIndex) => {
+        if (isPassed) return; // Prevent changing after passing
+        setAnswers({ ...answers, [qIndex]: oIndex });
+    };
+
+    const calculateScore = () => {
+        let correct = 0;
+        quiz.questions.forEach((q, i) => {
+            if (answers[i] === q.correctAnswerIndex) correct++;
+        });
+        const score = Math.round((correct / quiz.questions.length) * 100);
+        setCurrentScore(score);
+        setSubmitted(true);
+        onSubmit(score, () => setSubmitted(false));
+    };
+
+    return (
+        <div style={{ padding: '20px', background: 'white', borderRadius: '15px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
+                <h2 style={{ margin: 0 }}>{isFastTrack ? '⚡ Fast Track Quiz' : '📝 Module Quiz'}</h2>
+                <button onClick={onClose} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', padding: '5px 15px', borderRadius: '8px', cursor: 'pointer' }}>Close</button>
+            </div>
+
+            <p style={{ color: '#718096', marginBottom: '30px' }}>
+                {isFastTrack ?
+                    `Requirement: Score at least 85% to skip this module.` :
+                    `Requirement: Score at least 70% to unlock the next module.`}
+                {submitted && (
+                    <span style={{ marginLeft: '10px', fontWeight: 'bold', color: isPassed ? '#38A169' : '#E53E3E' }}>
+                        (Last Score: {currentScore}%)
+                    </span>
+                )}
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+                {quiz.questions.map((q, i) => (
+                    <div key={i} style={{ borderBottom: '1px solid #edf2f7', paddingBottom: '20px' }}>
+                        <p style={{ fontWeight: 'bold', marginBottom: '15px' }}>{i + 1}. {q.question}</p>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                            {q.options.map((opt, oi) => {
+                                const isSelected = answers[i] === oi;
+                                const isCorrect = q.correctAnswerIndex === oi;
+                                let bgColor = '#f8fafc';
+                                let borderColor = 'transparent';
+
+                                if (isSelected) {
+                                    bgColor = '#EBF8FF';
+                                    borderColor = '#3182CE';
+                                }
+
+                                // If passed, highlight correct/wrong answers
+                                if (isPassed) {
+                                    if (isCorrect) {
+                                        bgColor = '#C6F6D5';
+                                        borderColor = '#38A169';
+                                    } else if (isSelected) {
+                                        bgColor = '#FED7D7';
+                                        borderColor = '#E53E3E';
+                                    }
+                                }
+
+                                return (
+                                    <div
+                                        key={oi}
+                                        onClick={() => handleAnswer(i, oi)}
+                                        style={{
+                                            padding: '12px',
+                                            background: bgColor,
+                                            border: `2px solid ${borderColor}`,
+                                            borderRadius: '10px',
+                                            cursor: isPassed ? 'default' : 'pointer',
+                                            fontSize: '0.9rem',
+                                            transition: 'all 0.2s',
+                                            position: 'relative'
+                                        }}
+                                    >
+                                        {opt}
+                                        {isPassed && isCorrect && <span style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: '#38A169' }}>✓</span>}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        {isPassed && (() => {
+                            console.log(`Question ${i + 1} explanation:`, q.explanation);
+                            return q.explanation && q.explanation.trim() !== '' ? (
+                                <div style={{ marginTop: '15px', padding: '15px', background: '#F0FFF4', borderLeft: '4px solid #38A169', borderRadius: '8px' }}>
+                                    <p style={{ margin: 0, fontSize: '0.9rem', color: '#2F855A', lineHeight: '1.5' }}>
+                                        <strong style={{ display: 'block', marginBottom: '5px' }}>💡 Solution / Description:</strong>
+                                        {q.explanation}
+                                    </p>
+                                </div>
+                            ) : null;
+                        })()}
+                    </div>
+                ))}
+            </div>
+
+            {!isPassed ? (
+                <button
+                    onClick={calculateScore}
+                    disabled={Object.keys(answers).length < quiz.questions.length || (submitted && !isFastTrack && currentScore < requiredScore && submitted)}
+                    style={{
+                        width: '100%',
+                        padding: '15px',
+                        marginTop: '40px',
+                        background: Object.keys(answers).length < quiz.questions.length ? '#cbd5e0' : '#6C63FF',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '12px',
+                        fontWeight: 'bold',
+                        cursor: 'pointer'
+                    }}
+                >
+                    {submitted ? 'Re-Submit Quiz' : 'Submit Answers'}
+                </button>
+            ) : (
+                <div style={{ marginTop: '40px', textAlign: 'center' }}>
+                    <div style={{ background: '#C6F6D5', color: '#22543D', padding: '15px', borderRadius: '12px', marginBottom: '20px', fontWeight: 'bold' }}>
+                        🎉 Congratulations! You passed with {currentScore}%.
+                    </div>
+                    <button
+                        onClick={onClose}
+                        style={{ width: '100%', padding: '15px', background: '#38A169', color: 'white', border: 'none', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer' }}
+                    >
+                        Close & Continue Learning
+                    </button>
+                </div>
+            )}
         </div>
     );
 };
