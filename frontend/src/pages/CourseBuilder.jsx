@@ -86,6 +86,7 @@ const CourseBuilder = ({ teacherId, onCourseCreated, initialCourse }) => {
         formData.append('title', contentData.title);
         formData.append('type', contentData.type);
         formData.append('description', contentData.description);
+        formData.append('minTime', contentData.minTime || 0);
         if (contentData.type === 'link') formData.append('url', contentData.url);
 
         try {
@@ -338,12 +339,14 @@ const ContentUploader = ({ onUpload }) => {
     const [title, setTitle] = useState('');
     const [file, setFile] = useState(null);
     const [url, setUrl] = useState('');
+    const [minTime, setMinTime] = useState(0);
 
     const handleSubmit = () => {
-        onUpload(file, { title, type, url });
+        onUpload(file, { title, type, url, minTime });
         setTitle('');
         setFile(null);
         setUrl('');
+        setMinTime(0);
     };
 
     return (
@@ -390,6 +393,18 @@ const ContentUploader = ({ onUpload }) => {
                         </div>
                     </div>
                 )}
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <label style={{ fontSize: '0.75rem', fontWeight: '700', color: '#4a5568', whiteSpace: 'nowrap' }}>Min Time (s):</label>
+                    <input
+                        type="number"
+                        placeholder="Seconds"
+                        value={minTime}
+                        onChange={e => setMinTime(e.target.value)}
+                        style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', width: '80px' }}
+                    />
+                </div>
+
                 <button
                     onClick={handleSubmit}
                     style={{ padding: '8px 16px', background: '#1a202c', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '600', cursor: 'pointer' }}

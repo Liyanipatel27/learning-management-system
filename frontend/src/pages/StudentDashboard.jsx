@@ -122,6 +122,34 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, onBack }) =
     const [selectedContent, setSelectedContent] = useState(null);
     const [studentProgress, setStudentProgress] = useState(null);
     const [activeQuiz, setActiveQuiz] = useState(null);
+    const [timeSpent, setTimeSpent] = useState(0);
+    const [isTimeRequirementMet, setIsTimeRequirementMet] = useState(false);
+
+    useEffect(() => {
+        if (selectedContent) {
+            setTimeSpent(0);
+            setIsTimeRequirementMet(false);
+
+            // If minTime is 0, requirement is immediately met
+            if (!selectedContent.minTime || selectedContent.minTime === 0) {
+                setIsTimeRequirementMet(true);
+                return;
+            }
+
+            const timer = setInterval(() => {
+                setTimeSpent(prev => {
+                    const next = prev + 1;
+                    if (next >= selectedContent.minTime) {
+                        setIsTimeRequirementMet(true);
+                        clearInterval(timer);
+                    }
+                    return next;
+                });
+            }, 1000);
+
+            return () => clearInterval(timer);
+        }
+    }, [selectedContent]);
 
     useEffect(() => {
         if (course) {
@@ -250,6 +278,13 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, onBack }) =
         return encodeURI(fullUrl);
     };
 
+    const toggleChapter = (chapterId) => {
+        setExpandedChapters(prev => ({
+            ...prev,
+            [chapterId]: !prev[chapterId]
+        }));
+    };
+
     return (
         <div style={{ background: 'white', padding: '20px', borderRadius: '15px' }}>
             <button onClick={onBack} style={{ marginBottom: '20px', border: 'none', background: 'transparent', color: '#666', cursor: 'pointer' }}>&larr; Back to Subjects</button>
@@ -320,12 +355,24 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, onBack }) =
                                                     {/* Quiz Buttons */}
                                                     {module.quiz?.questions?.length > 0 && (
                                                         <div style={{ display: 'flex', gap: '8px', marginBottom: '8px', padding: '5px' }}>
-                                                            <button
-                                                                onClick={() => setActiveQuiz({ module, isFastTrack: false })}
-                                                                style={{ flex: 1, padding: '6px', background: '#38A169', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer' }}
-                                                            >
-                                                                Take Quiz (Standard)
-                                                            </button>
+                                                            <div style={{ flex: 1, position: 'relative' }}>
+                                                                <button
+                                                                    onClick={() => isTimeRequirementMet ? setActiveQuiz({ module, isFastTrack: false }) : alert(`Please study for another ${selectedContent.minTime - timeSpent} seconds to unlock the standard quiz.`)}
+                                                                    style={{
+                                                                        width: '100%',
+                                                                        padding: '6px',
+                                                                        background: isTimeRequirementMet ? '#38A169' : '#cbd5e0',
+                                                                        color: 'white',
+                                                                        border: 'none',
+                                                                        borderRadius: '6px',
+                                                                        fontSize: '0.75rem',
+                                                                        fontWeight: 'bold',
+                                                                        cursor: isTimeRequirementMet ? 'pointer' : 'not-allowed'
+                                                                    }}
+                                                                >
+                                                                    {isTimeRequirementMet ? 'Take Quiz (Standard)' : `Locked (${selectedContent?.minTime - timeSpent}s)`}
+                                                                </button>
+                                                            </div>
                                                             <button
                                                                 onClick={() => setActiveQuiz({ module, isFastTrack: true })}
                                                                 style={{ flex: 1, padding: '6px', background: '#3182CE', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer' }}
@@ -408,6 +455,22 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, onBack }) =
                         />
                     ) : selectedContent ? (
                         <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                            {selectedContent.minTime > 0 && (
+                                <div style={{ marginBottom: '15px', padding: '12px', background: isTimeRequirementMet ? '#C6F6D5' : '#EBF8FF', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '15px' }}>
+                                    <div style={{ fontSize: '1.2rem' }}>{isTimeRequirementMet ? '✅' : '⏳'}</div>
+                                    <div style={{ flex: 1 }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                                            <span style={{ fontSize: '0.85rem', fontWeight: '700', color: isTimeRequirementMet ? '#22543D' : '#2A4365' }}>
+                                                {isTimeRequirementMet ? 'Time Requirement Met! You can now take the standard quiz.' : `Study Requirement: ${Math.max(0, selectedContent.minTime - timeSpent)}s remaining`}
+                                            </span>
+                                            <span style={{ fontSize: '0.85rem', color: '#718096' }}>{Math.min(100, Math.round((timeSpent / selectedContent.minTime) * 100))}%</span>
+                                        </div>
+                                        <div style={{ height: '6px', background: 'rgba(0,0,0,0.1)', borderRadius: '3px', overflow: 'hidden' }}>
+                                            <div style={{ height: '100%', width: `${Math.min(100, (timeSpent / selectedContent.minTime) * 100)}%`, background: isTimeRequirementMet ? '#38A169' : '#3182CE', transition: 'width 0.3s' }}></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                             <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <div>
                                     <h2 style={{ margin: 0, fontSize: '1.25rem', color: '#2d3748' }}>{selectedContent.title}</h2>

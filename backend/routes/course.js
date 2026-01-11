@@ -150,7 +150,7 @@ router.post('/:courseId/chapters/:chapterId/modules/:moduleId/content', upload.s
         const module = chapter.modules.id(req.params.moduleId);
         if (!module) return res.status(404).json({ message: 'Module not found' });
 
-        const { title, type, url: linkUrl, description } = req.body;
+        const { title, type, url: linkUrl, description, minTime } = req.body;
         let contentUrl = linkUrl;
         let originalName = '';
 
@@ -164,7 +164,8 @@ router.post('/:courseId/chapters/:chapterId/modules/:moduleId/content', upload.s
             type,
             url: contentUrl,
             originalName,
-            description
+            description,
+            minTime: Number(minTime) || 0
         });
 
         await course.save();

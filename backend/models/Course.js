@@ -5,7 +5,8 @@ const ContentSchema = new mongoose.Schema({
     type: { type: String, enum: ['video', 'image', 'pdf', 'doc', 'link', 'text'], required: true },
     url: { type: String }, // For files (path) or external links
     originalName: { type: String }, // Original file name
-    description: { type: String }
+    description: { type: String },
+    minTime: { type: Number, default: 0 } // Minimum read/watch time in seconds
 });
 
 const ModuleSchema = new mongoose.Schema({
