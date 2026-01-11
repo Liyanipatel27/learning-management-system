@@ -285,6 +285,14 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, onBack }) =
         }));
     };
 
+    const formatTime = (seconds) => {
+        if (seconds <= 0) return '0s';
+        const m = Math.floor(seconds / 60);
+        const s = seconds % 60;
+        if (m > 0) return `${m}m ${s}s`;
+        return `${s}s`;
+    };
+
     return (
         <div style={{ background: 'white', padding: '20px', borderRadius: '15px' }}>
             <button onClick={onBack} style={{ marginBottom: '20px', border: 'none', background: 'transparent', color: '#666', cursor: 'pointer' }}>&larr; Back to Subjects</button>
@@ -370,7 +378,7 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, onBack }) =
                                                                         cursor: isTimeRequirementMet ? 'pointer' : 'not-allowed'
                                                                     }}
                                                                 >
-                                                                    {isTimeRequirementMet ? 'Take Quiz (Standard)' : `Locked (${selectedContent?.minTime - timeSpent}s)`}
+                                                                    {isTimeRequirementMet ? 'Take Quiz (Standard)' : `Locked (${formatTime(selectedContent?.minTime - timeSpent)})`}
                                                                 </button>
                                                             </div>
                                                             <button
@@ -461,7 +469,7 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, onBack }) =
                                     <div style={{ flex: 1 }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
                                             <span style={{ fontSize: '0.85rem', fontWeight: '700', color: isTimeRequirementMet ? '#22543D' : '#2A4365' }}>
-                                                {isTimeRequirementMet ? 'Time Requirement Met! You can now take the standard quiz.' : `Study Requirement: ${Math.max(0, selectedContent.minTime - timeSpent)}s remaining`}
+                                                {isTimeRequirementMet ? 'Time Requirement Met! You can now take the standard quiz.' : `Study Requirement: ${formatTime(Math.max(0, selectedContent.minTime - timeSpent))} remaining`}
                                             </span>
                                             <span style={{ fontSize: '0.85rem', color: '#718096' }}>{Math.min(100, Math.round((timeSpent / selectedContent.minTime) * 100))}%</span>
                                         </div>

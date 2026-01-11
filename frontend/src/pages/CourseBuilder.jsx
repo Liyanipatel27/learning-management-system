@@ -86,7 +86,7 @@ const CourseBuilder = ({ teacherId, onCourseCreated, initialCourse }) => {
         formData.append('title', contentData.title);
         formData.append('type', contentData.type);
         formData.append('description', contentData.description);
-        formData.append('minTime', contentData.minTime || 0);
+        formData.append('minTime', (contentData.minTime || 0) * 60); // Convert minutes to seconds
         if (contentData.type === 'link') formData.append('url', contentData.url);
 
         try {
@@ -395,10 +395,11 @@ const ContentUploader = ({ onUpload }) => {
                 )}
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <label style={{ fontSize: '0.75rem', fontWeight: '700', color: '#4a5568', whiteSpace: 'nowrap' }}>Min Time (s):</label>
+                    <label style={{ fontSize: '0.75rem', fontWeight: '700', color: '#4a5568', whiteSpace: 'nowrap' }}>Min Time (m):</label>
                     <input
                         type="number"
-                        placeholder="Seconds"
+                        step="0.1"
+                        placeholder="Minutes"
                         value={minTime}
                         onChange={e => setMinTime(e.target.value)}
                         style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', width: '80px' }}
