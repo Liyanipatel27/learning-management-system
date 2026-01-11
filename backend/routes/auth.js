@@ -4,7 +4,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
-const JWT_SECRET = 'your_super_secret_key_change_in_production'; // Best practice: put in .env
+const JWT_SECRET = process.env.JWT_SECRET || 'your_super_secret_key_change_in_production'; // Best practice: put in .env
 
 // Register Route
 router.post('/register', async (req, res) => {

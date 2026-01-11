@@ -16,7 +16,7 @@ function StudentDashboard() {
         try {
             // In a real app, this might be /api/courses/enrolled or similar
             // For now, fetching all courses
-            const res = await axios.get('http://localhost:5000/api/courses');
+            const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/courses`);
             setCourses(res.data);
         } catch (err) {
             console.error(err);
@@ -133,7 +133,7 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, onBack }) =
         if (!course || !user.id && !user._id) return;
         try {
             const studentId = user.id || user._id;
-            const res = await axios.get(`http://localhost:5000/api/courses/${course._id}/progress/${studentId}`);
+            const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/courses/${course._id}/progress/${studentId}`);
             setStudentProgress(res.data);
         } catch (err) {
             console.error('Error fetching progress:', err);
@@ -143,7 +143,7 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, onBack }) =
     const refreshCourse = async () => {
         if (!course) return;
         try {
-            const res = await axios.get(`http://localhost:5000/api/courses/${course._id}`);
+            const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/courses/${course._id}`);
             const updatedCourse = res.data;
             setCourses(prev => prev.map(c => c._id === updatedCourse._id ? updatedCourse : c));
             setSelectedCourse(updatedCourse);
@@ -201,7 +201,7 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, onBack }) =
     const handleQuizSubmission = async (moduleId, score, isFastTrack, onFail) => {
         try {
             const studentId = JSON.parse(localStorage.getItem('user') || '{}').id || JSON.parse(localStorage.getItem('user') || '{}')._id;
-            const res = await axios.post(`http://localhost:5000/api/courses/${course._id}/modules/${moduleId}/submit-quiz`, {
+            const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/courses/${course._id}/modules/${moduleId}/submit-quiz`, {
                 studentId,
                 score,
                 isFastTrack
@@ -245,7 +245,7 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, onBack }) =
     const getContentUrl = (url) => {
         if (!url) return '';
         if (url.startsWith('http')) return url;
-        const fullUrl = `http://localhost:5000${url}`;
+        const fullUrl = `${import.meta.env.VITE_API_URL}${url}`;
         // Encode URI to handle spaces and special characters in filenames
         return encodeURI(fullUrl);
     };

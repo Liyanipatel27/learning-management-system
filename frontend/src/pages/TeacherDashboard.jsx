@@ -19,7 +19,7 @@ function TeacherDashboard() {
 
     const fetchCourses = async (userId) => {
         try {
-            const res = await axios.get(`http://localhost:5000/api/courses/teacher/${userId}`);
+            const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/courses/teacher/${userId}`);
             setCourses(res.data);
         } catch (err) {
             console.error(err);
@@ -30,7 +30,7 @@ function TeacherDashboard() {
         e.stopPropagation(); // Prevent opening the course builder
         if (!window.confirm('Are you sure you want to delete this course? This will remove all chapters and modules.')) return;
         try {
-            await axios.delete(`http://localhost:5000/api/courses/${courseId}`);
+            await axios.delete(`${import.meta.env.VITE_API_URL}/api/courses/${courseId}`);
             fetchCourses(user.id || user._id);
         } catch (err) {
             console.error(err);

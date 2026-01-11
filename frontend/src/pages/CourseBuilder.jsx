@@ -26,7 +26,7 @@ const CourseBuilder = ({ teacherId, onCourseCreated, initialCourse }) => {
             return;
         }
         try {
-            const res = await axios.post('http://localhost:5000/api/courses/create', { ...courseData, teacherId });
+            const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/courses/create`, { ...courseData, teacherId });
             setCurrentCourseId(res.data._id);
             setChapters(res.data.chapters || []); // Load existing chapters if any
             setStep(2);
@@ -39,7 +39,7 @@ const CourseBuilder = ({ teacherId, onCourseCreated, initialCourse }) => {
 
     const addChapter = async (title) => {
         try {
-            const res = await axios.post(`http://localhost:5000/api/courses/${currentCourseId}/chapters`, { title });
+            const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/courses/${currentCourseId}/chapters`, { title });
             // Refresh local state
             setChapters(res.data.chapters); // Backend returns updated course
         } catch (err) {
@@ -50,7 +50,7 @@ const CourseBuilder = ({ teacherId, onCourseCreated, initialCourse }) => {
 
     const addModule = async (chapterId, title) => {
         try {
-            const res = await axios.post(`http://localhost:5000/api/courses/${currentCourseId}/chapters/${chapterId}/modules`, { title });
+            const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/courses/${currentCourseId}/chapters/${chapterId}/modules`, { title });
             setChapters(res.data.chapters); // Backend returns updated course
         } catch (err) {
             console.error(err);
@@ -61,7 +61,7 @@ const CourseBuilder = ({ teacherId, onCourseCreated, initialCourse }) => {
     const deleteChapter = async (chapterId) => {
         if (!window.confirm('Are you sure you want to delete this chapter? All modules inside will be lost.')) return;
         try {
-            const res = await axios.delete(`http://localhost:5000/api/courses/${currentCourseId}/chapters/${chapterId}`);
+            const res = await axios.delete(`${import.meta.env.VITE_API_URL}/api/courses/${currentCourseId}/chapters/${chapterId}`);
             setChapters(res.data.chapters);
         } catch (err) {
             console.error(err);
@@ -72,7 +72,7 @@ const CourseBuilder = ({ teacherId, onCourseCreated, initialCourse }) => {
     const deleteModule = async (chapterId, moduleId) => {
         if (!window.confirm('Are you sure you want to delete this module?')) return;
         try {
-            const res = await axios.delete(`http://localhost:5000/api/courses/${currentCourseId}/chapters/${chapterId}/modules/${moduleId}`);
+            const res = await axios.delete(`${import.meta.env.VITE_API_URL}/api/courses/${currentCourseId}/chapters/${chapterId}/modules/${moduleId}`);
             setChapters(res.data.chapters);
         } catch (err) {
             console.error(err);
@@ -89,7 +89,7 @@ const CourseBuilder = ({ teacherId, onCourseCreated, initialCourse }) => {
         if (contentData.type === 'link') formData.append('url', contentData.url);
 
         try {
-            const res = await axios.post(`http://localhost:5000/api/courses/${currentCourseId}/chapters/${chapterId}/modules/${moduleId}/content`, formData, {
+            const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/courses/${currentCourseId}/chapters/${chapterId}/modules/${moduleId}/content`, formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
             alert('Content added successfully!');
@@ -256,7 +256,7 @@ const CourseBuilder = ({ teacherId, onCourseCreated, initialCourse }) => {
                                                             key={i}
                                                             onClick={() => {
                                                                 if (!c.url) return;
-                                                                const fullUrl = c.url.startsWith('http') ? c.url : `http://localhost:5000${c.url}`;
+                                                                const fullUrl = c.url.startsWith('http') ? c.url : `${import.meta.env.VITE_API_URL}${c.url}`;
                                                                 window.open(encodeURI(fullUrl), '_blank');
                                                             }}
                                                             style={{
@@ -307,7 +307,7 @@ const CourseBuilder = ({ teacherId, onCourseCreated, initialCourse }) => {
                             onClose={() => setEditingQuiz(null)}
                             onSave={async (quizData) => {
                                 try {
-                                    const res = await axios.post(`http://localhost:5000/api/courses/${currentCourseId}/chapters/${editingQuiz.chapterId}/modules/${editingQuiz.moduleId}/quiz`, quizData);
+                                    const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/courses/${currentCourseId}/chapters/${editingQuiz.chapterId}/modules/${editingQuiz.moduleId}/quiz`, quizData);
                                     setChapters(res.data.chapters);
                                     setEditingQuiz(null);
                                     alert('Quiz saved successfully!');
