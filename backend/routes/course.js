@@ -251,4 +251,74 @@ router.post('/:courseId/modules/:moduleId/submit-quiz', async (req, res) => {
     }
 });
 
+// Delete a course
+router.delete('/:courseId', async (req, res) => {
+    console.log('DELETE Course hit:', req.params.courseId);
+    try {
+        const course = await Course.findByIdAndDelete(req.params.courseId);
+        if (!course) {
+            console.log('Course not found for deletion:', req.params.courseId);
+            return res.status(404).json({ message: 'Course not found' });
+        }
+
+        // Also clean up any associated progress records (optional but good practice)
+        await Progress.deleteMany({ course: req.params.courseId });
+
+        console.log('Course deleted successfully');
+        res.json({ message: 'Course deleted successfully' });
+    } catch (err) {
+        console.error('DELETE Course error:', err);
+        res.status(500).json({ message: err.message });
+    }
+});
+
+// Delete a chapter
+router.delete('/:courseId/chapters/:chapterId', async (req, res) => {
+    try {
+        const course = await Course.findById(req.params.courseId);
+        if (!course) return res.status(404).json({ message: 'Course not found' });
+
+        const chapter = course.chapters.id(req.params.chapterId);
+        if (!chapter) return res.status(404).json({ message: 'Chapter not found' });
+
+        course.chapters.pull(req.params.chapterId);
+        await course.save();
+        res.json(course);
+    } catch (err) {
+        res.status(400).json({ message: err.message });
+    }
+});
+
+// Delete a module
+router.delete('/:courseId/chapters/:chapterId/modules/:moduleId', async (req, res) => {
+    console.log('DELETE Module hit:', req.params);
+    try {
+        const course = await Course.findById(req.params.courseId);
+        if (!course) {
+            console.log('Course not found for module deletion');
+            return res.status(404).json({ message: 'Course not found' });
+        }
+
+        const chapter = course.chapters.id(req.params.chapterId);
+        if (!chapter) {
+            console.log('Chapter not found for module deletion');
+            return res.status(404).json({ message: 'Chapter not found' });
+        }
+
+        const module = chapter.modules.id(req.params.moduleId);
+        if (!module) {
+            console.log('Module not found for deletion');
+            return res.status(404).json({ message: 'Module not found' });
+        }
+
+        chapter.modules.pull(req.params.moduleId);
+        await course.save();
+        console.log('Module deleted successfully');
+        res.json(course);
+    } catch (err) {
+        console.error('DELETE Module error:', err);
+        res.status(400).json({ message: err.message });
+    }
+});
+
 module.exports = router;

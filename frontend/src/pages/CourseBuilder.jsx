@@ -58,6 +58,28 @@ const CourseBuilder = ({ teacherId, onCourseCreated, initialCourse }) => {
         }
     };
 
+    const deleteChapter = async (chapterId) => {
+        if (!window.confirm('Are you sure you want to delete this chapter? All modules inside will be lost.')) return;
+        try {
+            const res = await axios.delete(`http://localhost:5000/api/courses/${currentCourseId}/chapters/${chapterId}`);
+            setChapters(res.data.chapters);
+        } catch (err) {
+            console.error(err);
+            alert('Error deleting chapter');
+        }
+    };
+
+    const deleteModule = async (chapterId, moduleId) => {
+        if (!window.confirm('Are you sure you want to delete this module?')) return;
+        try {
+            const res = await axios.delete(`http://localhost:5000/api/courses/${currentCourseId}/chapters/${chapterId}/modules/${moduleId}`);
+            setChapters(res.data.chapters);
+        } catch (err) {
+            console.error(err);
+            alert('Error deleting module');
+        }
+    };
+
     const uploadContent = async (chapterId, moduleId, file, contentData) => {
         const formData = new FormData();
         formData.append('file', file);
@@ -167,7 +189,14 @@ const CourseBuilder = ({ teacherId, onCourseCreated, initialCourse }) => {
                                         <span style={{ background: '#6366f1', color: 'white', width: '24px', height: '24px', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem' }}>{idx + 1}</span>
                                         {chapter.title}
                                     </h4>
-                                    <div style={{ display: 'flex', gap: '10px' }}>
+                                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                                        <div
+                                            onClick={() => deleteChapter(chapter._id)}
+                                            style={{ color: '#f87171', padding: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                                            title="Delete Chapter"
+                                        >
+                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                                        </div>
                                         <input
                                             id={`new-mod-${chapter._id}`}
                                             type="text"
@@ -191,7 +220,16 @@ const CourseBuilder = ({ teacherId, onCourseCreated, initialCourse }) => {
                                         <div key={module._id} style={{ background: '#fcfcfd', border: '1px solid #f1f5f9', borderRadius: '16px', padding: '20px' }}>
                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
                                                 <h5 style={{ margin: 0, fontSize: '1rem', fontWeight: '600', color: '#4a5568' }}>{module.title}</h5>
-                                                <span style={{ fontSize: '0.75rem', fontWeight: '700', color: '#6366f1', background: 'rgba(99, 102, 241, 0.05)', padding: '2px 8px', borderRadius: '4px' }}>MODULE</span>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    <span style={{ fontSize: '0.75rem', fontWeight: '700', color: '#6366f1', background: 'rgba(99, 102, 241, 0.05)', padding: '2px 8px', borderRadius: '4px' }}>MODULE</span>
+                                                    <div
+                                                        onClick={() => deleteModule(chapter._id, module._id)}
+                                                        style={{ color: '#f87171', padding: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                                                        title="Delete Module"
+                                                    >
+                                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                                                    </div>
+                                                </div>
                                             </div>
 
                                             <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>

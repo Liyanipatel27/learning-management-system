@@ -26,6 +26,18 @@ function TeacherDashboard() {
         }
     };
 
+    const deleteCourse = async (courseId, e) => {
+        e.stopPropagation(); // Prevent opening the course builder
+        if (!window.confirm('Are you sure you want to delete this course? This will remove all chapters and modules.')) return;
+        try {
+            await axios.delete(`http://localhost:5000/api/courses/${courseId}`);
+            fetchCourses(user.id || user._id);
+        } catch (err) {
+            console.error(err);
+            alert('Error deleting course');
+        }
+    };
+
     const handleLogout = () => {
         localStorage.removeItem('user');
         localStorage.removeItem('token');
@@ -188,7 +200,16 @@ function TeacherDashboard() {
                                             <div style={{ background: 'rgba(99, 102, 241, 0.1)', color: '#6366f1', padding: '4px 12px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: '700' }}>
                                                 Development
                                             </div>
-                                            <div style={{ color: '#cbd5e0' }}>
+                                            <div style={{ color: '#cbd5e0', display: 'flex', gap: '8px' }}>
+                                                <div
+                                                    onClick={(e) => deleteCourse(course._id, e)}
+                                                    style={{ color: '#f87171', padding: '4px', borderRadius: '4px', cursor: 'pointer', transition: 'background 0.2s' }}
+                                                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(248, 113, 113, 0.1)'}
+                                                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                                    title="Delete Course"
+                                                >
+                                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                                                </div>
                                                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" /></svg>
                                             </div>
                                         </div>
