@@ -18,6 +18,13 @@ function Register() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+
+        // Frontend validation for @gmail.com
+        if (!formData.email.toLowerCase().endsWith('@gmail.com')) {
+            alert('Invalid email. Please use a valid @gmail.com address.');
+            return;
+        }
+
         setLoading(true);
         try {
             await axios.post(`${import.meta.env.VITE_API_URL}/api/auth/register`, formData);

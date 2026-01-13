@@ -11,6 +11,11 @@ router.post('/register', async (req, res) => {
     try {
         const { name, email, password, role } = req.body;
 
+        // Email validation: restrict to @gmail.com
+        if (!email || !email.toLowerCase().endsWith('@gmail.com')) {
+            return res.status(400).json({ message: 'Invalid email. Only @gmail.com addresses are allowed.' });
+        }
+
         // Check if user exists
         const existingUser = await User.findOne({ email });
         if (existingUser) {
