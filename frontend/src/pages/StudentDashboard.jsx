@@ -184,7 +184,72 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, onBack }) =
     const handleTakeQuiz = async (module, isFastTrack) => {
         const latestCourse = await refreshCourse();
         const latestModule = latestCourse?.chapters.flatMap(c => c.modules).find(m => m._id === module._id) || module;
-        setActiveQuiz({ module: latestModule, isFastTrack });
+
+        // --- Weighted-Difficulty Selection Logic ---
+        const allQuestions = latestModule.quiz?.questions || [];
+        const quizSize = latestModule.quizConfig?.questionsPerAttempt || 10;
+
+        if (allQuestions.length === 0) {
+            setActiveQuiz({ module: latestModule, isFastTrack });
+            return;
+        }
+
+        // Group by difficulty
+        const pools = {
+            easy: allQuestions.filter(q => q.difficulty === 'easy'),
+            medium: allQuestions.filter(q => q.difficulty === 'medium'),
+            hard: allQuestions.filter(q => q.difficulty === 'hard')
+        };
+
+        // Shuffle all pools initially to get random selection
+        const shuffleArray = (array) => [...array].sort(() => Math.random() - 0.5);
+        Object.keys(pools).forEach(key => pools[key] = shuffleArray(pools[key]));
+
+        let selected = [];
+        if (isFastTrack) {
+            // Fast Track Ratio: 60% Medium, 40% Hard (as per user request: "50-60 medium, 50-40 hard")
+            const medCount = Math.round(quizSize * 0.6);
+            const hardCount = quizSize - medCount;
+
+            selected = [...pools.medium.slice(0, medCount), ...pools.hard.slice(0, hardCount)];
+
+            // If still short, fill from anywhere available
+            if (selected.length < quizSize) {
+                const remaining = allQuestions.filter(q => !selected.find(s => s._id === q._id));
+                selected = [...selected, ...shuffleArray(remaining).slice(0, quizSize - selected.length)];
+            }
+        } else {
+            // Standard Ratio: 40% Easy, 50% Medium, 10% Hard
+            const easyCount = Math.round(quizSize * 0.4);
+            const medCount = Math.round(quizSize * 0.5);
+            const hardCount = quizSize - easyCount - medCount;
+
+            selected = [
+                ...pools.easy.slice(0, easyCount),
+                ...pools.medium.slice(0, medCount),
+                ...pools.hard.slice(0, hardCount)
+            ];
+
+            // Safety Fill: If any category was empty, fill with randoms from pool
+            if (selected.length < quizSize) {
+                const remaining = allQuestions.filter(q => !selected.find(s => s._id === q._id));
+                selected = [...selected, ...shuffleArray(remaining).slice(0, quizSize - selected.length)];
+            }
+        }
+
+        // Final shuffle of the selected subset
+        const finalQuestions = shuffleArray(selected).slice(0, quizSize);
+
+        // Create a 'virtual' module for the QuizViewer so it only sees the selected questions
+        const virtualModule = {
+            ...latestModule,
+            quiz: {
+                ...latestModule.quiz,
+                questions: finalQuestions
+            }
+        };
+
+        setActiveQuiz({ module: virtualModule, isFastTrack });
     };
 
     useEffect(() => {

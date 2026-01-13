@@ -61,22 +61,29 @@ router.post('/:courseId/chapters/:chapterId/modules/:moduleId/quiz', async (req,
         const module = chapter.modules.id(req.params.moduleId);
         if (!module) return res.status(404).json({ message: 'Module not found' });
 
-        console.log('Incoming Quiz Data:', req.body);
+        const { questions, quizConfig, passingScore, fastTrackScore } = req.body;
+
         module.quiz = {
-            questions: req.body.questions.map(q => ({
+            questions: questions.map(q => ({
                 question: q.question,
                 options: q.options,
                 correctAnswerIndex: q.correctAnswerIndex,
-                explanation: q.explanation // Explicitly map to be sure
+                explanation: q.explanation || '',
+                difficulty: q.difficulty || 'easy'
             })),
-            passingScore: req.body.passingScore || 70,
-            fastTrackScore: req.body.fastTrackScore || 85
+            passingScore: passingScore || 70,
+            fastTrackScore: fastTrackScore || 85
         };
+
+        if (quizConfig) {
+            module.quizConfig = {
+                questionsPerAttempt: Number(quizConfig.questionsPerAttempt) || 10
+            };
+        }
 
         await course.save();
         res.json(course);
     } catch (err) {
-        console.error('Quiz Save Error:', err);
         res.status(400).json({ message: err.message });
     }
 });

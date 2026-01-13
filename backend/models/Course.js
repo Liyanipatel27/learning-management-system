@@ -9,18 +9,24 @@ const ContentSchema = new mongoose.Schema({
     minTime: { type: Number, default: 0 } // Minimum read/watch time in seconds
 });
 
+const QuestionSchema = new mongoose.Schema({
+    question: { type: String, required: true },
+    options: [{ type: String, required: true }],
+    correctAnswerIndex: { type: Number, required: true }, // Index of the correct option in the options array
+    explanation: { type: String },
+    difficulty: { type: String, enum: ['easy', 'medium', 'hard'], default: 'easy' }
+});
+
 const ModuleSchema = new mongoose.Schema({
     title: { type: String, required: true },
     contents: [ContentSchema],
     quiz: {
-        questions: [{
-            question: String,
-            options: [String],
-            correctAnswerIndex: Number,
-            explanation: String
-        }],
+        questions: [QuestionSchema],
         passingScore: { type: Number, default: 70 },
         fastTrackScore: { type: Number, default: 85 }
+    },
+    quizConfig: {
+        questionsPerAttempt: { type: Number, default: 10 }
     }
 });
 
