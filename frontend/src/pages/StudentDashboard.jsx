@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { jsPDF } from 'jspdf';
+import 'jspdf-autotable';
 
 function StudentDashboard() {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -56,6 +58,7 @@ function StudentDashboard() {
                     <nav>
                         <div className={`nav-item ${activeTab === 'dashboard' && !selectedCourse ? 'active' : ''}`} onClick={() => { setActiveTab('dashboard'); setSelectedCourse(null); }}>Dashboard</div>
                         <div className={`nav-item ${activeTab === 'my-courses' ? 'active' : ''}`} onClick={() => { setActiveTab('my-courses'); setSelectedCourse(null); }}>My Courses</div>
+                        <div className={`nav-item ${activeTab === 'certificates' ? 'active' : ''}`} onClick={() => { setActiveTab('certificates'); setSelectedCourse(null); }}>Certificates</div>
                         <div className="nav-item" onClick={() => alert('Assignments Module Coming Soon!')}>Assignments</div>
                         <div className="nav-item" onClick={() => alert('Grades Module Coming Soon!')}>Grades</div>
                         <div className="nav-item" onClick={() => alert('Profile Module Coming Soon!')}>Profile</div>
@@ -74,8 +77,14 @@ function StudentDashboard() {
                 {!isCinemaMode && (
                     <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
                         <div>
-                            <h1 style={{ fontSize: '2rem', color: '#2D3748' }}>{activeTab === 'dashboard' ? 'Dashboard' : 'My Courses'}</h1>
-                            <p style={{ color: '#718096' }}>{activeTab === 'dashboard' ? `Welcome back, ${user.name}!` : 'Track your learning progress'}</p>
+                            <h1 style={{ fontSize: '2rem', color: '#2D3748' }}>
+                                {activeTab === 'dashboard' ? 'Dashboard' :
+                                    activeTab === 'my-courses' ? 'My Courses' : 'My Certificates'}
+                            </h1>
+                            <p style={{ color: '#718096' }}>
+                                {activeTab === 'dashboard' ? `Welcome back, ${user.name}!` :
+                                    activeTab === 'my-courses' ? 'Track your learning progress' : 'Download your earned certifications'}
+                            </p>
                         </div>
                         <div className="user-profile" style={{ display: 'flex', alignItems: 'center' }}>
                             <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#6C63FF', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
@@ -135,11 +144,17 @@ function StudentDashboard() {
                             </div>
                         </section>
                     </>
-                ) : (
+                ) : activeTab === 'my-courses' ? (
                     <MyCoursesSection
                         courses={courses}
                         allProgress={allProgress}
                         onSelectCourse={(course) => setSelectedCourse(course)}
+                    />
+                ) : (
+                    <CertificatesSection
+                        courses={courses}
+                        allProgress={allProgress}
+                        user={user}
                     />
                 )}
             </main>
@@ -1086,3 +1101,154 @@ const QuizViewer = ({ quiz, isFastTrack, alreadyPassed, onSubmit, onClose }) => 
 };
 
 export default StudentDashboard;
+
+const generateCertificate = (studentName, courseName) => {
+    const doc = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4'
+    });
+
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+
+    // --- Border & Background ---
+    doc.setDrawColor(74, 85, 104); // Dark border
+    doc.setLineWidth(5);
+    doc.rect(5, 5, pageWidth - 10, pageHeight - 10);
+
+    doc.setDrawColor(108, 99, 255); // Inner purple border
+    doc.setLineWidth(1);
+    doc.rect(10, 10, pageWidth - 20, pageHeight - 20);
+
+    // --- Header ---
+    doc.setTextColor(108, 99, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(40);
+    doc.text('CERTIFICATE OF COMPLETION', pageWidth / 2, 45, { align: 'center' });
+
+    doc.setTextColor(74, 85, 104);
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'normal');
+    doc.text('This is to certify that', pageWidth / 2, 70, { align: 'center' });
+
+    // --- Student Name ---
+    doc.setTextColor(0, 0, 0);
+    doc.setFont('helvetica', 'bolditalic');
+    doc.setFontSize(35);
+    doc.text(studentName.toUpperCase(), pageWidth / 2, 95, { align: 'center' });
+
+    // --- Body ---
+    doc.setTextColor(74, 85, 104);
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'normal');
+    doc.text('has successfully completed the course', pageWidth / 2, 115, { align: 'center' });
+
+    // --- Course Name ---
+    doc.setTextColor(108, 99, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(26);
+    doc.text(courseName, pageWidth / 2, 135, { align: 'center' });
+
+    // --- Footer & Date ---
+    doc.setTextColor(113, 128, 150);
+    doc.setFontSize(12);
+    const date = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+    doc.text(`Issued on: ${date}`, pageWidth / 2, 160, { align: 'center' });
+
+    // --- Signature ---
+    doc.setDrawColor(203, 213, 224);
+    doc.line(pageWidth / 2 - 30, 185, pageWidth / 2 + 30, 185);
+    doc.setFontSize(10);
+    doc.text('Authorized Signature', pageWidth / 2, 192, { align: 'center' });
+
+    // --- ID Placeholder ---
+    const certId = 'CERT-' + Math.random().toString(36).substr(2, 9).toUpperCase();
+    doc.setFontSize(8);
+    doc.text(`Verify at: lms.example.com/verify | ID: ${certId}`, 15, pageHeight - 15);
+
+    doc.save(`${studentName}_${courseName}_Certificate.pdf`);
+};
+
+const CertificatesSection = ({ courses, allProgress, user }) => {
+    const checkCompletion = (course) => {
+        const progress = allProgress.find(p => p.course.toString() === course._id.toString());
+        if (!progress) return 0;
+
+        const allContents = course.chapters.flatMap(c => c.modules.flatMap(m => m.contents));
+        if (allContents.length === 0) return 0;
+
+        const completedContentsCount = allContents.filter(content =>
+            progress.contentProgress?.some(cp => cp.contentId.toString() === content._id.toString() && cp.isCompleted)
+        ).length;
+
+        return Math.round((completedContentsCount / allContents.length) * 100);
+    };
+
+    const completedCourses = courses.filter(course => {
+        const percent = checkCompletion(course);
+        return percent === 100 && course.chapters.flatMap(c => c.modules).length > 0;
+    });
+
+    return (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '25px' }}>
+            {completedCourses.length > 0 ? (
+                completedCourses.map(course => (
+                    <div
+                        key={course._id}
+                        style={{
+                            background: 'white',
+                            padding: '25px',
+                            borderRadius: '15px',
+                            boxShadow: '0 4px 6px rgba(0,0,0,0.05)',
+                            border: '1px solid #edf2f7',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            textAlign: 'center'
+                        }}
+                    >
+                        <div style={{ fontSize: '3rem', marginBottom: '15px' }}>🏆</div>
+                        <h3 style={{ margin: '0 0 10px 0', fontSize: '1.2rem', color: '#2d3748' }}>{course.subject}</h3>
+                        <p style={{ fontSize: '0.85rem', color: '#718096', marginBottom: '20px' }}>
+                            Congratulations! You have successfully mastered this course.
+                        </p>
+                        <button
+                            onClick={() => generateCertificate(user.name, course.subject)}
+                            style={{
+                                background: '#6C63FF',
+                                color: 'white',
+                                border: 'none',
+                                padding: '10px 20px',
+                                borderRadius: '8px',
+                                cursor: 'pointer',
+                                fontWeight: 'bold',
+                                width: '100%',
+                                transition: 'background 0.2s'
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.background = '#5A52E5'}
+                            onMouseLeave={e => e.currentTarget.style.background = '#6C63FF'}
+                        >
+                            Download Certificate (PDF)
+                        </button>
+                    </div>
+                ))
+            ) : (
+                <div style={{
+                    gridColumn: '1 / -1',
+                    padding: '60px',
+                    textAlign: 'center',
+                    background: '#fff',
+                    borderRadius: '15px',
+                    border: '2px dashed #edf2f7'
+                }}>
+                    <div style={{ fontSize: '3rem', marginBottom: '20px' }}>🎓</div>
+                    <h3 style={{ color: '#2d3748', marginBottom: '10px' }}>No Certificates Yet</h3>
+                    <p style={{ color: '#a0aec0', margin: 0 }}>
+                        Complete all modules and quizzes in a course to unlock your official certificate.
+                    </p>
+                </div>
+            )}
+        </div>
+    );
+};
