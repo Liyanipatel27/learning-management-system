@@ -63,7 +63,7 @@ router.post('/:courseId/chapters/:chapterId/modules/:moduleId/quiz', async (req,
             module.quizConfig = {
                 questionsPerAttempt: Number(quizConfig.questionsPerAttempt) || 10,
                 questionsPerAttemptStandard: Number(quizConfig.questionsPerAttemptStandard) || Number(quizConfig.questionsPerAttempt) || 10,
-                questionsPerAttemptFastTrack: Number(quizConfig.questionsPerAttemptFastTrack) || Number(quizConfig.questionsPerAttempt) || 10
+                questionsPerAttemptFastTrack: Number(quizConfig.questionsPerAttemptFastTrack) || Number(quizConfig.questionsPerAttempt) || 5
             };
         }
 

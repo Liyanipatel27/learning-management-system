@@ -436,7 +436,11 @@ const QuizEditor = ({ chapterId, moduleId, quiz, quizConfig, onSave, onClose }) 
     }]);
     const [passingScore, setPassingScore] = useState(quiz?.passingScore || 70);
     const [fastTrackScore, setFastTrackScore] = useState(quiz?.fastTrackScore || 85);
-    const [quizConfiguration, setQuizConfiguration] = useState(quizConfig || { questionsPerAttempt: 10 });
+    const [quizConfiguration, setQuizConfiguration] = useState({
+        questionsPerAttempt: quizConfig?.questionsPerAttempt || 10,
+        questionsPerAttemptStandard: quizConfig?.questionsPerAttemptStandard || quizConfig?.questionsPerAttempt || 10,
+        questionsPerAttemptFastTrack: quizConfig?.questionsPerAttemptFastTrack || quizConfig?.questionsPerAttempt || 5
+    });
     const [showExplanation, setShowExplanation] = useState({}); // Track which explanation is visible
 
     const handleQuestionChange = (index, field, value) => {
@@ -467,18 +471,22 @@ const QuizEditor = ({ chapterId, moduleId, quiz, quizConfig, onSave, onClose }) 
                     <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }}>&times;</button>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '20px', marginBottom: '32px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '15px', marginBottom: '32px' }}>
                     <div>
-                        <label style={{ display: 'block', fontSize: '0.9rem', fontWeight: '600', marginBottom: '8px' }}>Standard Passing Score (%)</label>
+                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', marginBottom: '8px' }}>Standard Passing Score (%)</label>
                         <input type="number" value={passingScore} onChange={e => setPassingScore(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
                     </div>
                     <div>
-                        <label style={{ display: 'block', fontSize: '0.9rem', fontWeight: '600', marginBottom: '8px' }}>Fast Track Score (%)</label>
+                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', marginBottom: '8px' }}>Fast Track Score (%)</label>
                         <input type="number" value={fastTrackScore} onChange={e => setFastTrackScore(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
                     </div>
                     <div>
-                        <label style={{ display: 'block', fontSize: '0.9rem', fontWeight: '600', marginBottom: '8px' }}>Questions Per Attempt</label>
-                        <input type="number" value={quizConfiguration.questionsPerAttempt} onChange={e => setQuizConfiguration({ ...quizConfiguration, questionsPerAttempt: e.target.value })} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
+                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', marginBottom: '8px' }}>Standard Qs</label>
+                        <input type="number" value={quizConfiguration.questionsPerAttemptStandard} onChange={e => setQuizConfiguration({ ...quizConfiguration, questionsPerAttemptStandard: e.target.value })} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} title="Questions for Standard Attempt" />
+                    </div>
+                    <div>
+                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', marginBottom: '8px' }}>Fast Track Qs</label>
+                        <input type="number" value={quizConfiguration.questionsPerAttemptFastTrack} onChange={e => setQuizConfiguration({ ...quizConfiguration, questionsPerAttemptFastTrack: e.target.value })} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }} title="Questions for Fast Track Attempt" />
                     </div>
                 </div>
 

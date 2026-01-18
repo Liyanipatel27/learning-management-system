@@ -187,7 +187,9 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, onBack }) =
 
         // --- Weighted-Difficulty Selection Logic ---
         const allQuestions = latestModule.quiz?.questions || [];
-        const quizSize = latestModule.quizConfig?.questionsPerAttempt || 10;
+        const quizSize = isFastTrack ?
+            (latestModule.quizConfig?.questionsPerAttemptFastTrack || latestModule.quizConfig?.questionsPerAttempt || 5) :
+            (latestModule.quizConfig?.questionsPerAttemptStandard || latestModule.quizConfig?.questionsPerAttempt || 10);
 
         if (allQuestions.length === 0) {
             setActiveQuiz({ module: latestModule, isFastTrack });
