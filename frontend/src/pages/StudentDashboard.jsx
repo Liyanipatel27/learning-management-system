@@ -692,6 +692,62 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
                         />
                     ) : selectedContent ? (
                         <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                            {/* Course Wide Progress Bar */}
+                            <div style={{ marginBottom: '20px', padding: '15px', background: 'white', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', alignItems: 'center' }}>
+                                    <span style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#4a5568' }}>Course Overall Progress</span>
+                                    <span style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#6C63FF' }}>
+                                        {(() => {
+                                            const allC = course.chapters?.flatMap(c => c.modules?.flatMap(m => m.contents) || []) || [];
+                                            const allQ = course.chapters?.flatMap(c => c.modules || []).filter(m => m.quiz?.questions?.length > 0) || [];
+                                            const total = allC.length + allQ.length;
+                                            if (total === 0) return 0;
+
+                                            let points = 0;
+                                            allC.forEach(content => {
+                                                const cp = studentProgress?.contentProgress?.find(p => p.contentId?.toString() === content._id?.toString());
+                                                if (cp) {
+                                                    if (cp.isCompleted) points += 1;
+                                                    else if (content.minTime > 0) points += Math.min(0.9, cp.timeSpent / content.minTime);
+                                                    else if (cp.timeSpent > 0) points += 0.1;
+                                                }
+                                            });
+                                            const passedQ = allQ.filter(m => studentProgress?.completedModules?.some(cm => cm.moduleId?.toString() === m._id?.toString())).length;
+                                            points += passedQ;
+
+                                            return Math.min(100, Math.round((points / total) * 100));
+                                        })()}%
+                                    </span>
+                                </div>
+                                <div style={{ height: '10px', background: '#edf2f7', borderRadius: '5px', overflow: 'hidden' }}>
+                                    <div style={{
+                                        height: '100%',
+                                        width: `${(() => {
+                                            const allC = course.chapters?.flatMap(c => c.modules?.flatMap(m => m.contents) || []) || [];
+                                            const allQ = course.chapters?.flatMap(c => c.modules || []).filter(m => m.quiz?.questions?.length > 0) || [];
+                                            const total = allC.length + allQ.length;
+                                            if (total === 0) return 0;
+
+                                            let points = 0;
+                                            allC.forEach(content => {
+                                                const cp = studentProgress?.contentProgress?.find(p => p.contentId?.toString() === content._id?.toString());
+                                                if (cp) {
+                                                    if (cp.isCompleted) points += 1;
+                                                    else if (content.minTime > 0) points += Math.min(0.9, cp.timeSpent / content.minTime);
+                                                    else if (cp.timeSpent > 0) points += 0.1;
+                                                }
+                                            });
+                                            const passedQ = allQ.filter(m => studentProgress?.completedModules?.some(cm => cm.moduleId?.toString() === m._id?.toString())).length;
+                                            points += passedQ;
+
+                                            return Math.min(100, Math.round((points / total) * 100));
+                                        })()}%`,
+                                        background: 'linear-gradient(90deg, #6C63FF, #3182CE)',
+                                        transition: 'width 0.5s ease-out'
+                                    }}></div>
+                                </div>
+                            </div>
+
                             {!isTabActive && !isTimeRequirementMet && (
                                 <div style={{
                                     padding: '10px',
@@ -838,17 +894,32 @@ const MyCoursesSection = ({ courses, allProgress, onSelectCourse }) => {
         const progress = allProgress.find(p => p.course.toString() === course._id.toString());
         if (!progress) return { percent: 0, hasActivity: false };
 
-        const allContents = course.chapters.flatMap(c => c.modules.flatMap(m => m.contents));
-        if (allContents.length === 0) return { percent: 0, hasActivity: false };
+        const allContents = course.chapters?.flatMap(c => c.modules?.flatMap(m => m.contents) || []) || [];
+        const allQuizzes = course.chapters?.flatMap(c => c.modules || []).filter(m => m.quiz?.questions?.length > 0) || [];
 
-        const completedContentsCount = allContents.filter(content =>
-            progress.contentProgress?.some(cp => cp.contentId.toString() === content._id.toString() && cp.isCompleted)
+        const totalItems = allContents.length + allQuizzes.length;
+        if (totalItems === 0) return { percent: 0, hasActivity: false };
+
+        let totalPoints = 0;
+        allContents.forEach(content => {
+            const cp = progress.contentProgress?.find(p => p.contentId?.toString() === content._id?.toString());
+            if (cp) {
+                if (cp.isCompleted) totalPoints += 1;
+                else if (content.minTime > 0) totalPoints += Math.min(0.9, cp.timeSpent / content.minTime);
+                else if (cp.timeSpent > 0) totalPoints += 0.1;
+            }
+        });
+
+        const passedQuizzes = allQuizzes.filter(module =>
+            progress.completedModules?.some(cm => cm.moduleId?.toString() === module._id?.toString())
         ).length;
+        totalPoints += passedQuizzes;
 
         const hasAnyTimeSpent = progress.contentProgress?.some(cp => cp.timeSpent > 0);
-        const percent = Math.round((completedContentsCount / allContents.length) * 100);
+        const hasAnyQuizAttempt = progress.completedModules?.length > 0;
+        const percent = Math.min(100, Math.round((totalPoints / totalItems) * 100));
 
-        return { percent, hasActivity: hasAnyTimeSpent || percent > 0 };
+        return { percent, hasActivity: hasAnyTimeSpent || hasAnyQuizAttempt || percent > 0 };
     };
 
     const categorizedCourses = courses.reduce((acc, course) => {
