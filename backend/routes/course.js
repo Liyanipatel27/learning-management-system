@@ -2,26 +2,10 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
+const { storage } = require('../config/cloudinary');
 const Course = require('../models/Course');
 const Progress = require('../models/Progress');
 const fs = require('fs');
-
-// Ensure uploads directory exists
-const uploadDir = path.join(__dirname, '../uploads');
-if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir, { recursive: true });
-}
-
-// Multer Storage Configuration
-const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        cb(null, uploadDir);
-    },
-    filename: function (req, file, cb) {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, uniqueSuffix + '-' + file.originalname);
-    }
-});
 
 const upload = multer({ storage: storage });
 
@@ -77,7 +61,9 @@ router.post('/:courseId/chapters/:chapterId/modules/:moduleId/quiz', async (req,
 
         if (quizConfig) {
             module.quizConfig = {
-                questionsPerAttempt: Number(quizConfig.questionsPerAttempt) || 10
+                questionsPerAttempt: Number(quizConfig.questionsPerAttempt) || 10,
+                questionsPerAttemptStandard: Number(quizConfig.questionsPerAttemptStandard) || Number(quizConfig.questionsPerAttempt) || 10,
+                questionsPerAttemptFastTrack: Number(quizConfig.questionsPerAttemptFastTrack) || Number(quizConfig.questionsPerAttempt) || 10
             };
         }
 
@@ -162,7 +148,7 @@ router.post('/:courseId/chapters/:chapterId/modules/:moduleId/content', upload.s
         let originalName = '';
 
         if (req.file) {
-            contentUrl = '/uploads/' + req.file.filename;
+            contentUrl = req.file.path; // Cloudinary returns the full URL in .path
             originalName = req.file.originalname;
         }
 

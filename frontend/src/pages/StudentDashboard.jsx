@@ -430,7 +430,7 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, onBack }) =
                                                         <div style={{ display: 'flex', gap: '8px', marginBottom: '8px', padding: '5px' }}>
                                                             <div style={{ flex: 1, position: 'relative' }}>
                                                                 <button
-                                                                    onClick={() => isTimeRequirementMet ? setActiveQuiz({ module, isFastTrack: false }) : alert(`Please study for another ${selectedContent.minTime - timeSpent} seconds to unlock the standard quiz.`)}
+                                                                    onClick={() => isTimeRequirementMet ? handleTakeQuiz(module, false) : alert(`Please study for another ${selectedContent.minTime - timeSpent} seconds to unlock the standard quiz.`)}
                                                                     style={{
                                                                         width: '100%',
                                                                         padding: '6px',
@@ -447,7 +447,7 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, onBack }) =
                                                                 </button>
                                                             </div>
                                                             <button
-                                                                onClick={() => setActiveQuiz({ module, isFastTrack: true })}
+                                                                onClick={() => handleTakeQuiz(module, true)}
                                                                 style={{ flex: 1, padding: '6px', background: '#3182CE', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer' }}
                                                             >
                                                                 Fast Track (85%+)
@@ -594,6 +594,14 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, onBack }) =
                                             {selectedContent.url}
                                         </a>
                                     </div>
+                                ) : selectedContent.type === 'video' ? (
+                                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1, padding: '20px', background: '#000' }}>
+                                        <video
+                                            src={getContentUrl(selectedContent.url)}
+                                            controls
+                                            style={{ maxWidth: '100%', maxHeight: '100%' }}
+                                        />
+                                    </div>
                                 ) : selectedContent.type === 'image' ? (
                                     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1, padding: '20px', overflow: 'auto' }}>
                                         <img
@@ -604,9 +612,15 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, onBack }) =
                                     </div>
                                 ) : (
                                     <div style={{ padding: '60px', textAlign: 'center', color: '#718096', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                                        <div style={{ fontSize: '3rem', marginBottom: '20px' }}>📄</div>
-                                        <h3>Preview not available</h3>
-                                        <p style={{ marginBottom: '24px' }}>This file type ({selectedContent.type}) cannot be previewed directly.</p>
+                                        <div style={{ fontSize: '3rem', marginBottom: '20px' }}>
+                                            {selectedContent.type === 'doc' ? '📄' : '📦'}
+                                        </div>
+                                        <h3>{selectedContent.type === 'doc' ? 'Document Content' : 'Preview not available'}</h3>
+                                        <p style={{ marginBottom: '24px' }}>
+                                            {selectedContent.type === 'doc'
+                                                ? 'This document can be downloaded for viewing.'
+                                                : `This file type (${selectedContent.type}) cannot be previewed directly.`}
+                                        </p>
                                         <a
                                             href={getContentUrl(selectedContent.url)}
                                             target="_blank"
@@ -621,7 +635,7 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, onBack }) =
                                                 fontWeight: 'bold'
                                             }}
                                         >
-                                            Download / View File
+                                            {selectedContent.type === 'doc' ? 'Download Document' : 'Download / View File'}
                                         </a>
                                     </div>
                                 )}

@@ -26,7 +26,9 @@ const ModuleSchema = new mongoose.Schema({
         fastTrackScore: { type: Number, default: 85 }
     },
     quizConfig: {
-        questionsPerAttempt: { type: Number, default: 10 }
+        questionsPerAttempt: { type: Number, default: 10 },
+        questionsPerAttemptStandard: { type: Number, default: 10 },
+        questionsPerAttemptFastTrack: { type: Number, default: 5 }
     }
 });
 
