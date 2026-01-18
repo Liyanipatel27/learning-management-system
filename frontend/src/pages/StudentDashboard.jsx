@@ -307,8 +307,15 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, onBack }) =
                 fetchProgress(); // Refresh progress
                 // We keep activeQuiz open so they can see descriptions
             } else {
-                alert(`Score: ${score}%. Minimum required: ${res.data.requiredScore}%. Please update your answers and try again!`);
-                if (onFail) onFail(); // Reset submitted status in QuizViewer
+                alert(`Score: ${score}%. Minimum required: ${res.data.requiredScore}%. Try again with a new set of questions!`);
+
+                // Find original module to re-trigger shuffle
+                const originalModule = course.chapters.flatMap(c => c.modules).find(m => m._id === moduleId);
+                if (originalModule) {
+                    handleTakeQuiz(originalModule, isFastTrack);
+                } else if (onFail) {
+                    onFail(); // Fallback to just resetting UI if module not found
+                }
             }
         } catch (err) {
             console.error('Error submitting quiz:', err);
@@ -665,6 +672,10 @@ const QuizViewer = ({ quiz, isFastTrack, alreadyPassed, onSubmit, onClose }) => 
     useEffect(() => {
         console.log('Quiz Data received in Viewer:', quiz);
         console.log('Already Passed Status:', alreadyPassed);
+        // Reset state when new questions are loaded
+        setAnswers({});
+        setSubmitted(false);
+        setCurrentScore(0);
     }, [quiz, alreadyPassed]);
 
     const requiredScore = isFastTrack ? (quiz.fastTrackScore || 85) : (quiz.passingScore || 70);
