@@ -315,6 +315,16 @@ router.delete('/:courseId/chapters/:chapterId/modules/:moduleId', async (req, re
     }
 });
 
+// Get All Progress for a Student
+router.get('/progress/student/:studentId', async (req, res) => {
+    try {
+        const progress = await Progress.find({ student: req.params.studentId });
+        res.json(progress);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
 // Update Content Progress (Auto-save)
 router.post('/:courseId/contents/:contentId/progress', async (req, res) => {
     const { studentId, timeSpent, isCompleted } = req.body;

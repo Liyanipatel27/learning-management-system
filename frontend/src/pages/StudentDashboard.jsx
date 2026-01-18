@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
@@ -8,10 +8,28 @@ function StudentDashboard() {
     const [courses, setCourses] = useState([]);
     const [selectedCourse, setSelectedCourse] = useState(null);
     const [isCinemaMode, setIsCinemaMode] = useState(false);
+    const [activeTab, setActiveTab] = useState('dashboard');
+    const [allProgress, setAllProgress] = useState([]);
 
     useEffect(() => {
         fetchCourses();
     }, []);
+
+    useEffect(() => {
+        if (activeTab === 'my-courses') {
+            fetchAllProgress();
+        }
+    }, [activeTab]);
+
+    const fetchAllProgress = async () => {
+        try {
+            const studentId = user.id || user._id;
+            const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/courses/progress/student/${studentId}`);
+            setAllProgress(res.data);
+        } catch (err) {
+            console.error('Error fetching all progress:', err);
+        }
+    };
 
     const fetchCourses = async () => {
         try {
@@ -36,8 +54,8 @@ function StudentDashboard() {
                 <aside className="sidebar">
                     <h2 style={{ fontSize: '1.5rem', marginBottom: '30px', fontWeight: '700' }}>LMS Student</h2>
                     <nav>
-                        <div className={`nav-item ${!selectedCourse ? 'active' : ''}`} onClick={() => setSelectedCourse(null)}>Dashboard</div>
-                        <div className="nav-item" onClick={() => alert('Courses Module Coming Soon!')}>My Courses</div>
+                        <div className={`nav-item ${activeTab === 'dashboard' && !selectedCourse ? 'active' : ''}`} onClick={() => { setActiveTab('dashboard'); setSelectedCourse(null); }}>Dashboard</div>
+                        <div className={`nav-item ${activeTab === 'my-courses' ? 'active' : ''}`} onClick={() => { setActiveTab('my-courses'); setSelectedCourse(null); }}>My Courses</div>
                         <div className="nav-item" onClick={() => alert('Assignments Module Coming Soon!')}>Assignments</div>
                         <div className="nav-item" onClick={() => alert('Grades Module Coming Soon!')}>Grades</div>
                         <div className="nav-item" onClick={() => alert('Profile Module Coming Soon!')}>Profile</div>
@@ -56,8 +74,8 @@ function StudentDashboard() {
                 {!isCinemaMode && (
                     <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
                         <div>
-                            <h1 style={{ fontSize: '2rem', color: '#2D3748' }}>Dashboard</h1>
-                            <p style={{ color: '#718096' }}>Welcome back, {user.name}!</p>
+                            <h1 style={{ fontSize: '2rem', color: '#2D3748' }}>{activeTab === 'dashboard' ? 'Dashboard' : 'My Courses'}</h1>
+                            <p style={{ color: '#718096' }}>{activeTab === 'dashboard' ? `Welcome back, ${user.name}!` : 'Track your learning progress'}</p>
                         </div>
                         <div className="user-profile" style={{ display: 'flex', alignItems: 'center' }}>
                             <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#6C63FF', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
@@ -80,7 +98,7 @@ function StudentDashboard() {
                             setIsCinemaMode(false);
                         }}
                     />
-                ) : (
+                ) : activeTab === 'dashboard' ? (
                     <>
                         <section className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
                             {/* Card 1 */}
@@ -103,13 +121,11 @@ function StudentDashboard() {
                         </section>
 
                         <section style={{ marginTop: '40px' }}>
-                            <h2 style={{ fontSize: '1.2rem', marginBottom: '20px', color: '#2D3748' }}>Available Courses</h2>
+                            <h2 style={{ fontSize: '1.2rem', marginBottom: '20px', color: '#2D3748' }}>Explore Courses</h2>
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
                                 {courses.map(course => (
                                     <div key={course._id} style={{ background: 'white', padding: '20px', borderRadius: '15px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', cursor: 'pointer' }} onClick={() => setSelectedCourse(course)}>
                                         <h3 style={{ margin: '0 0 10px 0' }}>{course.subject}</h3>
-                                        {/* <p style={{ color: '#666', fontSize: '0.9rem' }}>{course.subject}</p> Removed redundant subject line */}
-                                        {/* <p style={{ fontSize: '0.8rem', color: '#888' }}>{course.description}</p> Removed description */}
                                         <div style={{ marginTop: '15px', fontSize: '0.8rem', color: '#555' }}>
                                             Teacher: {course.teacher?.name || 'Unknown'}
                                         </div>
@@ -119,6 +135,12 @@ function StudentDashboard() {
                             </div>
                         </section>
                     </>
+                ) : (
+                    <MyCoursesSection
+                        courses={courses}
+                        allProgress={allProgress}
+                        onSelectCourse={(course) => setSelectedCourse(course)}
+                    />
                 )}
             </main>
         </div>
@@ -133,7 +155,13 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
     const [studentProgress, setStudentProgress] = useState(null);
     const [activeQuiz, setActiveQuiz] = useState(null);
     const [timeSpent, setTimeSpent] = useState(0);
+    const timeSpentRef = useRef(0); // Add Ref to prevent stale closures
     const [isTimeRequirementMet, setIsTimeRequirementMet] = useState(false);
+
+    // Sync ref with state
+    useEffect(() => {
+        timeSpentRef.current = timeSpent;
+    }, [timeSpent]);
     const [isTabActive, setIsTabActive] = useState(true);
 
     // Visibility and Focus Tracking
@@ -167,10 +195,10 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
             const alreadyCompleted = existingProgress ? existingProgress.isCompleted : false;
 
             setTimeSpent(initialTime);
+            timeSpentRef.current = initialTime; // Sync ref immediately
 
             if (alreadyCompleted || !selectedContent.minTime || selectedContent.minTime === 0) {
                 setIsTimeRequirementMet(true);
-                // No need to start timer if already met
                 return;
             }
 
@@ -178,10 +206,11 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
 
             // 2. Start Timer
             const timer = setInterval(() => {
-                if (document.hidden || !document.hasFocus()) return; // Pause if tab is not active
+                if (document.hidden || !document.hasFocus()) return;
 
                 setTimeSpent(prev => {
                     const next = prev + 1;
+                    timeSpentRef.current = next; // Update ref immediately
                     if (next >= selectedContent.minTime) {
                         setIsTimeRequirementMet(true);
                     }
@@ -191,13 +220,13 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
 
             // 3. Periodic Auto-save (Every 10 seconds)
             const autoSaveTimer = setInterval(() => {
-                saveProgress(false);
+                saveProgress(false); // saveProgress will use the ref
             }, 10000);
 
             return () => {
                 clearInterval(timer);
                 clearInterval(autoSaveTimer);
-                // Final save on unmount or content change
+                // Save latest progress using the ref
                 saveProgress(false);
             };
         }
@@ -213,7 +242,6 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
     const saveProgress = async (forceCompleted = false) => {
         if (!selectedContent || !user || (!user.id && !user._id)) return;
 
-        // Don't save if already completed
         const isAlreadyDone = studentProgress?.contentProgress?.find(
             cp => cp.contentId.toString() === selectedContent._id.toString()
         )?.isCompleted;
@@ -222,21 +250,15 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
 
         try {
             const studentId = user.id || user._id;
-            const currentTimeSpent = parseInt(timeSpent); // Use latest value from ref or current closure
-            // Note: Since we're in a functional component, timeSpent in the interval cleanup 
-            // might be stale. We should use a ref if we want perfect closure-less values, 
-            // but for 10s intervals it's mostly fine or we can pass it as arg.
+            const timeToSave = timeSpentRef.current; // Use Ref for latest value
 
-            // To be safer, we'll use a functional update approach or just rely on state here.
-            // Since this is called from useEffect cleanup, let's be careful.
+            if (timeToSave === 0 && !forceCompleted) return; // Don't overwrite if we haven't tracked anything yet
 
             await axios.post(`${import.meta.env.VITE_API_URL}/api/courses/${course._id}/contents/${selectedContent._id}/progress`, {
                 studentId,
-                timeSpent: timeSpent, // This will be captured by the effect closure
-                isCompleted: forceCompleted || (timeSpent >= selectedContent.minTime)
+                timeSpent: timeToSave,
+                isCompleted: forceCompleted || (timeToSave >= selectedContent.minTime)
             });
-            // Optionally refresh progress silently
-            // fetchProgress(); 
         } catch (err) {
             console.error('Error auto-saving progress:', err);
         }
@@ -792,6 +814,124 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
                     )}
                 </div>
             </div>
+        </div>
+    );
+};
+
+const MyCoursesSection = ({ courses, allProgress, onSelectCourse }) => {
+    const calculateProgress = (course) => {
+        const progress = allProgress.find(p => p.course.toString() === course._id.toString());
+        if (!progress) return { percent: 0, hasActivity: false };
+
+        const allContents = course.chapters.flatMap(c => c.modules.flatMap(m => m.contents));
+        if (allContents.length === 0) return { percent: 0, hasActivity: false };
+
+        const completedContentsCount = allContents.filter(content =>
+            progress.contentProgress?.some(cp => cp.contentId.toString() === content._id.toString() && cp.isCompleted)
+        ).length;
+
+        const hasAnyTimeSpent = progress.contentProgress?.some(cp => cp.timeSpent > 0);
+        const percent = Math.round((completedContentsCount / allContents.length) * 100);
+
+        return { percent, hasActivity: hasAnyTimeSpent || percent > 0 };
+    };
+
+    const categorizedCourses = courses.reduce((acc, course) => {
+        const { percent, hasActivity } = calculateProgress(course);
+        const isCompleted = percent === 100 && course.chapters.flatMap(c => c.modules).length > 0;
+
+        if (hasActivity) {
+            if (isCompleted) {
+                acc.completed.push({ ...course, progressPercent: percent });
+            } else {
+                acc.inProgress.push({ ...course, progressPercent: percent });
+            }
+        }
+        return acc;
+    }, { inProgress: [], completed: [] });
+
+    const renderCourseCard = (course) => (
+        <div
+            key={course._id}
+            onClick={() => onSelectCourse(course)}
+            style={{
+                background: 'white',
+                padding: '20px',
+                borderRadius: '15px',
+                boxShadow: '0 4px 6px rgba(0,0,0,0.05)',
+                cursor: 'pointer',
+                border: '1px solid #edf2f7',
+                transition: 'transform 0.2s'
+            }}
+            onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-5px)'}
+            onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+        >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '15px' }}>
+                <h3 style={{ margin: 0, fontSize: '1.1rem', color: '#2d3748' }}>{course.subject}</h3>
+                <span style={{
+                    fontSize: '0.75rem',
+                    padding: '4px 8px',
+                    background: course.progressPercent === 100 ? '#C6F6D5' : '#EBF8FF',
+                    color: course.progressPercent === 100 ? '#22543D' : '#2A4365',
+                    borderRadius: '12px',
+                    fontWeight: 'bold'
+                }}>
+                    {course.progressPercent}%
+                </span>
+            </div>
+
+            <div style={{ height: '8px', background: '#edf2f7', borderRadius: '4px', overflow: 'hidden', marginBottom: '15px' }}>
+                <div style={{
+                    height: '100%',
+                    width: `${course.progressPercent}%`,
+                    background: course.progressPercent === 100 ? '#38A169' : '#6C63FF',
+                    transition: 'width 0.5s ease-out'
+                }}></div>
+            </div>
+
+            <div style={{ fontSize: '0.8rem', color: '#718096' }}>
+                Teacher: {course.teacher?.name || 'Unknown'}
+            </div>
+        </div>
+    );
+
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '40px' }}>
+            {/* In Progress Section */}
+            <section>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
+                    <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#6C63FF' }}></div>
+                    <h2 style={{ fontSize: '1.25rem', color: '#2d3748', margin: 0 }}>In Progress</h2>
+                    <span style={{ color: '#a0aec0', fontSize: '0.9rem' }}>({categorizedCourses.inProgress.length})</span>
+                </div>
+                {categorizedCourses.inProgress.length > 0 ? (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '25px' }}>
+                        {categorizedCourses.inProgress.map(renderCourseCard)}
+                    </div>
+                ) : (
+                    <div style={{ padding: '40px', textAlign: 'center', background: '#fff', borderRadius: '15px', border: '2px dashed #edf2f7' }}>
+                        <p style={{ color: '#a0aec0', margin: 0 }}>No courses in progress. Start learning from the Dashboard!</p>
+                    </div>
+                )}
+            </section>
+
+            {/* Completed Section */}
+            <section>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
+                    <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#38A169' }}></div>
+                    <h2 style={{ fontSize: '1.25rem', color: '#2d3748', margin: 0 }}>Completed</h2>
+                    <span style={{ color: '#a0aec0', fontSize: '0.9rem' }}>({categorizedCourses.completed.length})</span>
+                </div>
+                {categorizedCourses.completed.length > 0 ? (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '25px' }}>
+                        {categorizedCourses.completed.map(renderCourseCard)}
+                    </div>
+                ) : (
+                    <div style={{ padding: '40px', textAlign: 'center', background: '#fff', borderRadius: '15px', border: '2px dashed #edf2f7' }}>
+                        <p style={{ color: '#a0aec0', margin: 0 }}>No courses completed yet. Keep going! 🚀</p>
+                    </div>
+                )}
+            </section>
         </div>
     );
 };
