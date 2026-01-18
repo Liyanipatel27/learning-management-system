@@ -315,4 +315,54 @@ router.delete('/:courseId/chapters/:chapterId/modules/:moduleId', async (req, re
     }
 });
 
+// Update Content Progress (Auto-save)
+router.post('/:courseId/contents/:contentId/progress', async (req, res) => {
+    const { studentId, timeSpent, isCompleted } = req.body;
+    try {
+        let progress = await Progress.findOne({
+            course: req.params.courseId,
+            student: studentId
+        });
+
+        if (!progress) {
+            progress = new Progress({
+                course: req.params.courseId,
+                student: studentId,
+                completedModules: [],
+                contentProgress: []
+            });
+        }
+
+        const contentIndex = progress.contentProgress.findIndex(
+            cp => cp.contentId.toString() === req.params.contentId
+        );
+
+        if (contentIndex > -1) {
+            // Update existing progress
+            // Only update timeSpent if the new value is greater or it's not completed yet
+            if (!progress.contentProgress[contentIndex].isCompleted) {
+                progress.contentProgress[contentIndex].timeSpent = timeSpent;
+                progress.contentProgress[contentIndex].isCompleted = isCompleted;
+                progress.contentProgress[contentIndex].updatedAt = Date.now();
+            } else if (isCompleted) {
+                // Ensure it stays completed
+                progress.contentProgress[contentIndex].isCompleted = true;
+            }
+        } else {
+            // Add new content progress
+            progress.contentProgress.push({
+                contentId: req.params.contentId,
+                timeSpent,
+                isCompleted
+            });
+        }
+
+        progress.updatedAt = Date.now();
+        await progress.save();
+        res.json(progress);
+    } catch (err) {
+        res.status(400).json({ message: err.message });
+    }
+});
+
 module.exports = router;

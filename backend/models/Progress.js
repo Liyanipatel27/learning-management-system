@@ -9,6 +9,12 @@ const ProgressSchema = new mongoose.Schema({
         score: Number,
         isFastTracked: Boolean
     }],
+    contentProgress: [{
+        contentId: mongoose.Schema.Types.ObjectId,
+        timeSpent: { type: Number, default: 0 },
+        isCompleted: { type: Boolean, default: false },
+        updatedAt: { type: Date, default: Date.now }
+    }],
     lastAttemptedModule: mongoose.Schema.Types.ObjectId,
     updatedAt: { type: Date, default: Date.now }
 });

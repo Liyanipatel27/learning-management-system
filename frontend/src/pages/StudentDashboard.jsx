@@ -7,6 +7,7 @@ function StudentDashboard() {
     const navigate = useNavigate();
     const [courses, setCourses] = useState([]);
     const [selectedCourse, setSelectedCourse] = useState(null);
+    const [isCinemaMode, setIsCinemaMode] = useState(false);
 
     useEffect(() => {
         fetchCourses();
@@ -30,37 +31,41 @@ function StudentDashboard() {
     };
 
     return (
-        <div className="dashboard-container">
-            <aside className="sidebar">
-                <h2 style={{ fontSize: '1.5rem', marginBottom: '30px', fontWeight: '700' }}>LMS Student</h2>
-                <nav>
-                    <div className={`nav-item ${!selectedCourse ? 'active' : ''}`} onClick={() => setSelectedCourse(null)}>Dashboard</div>
-                    <div className="nav-item" onClick={() => alert('Courses Module Coming Soon!')}>My Courses</div>
-                    <div className="nav-item" onClick={() => alert('Assignments Module Coming Soon!')}>Assignments</div>
-                    <div className="nav-item" onClick={() => alert('Grades Module Coming Soon!')}>Grades</div>
-                    <div className="nav-item" onClick={() => alert('Profile Module Coming Soon!')}>Profile</div>
-                    <div
-                        className="nav-item"
-                        onClick={handleLogout}
-                        style={{ marginTop: '50px', cursor: 'pointer', borderTop: '1px solid rgba(255,255,255,0.2)' }}
-                    >
-                        Logout
-                    </div>
-                </nav>
-            </aside>
-
-            <main className="main-content">
-                <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
-                    <div>
-                        <h1 style={{ fontSize: '2rem', color: '#2D3748' }}>Dashboard</h1>
-                        <p style={{ color: '#718096' }}>Welcome back, {user.name}!</p>
-                    </div>
-                    <div className="user-profile" style={{ display: 'flex', alignItems: 'center' }}>
-                        <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#6C63FF', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
-                            {user.name ? user.name.charAt(0).toUpperCase() : 'U'}
+        <div className="dashboard-container" style={{ display: isCinemaMode ? 'block' : 'flex' }}>
+            {!isCinemaMode && (
+                <aside className="sidebar">
+                    <h2 style={{ fontSize: '1.5rem', marginBottom: '30px', fontWeight: '700' }}>LMS Student</h2>
+                    <nav>
+                        <div className={`nav-item ${!selectedCourse ? 'active' : ''}`} onClick={() => setSelectedCourse(null)}>Dashboard</div>
+                        <div className="nav-item" onClick={() => alert('Courses Module Coming Soon!')}>My Courses</div>
+                        <div className="nav-item" onClick={() => alert('Assignments Module Coming Soon!')}>Assignments</div>
+                        <div className="nav-item" onClick={() => alert('Grades Module Coming Soon!')}>Grades</div>
+                        <div className="nav-item" onClick={() => alert('Profile Module Coming Soon!')}>Profile</div>
+                        <div
+                            className="nav-item"
+                            onClick={handleLogout}
+                            style={{ marginTop: '50px', cursor: 'pointer', borderTop: '1px solid rgba(255,255,255,0.2)' }}
+                        >
+                            Logout
                         </div>
-                    </div>
-                </header>
+                    </nav>
+                </aside>
+            )}
+
+            <main className="main-content" style={{ marginLeft: isCinemaMode ? '0' : '280px', width: isCinemaMode ? '100%' : 'auto' }}>
+                {!isCinemaMode && (
+                    <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
+                        <div>
+                            <h1 style={{ fontSize: '2rem', color: '#2D3748' }}>Dashboard</h1>
+                            <p style={{ color: '#718096' }}>Welcome back, {user.name}!</p>
+                        </div>
+                        <div className="user-profile" style={{ display: 'flex', alignItems: 'center' }}>
+                            <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#6C63FF', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
+                                {user.name ? user.name.charAt(0).toUpperCase() : 'U'}
+                            </div>
+                        </div>
+                    </header>
+                )}
 
                 {selectedCourse ? (
                     <CourseViewer
@@ -68,7 +73,12 @@ function StudentDashboard() {
                         user={user}
                         setCourses={setCourses}
                         setSelectedCourse={setSelectedCourse}
-                        onBack={() => setSelectedCourse(null)}
+                        isCinemaMode={isCinemaMode}
+                        setIsCinemaMode={setIsCinemaMode}
+                        onBack={() => {
+                            setSelectedCourse(null);
+                            setIsCinemaMode(false);
+                        }}
                     />
                 ) : (
                     <>
@@ -115,7 +125,7 @@ function StudentDashboard() {
     );
 }
 
-const CourseViewer = ({ course, user, setCourses, setSelectedCourse, onBack }) => {
+const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMode, setIsCinemaMode, onBack }) => {
     // State to track expanded chapters and modules
     const [expandedChapters, setExpandedChapters] = useState({});
     const [expandedModules, setExpandedModules] = useState({});
@@ -124,32 +134,113 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, onBack }) =
     const [activeQuiz, setActiveQuiz] = useState(null);
     const [timeSpent, setTimeSpent] = useState(0);
     const [isTimeRequirementMet, setIsTimeRequirementMet] = useState(false);
+    const [isTabActive, setIsTabActive] = useState(true);
+
+    // Visibility and Focus Tracking
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            setIsTabActive(!document.hidden && document.hasFocus());
+        };
+
+        const handleFocus = () => setIsTabActive(true);
+        const handleBlur = () => setIsTabActive(false);
+
+        window.addEventListener('visibilitychange', handleVisibilityChange);
+        window.addEventListener('focus', handleFocus);
+        window.addEventListener('blur', handleBlur);
+
+        return () => {
+            window.removeEventListener('visibilitychange', handleVisibilityChange);
+            window.removeEventListener('focus', handleFocus);
+            window.removeEventListener('blur', handleBlur);
+        };
+    }, []);
 
     useEffect(() => {
-        if (selectedContent) {
-            setTimeSpent(0);
-            setIsTimeRequirementMet(false);
+        if (selectedContent && studentProgress) {
+            // 1. Initialize time spent from progress
+            const existingProgress = studentProgress.contentProgress?.find(
+                cp => cp.contentId.toString() === selectedContent._id.toString()
+            );
 
-            // If minTime is 0, requirement is immediately met
-            if (!selectedContent.minTime || selectedContent.minTime === 0) {
+            const initialTime = existingProgress ? existingProgress.timeSpent : 0;
+            const alreadyCompleted = existingProgress ? existingProgress.isCompleted : false;
+
+            setTimeSpent(initialTime);
+
+            if (alreadyCompleted || !selectedContent.minTime || selectedContent.minTime === 0) {
                 setIsTimeRequirementMet(true);
+                // No need to start timer if already met
                 return;
             }
 
+            setIsTimeRequirementMet(false);
+
+            // 2. Start Timer
             const timer = setInterval(() => {
+                if (document.hidden || !document.hasFocus()) return; // Pause if tab is not active
+
                 setTimeSpent(prev => {
                     const next = prev + 1;
                     if (next >= selectedContent.minTime) {
                         setIsTimeRequirementMet(true);
-                        clearInterval(timer);
                     }
                     return next;
                 });
             }, 1000);
 
-            return () => clearInterval(timer);
+            // 3. Periodic Auto-save (Every 10 seconds)
+            const autoSaveTimer = setInterval(() => {
+                saveProgress(false);
+            }, 10000);
+
+            return () => {
+                clearInterval(timer);
+                clearInterval(autoSaveTimer);
+                // Final save on unmount or content change
+                saveProgress(false);
+            };
         }
-    }, [selectedContent]);
+    }, [selectedContent, studentProgress]);
+
+    // Separate effect for completion save
+    useEffect(() => {
+        if (isTimeRequirementMet && selectedContent && !studentProgress?.contentProgress?.find(cp => cp.contentId === selectedContent._id)?.isCompleted) {
+            saveProgress(true);
+        }
+    }, [isTimeRequirementMet]);
+
+    const saveProgress = async (forceCompleted = false) => {
+        if (!selectedContent || !user || (!user.id && !user._id)) return;
+
+        // Don't save if already completed
+        const isAlreadyDone = studentProgress?.contentProgress?.find(
+            cp => cp.contentId.toString() === selectedContent._id.toString()
+        )?.isCompleted;
+
+        if (isAlreadyDone && !forceCompleted) return;
+
+        try {
+            const studentId = user.id || user._id;
+            const currentTimeSpent = parseInt(timeSpent); // Use latest value from ref or current closure
+            // Note: Since we're in a functional component, timeSpent in the interval cleanup 
+            // might be stale. We should use a ref if we want perfect closure-less values, 
+            // but for 10s intervals it's mostly fine or we can pass it as arg.
+
+            // To be safer, we'll use a functional update approach or just rely on state here.
+            // Since this is called from useEffect cleanup, let's be careful.
+
+            await axios.post(`${import.meta.env.VITE_API_URL}/api/courses/${course._id}/contents/${selectedContent._id}/progress`, {
+                studentId,
+                timeSpent: timeSpent, // This will be captured by the effect closure
+                isCompleted: forceCompleted || (timeSpent >= selectedContent.minTime)
+            });
+            // Optionally refresh progress silently
+            // fetchProgress(); 
+        } catch (err) {
+            console.error('Error auto-saving progress:', err);
+        }
+    };
 
     useEffect(() => {
         if (course) {
@@ -369,162 +460,189 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, onBack }) =
 
     return (
         <div style={{ background: 'white', padding: '20px', borderRadius: '15px' }}>
-            <button onClick={onBack} style={{ marginBottom: '20px', border: 'none', background: 'transparent', color: '#666', cursor: 'pointer' }}>&larr; Back to Subjects</button>
-            <h1 style={{ fontSize: '2rem', marginBottom: '10px' }}>Subject: {course.subject}</h1>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <button onClick={onBack} style={{ border: 'none', background: 'transparent', color: '#666', cursor: 'pointer' }}>&larr; Back to Subjects</button>
+                <button
+                    onClick={() => setIsCinemaMode(!isCinemaMode)}
+                    style={{
+                        padding: '8px 16px',
+                        background: isCinemaMode ? '#FFD700' : '#4A5568',
+                        color: isCinemaMode ? '#000' : '#fff',
+                        border: 'none',
+                        borderRadius: '8px',
+                        fontWeight: 'bold',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                    }}
+                >
+                    {isCinemaMode ? '📺 Exit Cinema Mode' : '🎬 Cinema Mode (Full Width)'}
+                </button>
+            </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '350px 1fr', gap: '30px', marginTop: '20px' }}>
-                <div className="course-sidebar" style={{ maxHeight: 'calc(100vh - 250px)', overflowY: 'auto', paddingRight: '10px' }}>
-                    {course.chapters.map(chapter => (
-                        <div key={chapter._id} style={{ marginBottom: '10px', border: '1px solid #eee', borderRadius: '8px', overflow: 'hidden' }}>
-                            {/* Chapter Header */}
-                            <div
-                                onClick={() => toggleChapter(chapter._id)}
-                                style={{
-                                    padding: '12px 15px',
-                                    background: '#f8f9fa',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    justifyContent: 'space-between',
-                                    alignItems: 'center',
-                                    fontWeight: 'bold',
-                                    fontSize: '0.9rem'
-                                }}
-                            >
-                                <span>{chapter.title}</span>
-                                <span style={{ fontSize: '0.8rem' }}>{expandedChapters[chapter._id] ? '▲' : '▼'}</span>
-                            </div>
+            {!isCinemaMode && <h1 style={{ fontSize: '2rem', marginBottom: '10px' }}>Subject: {course.subject}</h1>}
 
-                            {/* Modules List (shown if chapter expanded) */}
-                            {expandedChapters[chapter._id] && (
-                                <div style={{ padding: '10px' }}>
-                                    {chapter.modules.map(module => (
-                                        <div key={module._id} style={{ marginBottom: '10px' }}>
-                                            {/* Module Header */}
-                                            <div
-                                                onClick={() => {
-                                                    // Check if module is locked
-                                                    const isLocked = checkIsLocked(chapter, module);
-                                                    if (isLocked) {
-                                                        alert('🔒 This module is locked. Please pass the previous module quiz first!');
-                                                        return;
-                                                    }
-                                                    toggleModule(module._id);
-                                                }}
-                                                style={{
-                                                    cursor: 'pointer',
-                                                    color: checkIsLocked(chapter, module) ? '#cbd5e0' : '#444',
-                                                    fontWeight: '600',
-                                                    padding: '8px',
-                                                    borderLeft: `3px solid ${checkIsLocked(chapter, module) ? '#edf2f7' : '#6C63FF'}`,
-                                                    background: expandedModules[module._id] ? '#f0efff' : '#fff',
-                                                    marginBottom: '5px',
-                                                    fontSize: '0.85rem',
-                                                    display: 'flex',
-                                                    justifyContent: 'space-between',
-                                                    alignItems: 'center'
-                                                }}
-                                            >
-                                                <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                    {checkIsLocked(chapter, module) && '🔒'}
-                                                    {module.title}
-                                                </span>
-                                                <span style={{ fontSize: '0.7rem' }}>{expandedModules[module._id] ? '▲' : '▼'}</span>
-                                            </div>
+            <div style={{
+                display: 'grid',
+                gridTemplateColumns: isCinemaMode ? '1fr' : '350px 1fr',
+                gap: '30px',
+                marginTop: '20px'
+            }}>
+                {!isCinemaMode && (
+                    <div className="course-sidebar" style={{ maxHeight: 'calc(100vh - 250px)', overflowY: 'auto', paddingRight: '10px' }}>
+                        {course.chapters.map(chapter => (
+                            <div key={chapter._id} style={{ marginBottom: '10px', border: '1px solid #eee', borderRadius: '8px', overflow: 'hidden' }}>
+                                {/* Chapter Header */}
+                                <div
+                                    onClick={() => toggleChapter(chapter._id)}
+                                    style={{
+                                        padding: '12px 15px',
+                                        background: '#f8f9fa',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        fontWeight: 'bold',
+                                        fontSize: '0.9rem'
+                                    }}
+                                >
+                                    <span>{chapter.title}</span>
+                                    <span style={{ fontSize: '0.8rem' }}>{expandedChapters[chapter._id] ? '▲' : '▼'}</span>
+                                </div>
 
-                                            {/* Content List (shown if module expanded) */}
-                                            {expandedModules[module._id] && (
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', paddingLeft: '10px' }}>
-                                                    {/* Quiz Buttons */}
-                                                    {module.quiz?.questions?.length > 0 && (
-                                                        <div style={{ display: 'flex', gap: '8px', marginBottom: '8px', padding: '5px' }}>
-                                                            <div style={{ flex: 1, position: 'relative' }}>
+                                {/* Modules List (shown if chapter expanded) */}
+                                {expandedChapters[chapter._id] && (
+                                    <div style={{ padding: '10px' }}>
+                                        {chapter.modules.map(module => (
+                                            <div key={module._id} style={{ marginBottom: '10px' }}>
+                                                {/* Module Header */}
+                                                <div
+                                                    onClick={() => {
+                                                        // Check if module is locked
+                                                        const isLocked = checkIsLocked(chapter, module);
+                                                        if (isLocked) {
+                                                            alert('🔒 This module is locked. Please pass the previous module quiz first!');
+                                                            return;
+                                                        }
+                                                        toggleModule(module._id);
+                                                    }}
+                                                    style={{
+                                                        cursor: 'pointer',
+                                                        color: checkIsLocked(chapter, module) ? '#cbd5e0' : '#444',
+                                                        fontWeight: '600',
+                                                        padding: '8px',
+                                                        borderLeft: `3px solid ${checkIsLocked(chapter, module) ? '#edf2f7' : '#6C63FF'}`,
+                                                        background: expandedModules[module._id] ? '#f0efff' : '#fff',
+                                                        marginBottom: '5px',
+                                                        fontSize: '0.85rem',
+                                                        display: 'flex',
+                                                        justifyContent: 'space-between',
+                                                        alignItems: 'center'
+                                                    }}
+                                                >
+                                                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                        {checkIsLocked(chapter, module) && '🔒'}
+                                                        {module.title}
+                                                    </span>
+                                                    <span style={{ fontSize: '0.7rem' }}>{expandedModules[module._id] ? '▲' : '▼'}</span>
+                                                </div>
+
+                                                {/* Content List (shown if module expanded) */}
+                                                {expandedModules[module._id] && (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', paddingLeft: '10px' }}>
+                                                        {/* Quiz Buttons */}
+                                                        {module.quiz?.questions?.length > 0 && (
+                                                            <div style={{ display: 'flex', gap: '8px', marginBottom: '8px', padding: '5px' }}>
+                                                                <div style={{ flex: 1, position: 'relative' }}>
+                                                                    <button
+                                                                        onClick={() => isTimeRequirementMet ? handleTakeQuiz(module, false) : alert(`Please study for another ${selectedContent.minTime - timeSpent} seconds to unlock the standard quiz.`)}
+                                                                        style={{
+                                                                            width: '100%',
+                                                                            padding: '6px',
+                                                                            background: isTimeRequirementMet ? '#38A169' : '#cbd5e0',
+                                                                            color: 'white',
+                                                                            border: 'none',
+                                                                            borderRadius: '6px',
+                                                                            fontSize: '0.75rem',
+                                                                            fontWeight: 'bold',
+                                                                            cursor: isTimeRequirementMet ? 'pointer' : 'not-allowed'
+                                                                        }}
+                                                                    >
+                                                                        {isTimeRequirementMet ? 'Take Quiz (Standard)' : `Locked (${formatTime(selectedContent?.minTime - timeSpent)})`}
+                                                                    </button>
+                                                                </div>
                                                                 <button
-                                                                    onClick={() => isTimeRequirementMet ? handleTakeQuiz(module, false) : alert(`Please study for another ${selectedContent.minTime - timeSpent} seconds to unlock the standard quiz.`)}
-                                                                    style={{
-                                                                        width: '100%',
-                                                                        padding: '6px',
-                                                                        background: isTimeRequirementMet ? '#38A169' : '#cbd5e0',
-                                                                        color: 'white',
-                                                                        border: 'none',
-                                                                        borderRadius: '6px',
-                                                                        fontSize: '0.75rem',
-                                                                        fontWeight: 'bold',
-                                                                        cursor: isTimeRequirementMet ? 'pointer' : 'not-allowed'
-                                                                    }}
+                                                                    onClick={() => handleTakeQuiz(module, true)}
+                                                                    style={{ flex: 1, padding: '6px', background: '#3182CE', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer' }}
                                                                 >
-                                                                    {isTimeRequirementMet ? 'Take Quiz (Standard)' : `Locked (${formatTime(selectedContent?.minTime - timeSpent)})`}
+                                                                    Fast Track (85%+)
                                                                 </button>
                                                             </div>
-                                                            <button
-                                                                onClick={() => handleTakeQuiz(module, true)}
-                                                                style={{ flex: 1, padding: '6px', background: '#3182CE', color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer' }}
-                                                            >
-                                                                Fast Track (85%+)
-                                                            </button>
-                                                        </div>
-                                                    )}
+                                                        )}
 
-                                                    {module.contents.map(content => (
-                                                        <div
-                                                            key={content._id}
-                                                            onClick={() => {
-                                                                if (checkIsLocked(chapter, module)) {
-                                                                    alert('🔒 This module is locked.');
-                                                                    return;
-                                                                }
-                                                                setSelectedContent(content);
-                                                            }}
-                                                            style={{
-                                                                display: 'flex',
-                                                                alignItems: 'center',
-                                                                gap: '10px',
-                                                                padding: '8px 12px',
-                                                                background: selectedContent?._id === content._id ? '#6C63FF' : '#f8f9fa',
-                                                                color: selectedContent?._id === content._id ? 'white' : '#4a5568',
-                                                                borderRadius: '6px',
-                                                                cursor: 'pointer',
-                                                                fontSize: '0.8rem',
-                                                                transition: 'all 0.2s',
-                                                                border: '1px solid transparent'
-                                                            }}
-                                                            onMouseEnter={(e) => {
-                                                                if (selectedContent?._id !== content._id) {
-                                                                    e.currentTarget.style.background = '#edf2f7';
-                                                                }
-                                                            }}
-                                                            onMouseLeave={(e) => {
-                                                                if (selectedContent?._id !== content._id) {
-                                                                    e.currentTarget.style.background = '#f8f9fa';
-                                                                }
-                                                            }}
-                                                        >
-                                                            <span style={{
-                                                                fontWeight: 'bold',
-                                                                fontSize: '0.6rem',
-                                                                padding: '2px 5px',
-                                                                borderRadius: '3px',
-                                                                background: selectedContent?._id === content._id ? 'rgba(255,255,255,0.2)' : '#e2e8f0',
-                                                                textTransform: 'uppercase'
-                                                            }}>
-                                                                {content.type}
-                                                            </span>
-                                                            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                                {content.title}
-                                                            </span>
-                                                        </div>
-                                                    ))}
-                                                    {module.contents.length === 0 && <span style={{ color: '#aaa', fontSize: '0.75rem', padding: '5px' }}>No content.</span>}
-                                                </div>
-                                            )}
-                                        </div>
-                                    ))}
-                                    {chapter.modules.length === 0 && <div style={{ color: '#aaa', fontStyle: 'italic', fontSize: '0.8rem' }}>No modules.</div>}
-                                </div>
-                            )}
-                        </div>
-                    ))}
-                    {course.chapters.length === 0 && <p>No chapters in this subject yet.</p>}
-                </div>
+                                                        {module.contents.map(content => (
+                                                            <div
+                                                                key={content._id}
+                                                                onClick={() => {
+                                                                    if (checkIsLocked(chapter, module)) {
+                                                                        alert('🔒 This module is locked.');
+                                                                        return;
+                                                                    }
+                                                                    setSelectedContent(content);
+                                                                }}
+                                                                style={{
+                                                                    display: 'flex',
+                                                                    alignItems: 'center',
+                                                                    gap: '10px',
+                                                                    padding: '8px 12px',
+                                                                    background: selectedContent?._id === content._id ? '#6C63FF' : '#f8f9fa',
+                                                                    color: selectedContent?._id === content._id ? 'white' : '#4a5568',
+                                                                    borderRadius: '6px',
+                                                                    cursor: 'pointer',
+                                                                    fontSize: '0.8rem',
+                                                                    transition: 'all 0.2s',
+                                                                    border: '1px solid transparent'
+                                                                }}
+                                                                onMouseEnter={(e) => {
+                                                                    if (selectedContent?._id !== content._id) {
+                                                                        e.currentTarget.style.background = '#edf2f7';
+                                                                    }
+                                                                }}
+                                                                onMouseLeave={(e) => {
+                                                                    if (selectedContent?._id !== content._id) {
+                                                                        e.currentTarget.style.background = '#f8f9fa';
+                                                                    }
+                                                                }}
+                                                            >
+                                                                <span style={{
+                                                                    fontWeight: 'bold',
+                                                                    fontSize: '0.6rem',
+                                                                    padding: '2px 5px',
+                                                                    borderRadius: '3px',
+                                                                    background: selectedContent?._id === content._id ? 'rgba(255,255,255,0.2)' : '#e2e8f0',
+                                                                    textTransform: 'uppercase'
+                                                                }}>
+                                                                    {content.type}
+                                                                </span>
+                                                                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                                    {content.title}
+                                                                </span>
+                                                            </div>
+                                                        ))}
+                                                        {module.contents.length === 0 && <span style={{ color: '#aaa', fontSize: '0.75rem', padding: '5px' }}>No content.</span>}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                        {chapter.modules.length === 0 && <div style={{ color: '#aaa', fontStyle: 'italic', fontSize: '0.8rem' }}>No modules.</div>}
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                        {course.chapters.length === 0 && <p>No chapters in this subject yet.</p>}
+                    </div>
+                )}
 
                 <div className="content-view-area" style={{ background: '#f8fafc', borderRadius: '15px', padding: '20px', border: '1px solid #edf2f7', minHeight: '500px', display: 'flex', flexDirection: 'column' }}>
                     {activeQuiz ? (
@@ -537,6 +655,20 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, onBack }) =
                         />
                     ) : selectedContent ? (
                         <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                            {!isTabActive && !isTimeRequirementMet && (
+                                <div style={{
+                                    padding: '10px',
+                                    background: '#FFF5F5',
+                                    color: '#C53030',
+                                    borderRadius: '8px',
+                                    marginBottom: '15px',
+                                    textAlign: 'center',
+                                    fontWeight: 'bold',
+                                    border: '1px solid #FC8181'
+                                }}>
+                                    ⚠️ Timer Paused: Please stay on this tab to continue your study time.
+                                </div>
+                            )}
                             {selectedContent.minTime > 0 && (
                                 <div style={{ marginBottom: '15px', padding: '12px', background: isTimeRequirementMet ? '#C6F6D5' : '#EBF8FF', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '15px' }}>
                                     <div style={{ fontSize: '1.2rem' }}>{isTimeRequirementMet ? '✅' : '⏳'}</div>
@@ -558,7 +690,7 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, onBack }) =
                                     <h2 style={{ margin: 0, fontSize: '1.25rem', color: '#2d3748' }}>{selectedContent.title}</h2>
                                     <span style={{ fontSize: '0.8rem', color: '#718096' }}>Type: {selectedContent.type.toUpperCase()}</span>
                                 </div>
-                                {selectedContent.type === 'link' && (
+                                {selectedContent.type === 'link' && isTimeRequirementMet && (
                                     <a
                                         href={selectedContent.url}
                                         target="_blank"
@@ -568,7 +700,7 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, onBack }) =
                                         Open Link
                                     </a>
                                 )}
-                                {selectedContent.type !== 'link' && (
+                                {selectedContent.type !== 'link' && isTimeRequirementMet && (
                                     <a
                                         href={getContentUrl(selectedContent.url)}
                                         target="_blank"
