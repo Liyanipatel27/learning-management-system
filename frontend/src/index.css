@@ -1,17 +1,19 @@
-/* Google Fonts */
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+/* Google Fonts - Outfit for a premium 3D look */
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&display=swap');
 
 :root {
-  --primary: #6C63FF;
-  --primary-dark: #5a52d5;
-  --secondary: #2A2F4F;
-  --accent: #FF6584;
-  --bg-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  --glass-bg: rgba(255, 255, 255, 0.95);
-  --glass-border: rgba(255, 255, 255, 0.3);
-  --text-dark: #2D3748;
-  --text-light: #718096;
-  --shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+  --primary: #4F46E5;
+  --primary-dark: #4338CA;
+  --secondary: #1E293B;
+  --accent: #F59E0B;
+  --bg-main: #F8FAFC;
+  --card-bg: #FFFFFF;
+  --border-color: #E2E8F0;
+  --text-dark: #1E293B;
+  --text-light: #64748B;
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
 }
 
 * {
@@ -21,113 +23,172 @@
 }
 
 body {
-  font-family: 'Poppins', sans-serif;
-  background: var(--bg-gradient);
-  min-height: 100vh;
+  font-family: 'Outfit', sans-serif;
+  background-color: var(--bg-main);
   color: var(--text-dark);
-  display: flex;
-  justify-content: center;
-  align-items: center;
 }
 
 #root {
   width: 100%;
 }
 
-/* Auth Card Styles */
-.auth-container {
+/* Premium 3D Full-Screen Styles */
+.auth-page {
   min-height: 100vh;
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 20px;
+  background: #f1f5f9;
+  padding: 0;
+  /* Immersive full screen */
 }
 
-.auth-card {
-  background: var(--glass-bg);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border-radius: 20px;
-  border: 1px solid var(--glass-border);
-  box-shadow: var(--shadow);
-  padding: 40px;
-  width: 100%;
-  max-width: 450px;
-  text-align: center;
+.auth-split-card {
+  display: flex;
+  width: 100vw;
+  height: 100vh;
+  background: #1e293b;
+  overflow: hidden;
+  box-shadow: none;
+  border-radius: 0;
+}
+
+.card-left {
+  flex: 1.2;
+  position: relative;
+  background: #1e1e2e;
+  padding: 60px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden;
+}
+
+.card-left::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: url('./assets/lms-3d-bg.png') no-repeat center center;
+  background-size: cover;
+  opacity: 0.6;
+  /* Higher opacity for a cleaner 3D look */
+  z-index: 1;
+}
+
+.card-left-content {
+  position: relative;
+  z-index: 2;
+}
+
+.project-name {
+  color: #fff;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.project-tagline {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 2.8rem;
+  font-weight: 700;
+  line-height: 1.2;
+  margin-top: 40px;
+  letter-spacing: -0.02em;
+}
+
+.card-right {
+  flex: 1;
+  background: #1e293b;
+  padding: 60px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  color: white;
+  border-left: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.auth-header {
+  margin-bottom: 30px;
 }
 
 .auth-title {
   font-size: 2rem;
   font-weight: 700;
-  color: var(--secondary);
-  margin-bottom: 30px;
+  color: #ffffff;
+  margin-bottom: 8px;
+}
+
+.auth-subtitle {
+  color: #94a3b8;
+  font-size: 0.95rem;
 }
 
 .form-group {
   margin-bottom: 20px;
-  text-align: left;
 }
 
 .form-label {
   display: block;
-  margin-bottom: 8px;
+  font-size: 0.85rem;
   font-weight: 500;
-  color: var(--secondary);
+  color: #94a3b8;
+  margin-bottom: 8px;
 }
 
-.form-input {
-  width: 100%;
-  padding: 12px 15px;
-  border-radius: 10px;
-  border: 2px solid #e2e8f0;
-  font-size: 1rem;
-  transition: border-color 0.3s ease;
-  font-family: inherit;
-}
-
-.form-input:focus {
-  outline: none;
-  border-color: var(--primary);
-  background-color: #fff;
-}
-
+.form-input,
 .form-select {
   width: 100%;
-  padding: 12px 15px;
-  border-radius: 10px;
-  border: 2px solid #e2e8f0;
-  font-size: 1rem;
-  background-color: white;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  color: white;
+  font-size: 0.95rem;
+  transition: all 0.3s ease;
   font-family: inherit;
+}
+
+.form-input:focus,
+.form-select:focus {
+  outline: none;
+  border-color: var(--primary);
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.2);
 }
 
 .btn-primary {
   width: 100%;
   padding: 14px;
-  border: none;
-  border-radius: 10px;
-  background: linear-gradient(90deg, var(--primary) 0%, var(--primary-dark) 100%);
+  background: var(--primary);
   color: white;
-  font-size: 1.1rem;
+  border: none;
+  border-radius: 12px;
   font-weight: 600;
+  font-size: 1rem;
   cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s;
-  box-shadow: 0 4px 6px rgba(108, 99, 255, 0.3);
+  transition: all 0.3s ease;
+  margin-top: 10px;
+  font-family: inherit;
 }
 
 .btn-primary:hover {
+  background: var(--primary-dark);
   transform: translateY(-2px);
-  box-shadow: 0 6px 12px rgba(108, 99, 255, 0.4);
-}
-
-.btn-primary:active {
-  transform: translateY(0);
+  box-shadow: 0 10px 20px -10px rgba(79, 70, 229, 0.5);
 }
 
 .auth-footer {
+  text-align: center;
   margin-top: 25px;
-  color: var(--text-light);
-  font-size: 0.95rem;
+  color: #94a3b8;
+  font-size: 0.9rem;
 }
 
 .auth-link {
@@ -141,17 +202,18 @@ body {
   text-decoration: underline;
 }
 
-/* Dashboard Styles */
+@media (max-width: 968px) {
+  .card-left {
+    display: none;
+  }
+}
+
+/* Dashboard Styles preserved for consistency */
 .dashboard-container {
   display: flex;
   min-height: 100vh;
-  background-color: rgba(255, 255, 255, 0.9);
-  width: 90%;
-  max-width: 1200px;
-  margin: 30px auto;
-  border-radius: 20px;
-  overflow: hidden;
-  box-shadow: var(--shadow);
+  background-color: var(--bg-main);
+  width: 100%;
 }
 
 .sidebar {
@@ -176,7 +238,8 @@ body {
   transition: all 0.3s;
 }
 
-.nav-item:hover, .nav-item.active {
+.nav-item:hover,
+.nav-item.active {
   background: rgba(255, 255, 255, 0.1);
   color: white;
   transform: translateX(5px);

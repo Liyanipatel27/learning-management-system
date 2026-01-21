@@ -38,71 +38,88 @@ function Register() {
     };
 
     return (
-        <div className="auth-container">
-            <div className="auth-card">
-                <h2 className="auth-title">Create Account</h2>
-                <form onSubmit={handleSubmit}>
-                    <div className="form-group">
-                        <label className="form-label">Full Name</label>
-                        <input
-                            type="text"
-                            name="name"
-                            className="form-input"
-                            value={formData.name}
-                            onChange={handleChange}
-                            placeholder="e.g. John Doe"
-                            required
-                        />
+        <div className="auth-page">
+            <div className="auth-split-card">
+                <div className="card-left">
+                    <div className="card-left-content">
+                        <div className="project-name">
+                            Learning Management System
+                        </div>
+                        <h1 className="project-tagline">
+                            Join a community of lifelong learners.
+                        </h1>
+                    </div>
+                </div>
+
+                <div className="card-right">
+                    <div className="auth-header">
+                        <h2 className="auth-title">Create Account</h2>
+                        <p className="auth-subtitle">Join our community of lifelong learners.</p>
                     </div>
 
-                    <div className="form-group">
-                        <label className="form-label">I am a...</label>
-                        <select
-                            name="role"
-                            className="form-select"
-                            value={formData.role}
-                            onChange={handleChange}
-                        >
-                            <option value="student">Student</option>
-                            <option value="teacher">Teacher</option>
-                            <option value="admin">Admin</option>
-                        </select>
+                    <form onSubmit={handleSubmit}>
+                        <div className="form-group">
+                            <label className="form-label">Full Name</label>
+                            <input
+                                type="text"
+                                name="name"
+                                className="form-input"
+                                value={formData.name}
+                                onChange={handleChange}
+                                placeholder="e.g. John Doe"
+                                required
+                            />
+                        </div>
+
+                        <div className="form-group">
+                            <label className="form-label">I am a...</label>
+                            <select
+                                name="role"
+                                className="form-select"
+                                value={formData.role}
+                                onChange={handleChange}
+                            >
+                                <option value="student">Student</option>
+                                <option value="teacher">Teacher</option>
+                                <option value="admin">Admin</option>
+                            </select>
+                        </div>
+
+                        <div className="form-group">
+                            <label className="form-label">Email Address</label>
+                            <input
+                                type="email"
+                                name="email"
+                                className="form-input"
+                                value={formData.email}
+                                onChange={handleChange}
+                                placeholder="e.g. john@gmail.com"
+                                required
+                            />
+                        </div>
+
+                        <div className="form-group">
+                            <label className="form-label">Password</label>
+                            <input
+                                type="password"
+                                name="password"
+                                className="form-input"
+                                value={formData.password}
+                                onChange={handleChange}
+                                placeholder="••••••••"
+                                required
+                            />
+                        </div>
+
+                        <button type="submit" className="btn-primary" disabled={loading}>
+                            {loading ? 'Creating Account...' : 'Sign Up'}
+                        </button>
+                    </form>
+
+                    <div className="auth-footer">
+                        Already have an account?
+                        <Link to="/login" className="auth-link">Sign In</Link>
                     </div>
-
-                    <div className="form-group">
-                        <label className="form-label">Email Address</label>
-                        <input
-                            type="email"
-                            name="email"
-                            className="form-input"
-                            value={formData.email}
-                            onChange={handleChange}
-                            placeholder="e.g. john@example.com"
-                            required
-                        />
-                    </div>
-
-                    <div className="form-group">
-                        <label className="form-label">Password</label>
-                        <input
-                            type="password"
-                            name="password"
-                            className="form-input"
-                            value={formData.password}
-                            onChange={handleChange}
-                            placeholder="••••••••"
-                            required
-                        />
-                    </div>
-
-                    <button type="submit" className="btn-primary" disabled={loading}>
-                        {loading ? 'Creating Account...' : 'Sign Up'}
-                    </button>
-                </form>
-
-                <div className="auth-footer">
-                    Already have an account?
-                    <Link to="/login" className="auth-link">Login here</Link>
                 </div>
             </div>
         </div>

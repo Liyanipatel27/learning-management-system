@@ -45,7 +45,7 @@ function TeacherDashboard() {
     };
 
     return (
-        <div className="dashboard-container" style={{ display: 'flex', minHeight: '100vh', background: '#f7fafc', fontFamily: 'Inter, system-ui, sans-serif' }}>
+        <div className="dashboard-container">
             <aside className="sidebar" style={{
                 width: '260px',
                 background: '#1a202c',
