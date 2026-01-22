@@ -122,8 +122,24 @@ exports.solveDoubt = async (req, res) => {
 // 4. Learning Roadmap
 exports.generateRoadmap = async (req, res) => {
     try {
-        const { goal } = req.body;
+        const { goal, courseId } = req.body;
+        let context = "";
+
+        if (courseId) {
+            const course = await Course.findById(courseId);
+            if (course) {
+                // Extract syllabus structure
+                const syllabus = course.chapters.map(ch => {
+                    const modules = ch.modules.map(m => `- Module: ${m.title}`).join('\n');
+                    return `Chapter: ${ch.title}\n${modules}`;
+                }).join('\n\n');
+
+                context = `\nCONTEXT (COURSE SYLLABUS):\n${syllabus}\n\nINSTRUCTION: You must STRICTLY limit the roadmap to ONLY the modules and topics listed in the syllabus above. Do NOT add any external topics or modules that are not present in the syllabus. If the course has only 2 modules, the roadmap must only cover those 2 modules.`;
+            }
+        }
+
         const prompt = `Create a detailed learning roadmap for: "${goal}".
+        ${context}
         Provide a step-by-step path with milestones and approximate time for each step. 
         Format as a clean markdown list.`;
 

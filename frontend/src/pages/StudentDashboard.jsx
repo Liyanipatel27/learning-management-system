@@ -219,7 +219,7 @@ function StudentDashboard() {
                         onSelectCourse={(course) => setSelectedCourse(course)}
                     />
                 ) : activeTab === 'ai-roadmap' ? (
-                    <RoadmapSection />
+                    <RoadmapSection courses={courses} />
                 ) : (
                     <CertificatesSection
                         courses={courses}
@@ -1271,8 +1271,9 @@ const QuizViewer = ({ quiz, isFastTrack, alreadyPassed, onSubmit, onClose }) => 
     );
 };
 
-const RoadmapSection = () => {
+const RoadmapSection = ({ courses = [] }) => {
     const [goal, setGoal] = useState('');
+    const [selectedCourseId, setSelectedCourseId] = useState('');
     const [roadmap, setRoadmap] = useState('');
     const [loading, setLoading] = useState(false);
 
@@ -1282,7 +1283,7 @@ const RoadmapSection = () => {
         try {
             const token = localStorage.getItem('token');
             const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/ai/generate-roadmap`,
-                { goal },
+                { goal, courseId: selectedCourseId || null },
                 { headers: { Authorization: `Bearer ${token}` } }
             );
             setRoadmap(res.data.data);
@@ -1302,14 +1303,26 @@ const RoadmapSection = () => {
                 <p style={{ color: '#718096' }}>Tell AI your dream job or topic, and we'll build your learning path.</p>
             </div>
 
-            <div style={{ maxWidth: '600px', margin: '0 auto', display: 'flex', gap: '10px', marginBottom: '40px' }}>
-                <input
-                    type="text"
-                    placeholder="e.g. Become a Full Stack Web Developer in 6 months"
-                    value={goal}
-                    onChange={(e) => setGoal(e.target.value)}
-                    style={{ flex: 1, padding: '15px', borderRadius: '12px', border: '2px solid #edf2f7', fontSize: '1rem', outline: 'none' }}
-                />
+            <div style={{ maxWidth: '700px', margin: '0 auto', display: 'flex', gap: '10px', marginBottom: '40px', flexDirection: 'column' }}>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                    <select
+                        value={selectedCourseId}
+                        onChange={(e) => setSelectedCourseId(e.target.value)}
+                        style={{ padding: '15px', borderRadius: '12px', border: '2px solid #edf2f7', fontSize: '1rem', outline: 'none', background: 'white', minWidth: '200px' }}
+                    >
+                        <option value="">General / No Specific Course</option>
+                        {courses.map(course => (
+                            <option key={course._id} value={course._id}>{course.subject}</option>
+                        ))}
+                    </select>
+                    <input
+                        type="text"
+                        placeholder="e.g. Become a Full Stack Web Developer in 6 months"
+                        value={goal}
+                        onChange={(e) => setGoal(e.target.value)}
+                        style={{ flex: 1, padding: '15px', borderRadius: '12px', border: '2px solid #edf2f7', fontSize: '1rem', outline: 'none' }}
+                    />
+                </div>
                 <button
                     onClick={generateRoadmap}
                     disabled={loading}
