@@ -6,6 +6,8 @@ const { storage } = require('../config/cloudinary');
 const Course = require('../models/Course');
 const Progress = require('../models/Progress');
 const fs = require('fs');
+const pdfParse = require('pdf-parse');
+const axios = require('axios');
 
 const upload = multer({ storage: storage });
 
@@ -146,10 +148,24 @@ router.post('/:courseId/chapters/:chapterId/modules/:moduleId/content', upload.s
         const { title, type, url: linkUrl, description, minTime } = req.body;
         let contentUrl = linkUrl;
         let originalName = '';
+        let extractedText = '';
 
         if (req.file) {
             contentUrl = req.file.path; // Cloudinary returns the full URL in .path
             originalName = req.file.originalname;
+
+            // Extract Text from PDF
+            if (req.file.mimetype === 'application/pdf') {
+                try {
+                    console.log('Extracting text from PDF...');
+                    const response = await axios.get(contentUrl, { responseType: 'arraybuffer' });
+                    const pdfData = await pdfParse(response.data);
+                    extractedText = pdfData.text;
+                    console.log(`Extracted ${extractedText.length} characters.`);
+                } catch (pdfError) {
+                    console.error('PDF Extraction Failed:', pdfError.message);
+                }
+            }
         }
 
         module.contents.push({
@@ -158,12 +174,14 @@ router.post('/:courseId/chapters/:chapterId/modules/:moduleId/content', upload.s
             url: contentUrl,
             originalName,
             description,
-            minTime: Number(minTime) || 0
+            minTime: Number(minTime) || 0,
+            extractedText
         });
 
         await course.save();
         res.json(course);
     } catch (err) {
+        console.error('Upload Error:', err);
         res.status(400).json({ message: err.message });
     }
 });

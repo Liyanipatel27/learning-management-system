@@ -6,7 +6,8 @@ const ContentSchema = new mongoose.Schema({
     url: { type: String }, // For files (path) or external links
     originalName: { type: String }, // Original file name
     description: { type: String },
-    minTime: { type: Number, default: 0 } // Minimum read/watch time in seconds
+    minTime: { type: Number, default: 0 }, // Minimum read/watch time in seconds
+    extractedText: { type: String, select: false } // Hidden by default for performance
 });
 
 const QuestionSchema = new mongoose.Schema({

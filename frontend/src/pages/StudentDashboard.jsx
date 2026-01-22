@@ -3,6 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
+import ReactMarkdown from 'react-markdown';
+
+import AIAssistantSidebar from '../components/AIAssistantSidebar'; // Import the new component
 
 function StudentDashboard() {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -59,6 +62,7 @@ function StudentDashboard() {
                         <div className={`nav-item ${activeTab === 'dashboard' && !selectedCourse ? 'active' : ''}`} onClick={() => { setActiveTab('dashboard'); setSelectedCourse(null); }}>Dashboard</div>
                         <div className={`nav-item ${activeTab === 'my-courses' ? 'active' : ''}`} onClick={() => { setActiveTab('my-courses'); setSelectedCourse(null); }}>My Courses</div>
                         <div className={`nav-item ${activeTab === 'certificates' ? 'active' : ''}`} onClick={() => { setActiveTab('certificates'); setSelectedCourse(null); }}>Certificates</div>
+                        <div className={`nav-item ${activeTab === 'ai-roadmap' ? 'active' : ''}`} onClick={() => { setActiveTab('ai-roadmap'); setSelectedCourse(null); }}>AI Career Roadmap</div>
                         <div className="nav-item" onClick={() => alert('Assignments Module Coming Soon!')}>Assignments</div>
                         <div className="nav-item" onClick={() => alert('Grades Module Coming Soon!')}>Grades</div>
                         <div className="nav-item" onClick={() => alert('Profile Module Coming Soon!')}>Profile</div>
@@ -105,7 +109,8 @@ function StudentDashboard() {
                                 <div>
                                     <h1 style={{ fontSize: '2rem', color: '#2D3748', margin: 0 }}>
                                         {activeTab === 'dashboard' ? 'Dashboard' :
-                                            activeTab === 'my-courses' ? 'My Courses' : 'My Certificates'}
+                                            activeTab === 'my-courses' ? 'My Courses' :
+                                                activeTab === 'ai-roadmap' ? 'AI Roadmap' : 'My Certificates'}
                                     </h1>
                                     <p style={{ color: '#718096', margin: 0 }}>
                                         {activeTab === 'dashboard' ? `Welcome back, ${user.name}!` :
@@ -213,6 +218,8 @@ function StudentDashboard() {
                         allProgress={allProgress}
                         onSelectCourse={(course) => setSelectedCourse(course)}
                     />
+                ) : activeTab === 'ai-roadmap' ? (
+                    <RoadmapSection />
                 ) : (
                     <CertificatesSection
                         courses={courses}
@@ -233,8 +240,11 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
     const [studentProgress, setStudentProgress] = useState(null);
     const [activeQuiz, setActiveQuiz] = useState(null);
     const [timeSpent, setTimeSpent] = useState(0);
-    const timeSpentRef = useRef(0); // Add Ref to prevent stale closures
+    const timeSpentRef = useRef(0);
     const [isTimeRequirementMet, setIsTimeRequirementMet] = useState(false);
+    const [activeAIFeature, setActiveAIFeature] = useState(null);
+    const [aiSummary, setAiSummary] = useState('');
+    const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
 
     // Sync ref with state
     useEffect(() => {
@@ -645,349 +655,469 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
                     </div>
                 )}
 
-                <div className="content-view-area" style={{ background: '#f8fafc', borderRadius: '15px', padding: '15px', border: '1px solid #edf2f7', minHeight: '500px', display: 'flex', flexDirection: 'column' }}>
-                    {activeQuiz ? (
-                        <QuizViewer
-                            quiz={activeQuiz.module.quiz}
-                            isFastTrack={activeQuiz.isFastTrack}
-                            alreadyPassed={studentProgress?.completedModules?.some(m => m.moduleId.toString() === activeQuiz.module._id.toString())}
-                            onClose={() => setActiveQuiz(null)}
-                            onSubmit={(score, onFail) => handleQuizSubmission(activeQuiz.module._id, score, activeQuiz.isFastTrack, onFail)}
-                        />
-                    ) : selectedContent ? (
-                        <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                            {/* Progress Bars Row */}
-                            <div style={{ display: 'flex', gap: '15px', marginBottom: '15px' }}>
-                                {/* Course Wide Progress Bar */}
-                                <div style={{ flex: 1, padding: '12px', background: 'white', borderRadius: '10px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', alignItems: 'center' }}>
-                                        <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#4a5568' }}>Course Overall Progress</span>
-                                        <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#6C63FF' }}>
-                                            {(() => {
-                                                const allC = course.chapters?.flatMap(c => c.modules?.flatMap(m => m.contents) || []) || [];
-                                                const allQ = course.chapters?.flatMap(c => c.modules || []).filter(m => m.quiz?.questions?.length > 0) || [];
-                                                const total = allC.length + allQ.length;
-                                                if (total === 0) return 0;
+                <div style={{ display: 'flex', gap: '20px', flex: 1, minHeight: '600px' }}>
+                    <div className="content-view-area" style={{ flex: activeAIFeature ? 0.7 : 1, background: '#f8fafc', borderRadius: '15px', padding: '15px', border: '1px solid #edf2f7', display: 'flex', flexDirection: 'column' }}>
+                        {activeQuiz ? (
+                            <QuizViewer
+                                quiz={activeQuiz.module.quiz}
+                                isFastTrack={activeQuiz.isFastTrack}
+                                alreadyPassed={studentProgress?.completedModules?.some(m => m.moduleId.toString() === activeQuiz.module._id.toString())}
+                                onClose={() => setActiveQuiz(null)}
+                                onSubmit={(score, onFail) => handleQuizSubmission(activeQuiz.module._id, score, activeQuiz.isFastTrack, onFail)}
+                            />
+                        ) : selectedContent ? (
+                            <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                                {/* Progress Bars Row */}
+                                <div style={{ display: 'flex', gap: '15px', marginBottom: '15px' }}>
+                                    {/* Course Wide Progress Bar */}
+                                    <div style={{ flex: 1, padding: '12px', background: 'white', borderRadius: '10px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', alignItems: 'center' }}>
+                                            <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#4a5568' }}>Course Overall Progress</span>
+                                            <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#6C63FF' }}>
+                                                {(() => {
+                                                    const allC = course.chapters?.flatMap(c => c.modules?.flatMap(m => m.contents) || []) || [];
+                                                    const allQ = course.chapters?.flatMap(c => c.modules || []).filter(m => m.quiz?.questions?.length > 0) || [];
+                                                    const total = allC.length + allQ.length;
+                                                    if (total === 0) return 0;
 
-                                                let points = 0;
-                                                allC.forEach(content => {
-                                                    const cp = studentProgress?.contentProgress?.find(p => p.contentId?.toString() === content._id?.toString());
-                                                    if (cp) {
-                                                        if (cp.isCompleted) points += 1;
-                                                        else if (content.minTime > 0) points += Math.min(0.9, cp.timeSpent / content.minTime);
-                                                        else if (cp.timeSpent > 0) points += 0.1;
-                                                    }
-                                                });
-                                                const passedQ = allQ.filter(m => studentProgress?.completedModules?.some(cm => cm.moduleId?.toString() === m._id?.toString())).length;
-                                                points += passedQ;
+                                                    let points = 0;
+                                                    allC.forEach(content => {
+                                                        const cp = studentProgress?.contentProgress?.find(p => p.contentId?.toString() === content._id?.toString());
+                                                        if (cp) {
+                                                            if (cp.isCompleted) points += 1;
+                                                            else if (content.minTime > 0) points += Math.min(0.9, cp.timeSpent / content.minTime);
+                                                            else if (cp.timeSpent > 0) points += 0.1;
+                                                        }
+                                                    });
+                                                    const passedQ = allQ.filter(m => studentProgress?.completedModules?.some(cm => cm.moduleId?.toString() === m._id?.toString())).length;
+                                                    points += passedQ;
 
-                                                return Math.min(100, Math.round((points / total) * 100));
-                                            })()}%
-                                        </span>
-                                    </div>
-                                    <div style={{ height: '6px', background: '#edf2f7', borderRadius: '3px', overflow: 'hidden' }}>
-                                        <div style={{
-                                            height: '100%',
-                                            width: `${(() => {
-                                                const allC = course.chapters?.flatMap(c => c.modules?.flatMap(m => m.contents) || []) || [];
-                                                const allQ = course.chapters?.flatMap(c => c.modules || []).filter(m => m.quiz?.questions?.length > 0) || [];
-                                                const total = allC.length + allQ.length;
-                                                if (total === 0) return 0;
+                                                    return Math.min(100, Math.round((points / total) * 100));
+                                                })()}%
+                                            </span>
+                                        </div>
+                                        <div style={{ height: '6px', background: '#edf2f7', borderRadius: '3px', overflow: 'hidden' }}>
+                                            <div style={{
+                                                height: '100%',
+                                                width: `${(() => {
+                                                    const allC = course.chapters?.flatMap(c => c.modules?.flatMap(m => m.contents) || []) || [];
+                                                    const allQ = course.chapters?.flatMap(c => c.modules || []).filter(m => m.quiz?.questions?.length > 0) || [];
+                                                    const total = allC.length + allQ.length;
+                                                    if (total === 0) return 0;
 
-                                                let points = 0;
-                                                allC.forEach(content => {
-                                                    const cp = studentProgress?.contentProgress?.find(p => p.contentId?.toString() === content._id?.toString());
-                                                    if (cp) {
-                                                        if (cp.isCompleted) points += 1;
-                                                        else if (content.minTime > 0) points += Math.min(0.9, cp.timeSpent / content.minTime);
-                                                        else if (cp.timeSpent > 0) points += 0.1;
-                                                    }
-                                                });
-                                                const passedQ = allQ.filter(m => studentProgress?.completedModules?.some(cm => cm.moduleId?.toString() === m._id?.toString())).length;
-                                                points += passedQ;
+                                                    let points = 0;
+                                                    allC.forEach(content => {
+                                                        const cp = studentProgress?.contentProgress?.find(p => p.contentId?.toString() === content._id?.toString());
+                                                        if (cp) {
+                                                            if (cp.isCompleted) points += 1;
+                                                            else if (content.minTime > 0) points += Math.min(0.9, cp.timeSpent / content.minTime);
+                                                            else if (cp.timeSpent > 0) points += 0.1;
+                                                        }
+                                                    });
+                                                    const passedQ = allQ.filter(m => studentProgress?.completedModules?.some(cm => cm.moduleId?.toString() === m._id?.toString())).length;
+                                                    points += passedQ;
 
-                                                return Math.min(100, Math.round((points / total) * 100));
-                                            })()}%`,
-                                            background: 'linear-gradient(90deg, #6C63FF, #3182CE)',
-                                            transition: 'width 0.5s ease-out'
-                                        }}></div>
-                                    </div>
-                                </div>
-
-                                {/* Study Requirement Bar */}
-                                {selectedContent.minTime > 0 && (
-                                    <div style={{ flex: 1, padding: '12px', background: isTimeRequirementMet ? '#C6F6D5' : '#EBF8FF', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                        <div style={{ fontSize: '1rem' }}>{isTimeRequirementMet ? '✅' : '⏳'}</div>
-                                        <div style={{ flex: 1 }}>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
-                                                <span style={{ fontSize: '0.75rem', fontWeight: '700', color: isTimeRequirementMet ? '#22543D' : '#2A4365' }}>
-                                                    {isTimeRequirementMet ? 'Study Complete' : `Study: ${formatTime(Math.max(0, selectedContent.minTime - timeSpent))} left`}
-                                                </span>
-                                                <span style={{ fontSize: '0.75rem', color: '#718096' }}>{Math.min(100, Math.round((timeSpent / selectedContent.minTime) * 100))}%</span>
-                                            </div>
-                                            <div style={{ height: '6px', background: 'rgba(0,0,0,0.1)', borderRadius: '3px', overflow: 'hidden' }}>
-                                                <div style={{ height: '100%', width: `${Math.min(100, (timeSpent / selectedContent.minTime) * 100)}%`, background: isTimeRequirementMet ? '#38A169' : '#3182CE', transition: 'width 0.3s' }}></div>
-                                            </div>
+                                                    return Math.min(100, Math.round((points / total) * 100));
+                                                })()}%`,
+                                                background: 'linear-gradient(90deg, #6C63FF, #3182CE)',
+                                                transition: 'width 0.5s ease-out'
+                                            }}></div>
                                         </div>
                                     </div>
-                                )}
-                            </div>
 
-                            {!isTabActive && !isTimeRequirementMet && (
-                                <div style={{
-                                    padding: '8px',
-                                    background: '#FFF5F5',
-                                    color: '#C53030',
-                                    borderRadius: '8px',
-                                    marginBottom: '10px',
-                                    textAlign: 'center',
-                                    fontSize: '0.8rem',
-                                    fontWeight: 'bold',
-                                    border: '1px solid #FC8181'
-                                }}>
-                                    ⚠️ Timer Paused: Please stay on this tab to continue your study time.
+                                    {/* Study Requirement Bar */}
+                                    {selectedContent.minTime > 0 && (
+                                        <div style={{ flex: 1, padding: '12px', background: isTimeRequirementMet ? '#C6F6D5' : '#EBF8FF', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                            <div style={{ fontSize: '1rem' }}>{isTimeRequirementMet ? '✅' : '⏳'}</div>
+                                            <div style={{ flex: 1 }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
+                                                    <span style={{ fontSize: '0.75rem', fontWeight: '700', color: isTimeRequirementMet ? '#22543D' : '#2A4365' }}>
+                                                        {isTimeRequirementMet ? 'Study Complete' : `Study: ${formatTime(Math.max(0, selectedContent.minTime - timeSpent))} left`}
+                                                    </span>
+                                                    <span style={{ fontSize: '0.75rem', color: '#718096' }}>{Math.min(100, Math.round((timeSpent / selectedContent.minTime) * 100))}%</span>
+                                                </div>
+                                                <div style={{ height: '6px', background: 'rgba(0,0,0,0.1)', borderRadius: '3px', overflow: 'hidden' }}>
+                                                    <div style={{ height: '100%', width: `${Math.min(100, (timeSpent / selectedContent.minTime) * 100)}%`, background: isTimeRequirementMet ? '#38A169' : '#3182CE', transition: 'width 0.3s' }}></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
-                            )}
-                            <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <div>
-                                    <h2 style={{ margin: 0, fontSize: '1.25rem', color: '#2d3748' }}>{selectedContent.title}</h2>
-                                    <span style={{ fontSize: '0.8rem', color: '#718096' }}>Type: {selectedContent.type.toUpperCase()}</span>
-                                </div>
-                                {selectedContent.type === 'link' && isTimeRequirementMet && (
-                                    <a
-                                        href={selectedContent.url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        style={{ padding: '8px 16px', background: '#6C63FF', color: 'white', borderRadius: '8px', textDecoration: 'none', fontSize: '0.85rem', fontWeight: 'bold' }}
-                                    >
-                                        Open Link
-                                    </a>
-                                )}
-                                {selectedContent.type !== 'link' && isTimeRequirementMet && (
-                                    <a
-                                        href={getContentUrl(selectedContent.url)}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        style={{ padding: '8px 16px', background: '#6C63FF', color: 'white', borderRadius: '8px', textDecoration: 'none', fontSize: '0.85rem', fontWeight: 'bold' }}
-                                    >
-                                        Open In New Tab
-                                    </a>
-                                )}
-                            </div>
 
-                            <div style={{ flex: 1, background: 'white', borderRadius: '10px', overflow: 'hidden', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
-                                {selectedContent.type === 'pdf' ? (
-                                    <iframe
-                                        src={`${getContentUrl(selectedContent.url)}`}
-                                        width="100%"
-                                        height="700px"
-                                        style={{ border: 'none' }}
-                                        title={selectedContent.title}
-                                    />
-                                ) : selectedContent.type === 'link' ? (
-                                    <div style={{ padding: '60px', textAlign: 'center', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                                        <div style={{ fontSize: '3rem', marginBottom: '20px' }}>🔗</div>
-                                        <h3>External Content</h3>
-                                        <p style={{ color: '#718096', marginBottom: '20px' }}>This content is hosted on an external website.</p>
-                                        <a
-                                            href={selectedContent.url}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            style={{ color: '#6C63FF', fontWeight: 'bold', fontSize: '1.1rem', wordBreak: 'break-all' }}
+                                {!isTabActive && !isTimeRequirementMet && (
+                                    <div style={{
+                                        padding: '8px',
+                                        background: '#FFF5F5',
+                                        color: '#C53030',
+                                        borderRadius: '8px',
+                                        marginBottom: '10px',
+                                        textAlign: 'center',
+                                        fontSize: '0.8rem',
+                                        fontWeight: 'bold',
+                                        border: '1px solid #FC8181'
+                                    }}>
+                                        ⚠️ Timer Paused: Please stay on this tab to continue your study time.
+                                    </div>
+                                )}
+                                <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                                        <div>
+                                            <h2 style={{ margin: 0, fontSize: '1.25rem', color: '#2d3748' }}>{selectedContent.title}</h2>
+                                            <span style={{ fontSize: '0.8rem', color: '#718096' }}>Type: {selectedContent.type.toUpperCase()}</span>
+                                        </div>
+                                        <button
+                                            onClick={() => setActiveAIFeature(activeAIFeature === 'summary' ? null : 'summary')}
+                                            style={{
+                                                padding: '8px 12px',
+                                                background: activeAIFeature === 'summary' ? '#4C51BF' : '#6C63FF',
+                                                color: 'white',
+                                                border: 'none',
+                                                borderRadius: '8px',
+                                                fontSize: '0.8rem',
+                                                fontWeight: 'bold',
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '6px',
+                                                boxShadow: '0 2px 4px rgba(108, 99, 255, 0.3)'
+                                            }}
                                         >
-                                            {selectedContent.url}
-                                        </a>
+                                            📝 Summary
+                                        </button>
+                                        <button
+                                            onClick={() => setActiveAIFeature(activeAIFeature === 'quiz' ? null : 'quiz')}
+                                            style={{
+                                                padding: '8px 12px',
+                                                background: activeAIFeature === 'quiz' ? '#2F855A' : '#38A169',
+                                                color: 'white',
+                                                border: 'none',
+                                                borderRadius: '8px',
+                                                fontSize: '0.8rem',
+                                                fontWeight: 'bold',
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '6px',
+                                                boxShadow: '0 2px 4px rgba(47, 133, 90, 0.3)'
+                                            }}
+                                        >
+                                            ✅ Quiz
+                                        </button>
+                                        <button
+                                            onClick={() => setActiveAIFeature(activeAIFeature === 'doubt' ? null : 'doubt')}
+                                            style={{
+                                                padding: '8px 12px',
+                                                background: activeAIFeature === 'doubt' ? '#C53030' : '#E53E3E',
+                                                color: 'white',
+                                                border: 'none',
+                                                borderRadius: '8px',
+                                                fontSize: '0.8rem',
+                                                fontWeight: 'bold',
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '6px',
+                                                boxShadow: '0 2px 4px rgba(197, 48, 48, 0.3)'
+                                            }}
+                                        >
+                                            🤔 Doubt
+                                        </button>
                                     </div>
-                                ) : selectedContent.type === 'video' ? (
-                                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1, padding: '20px', background: '#000' }}>
-                                        <video
-                                            src={getContentUrl(selectedContent.url)}
-                                            controls
-                                            style={{ maxWidth: '100%', maxHeight: '100%' }}
-                                        />
-                                    </div>
-                                ) : selectedContent.type === 'image' ? (
-                                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1, padding: '20px', overflow: 'auto' }}>
-                                        <img
-                                            src={getContentUrl(selectedContent.url)}
-                                            alt={selectedContent.title}
-                                            style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                                        />
-                                    </div>
-                                ) : (
-                                    <div style={{ padding: '60px', textAlign: 'center', color: '#718096', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                                        <div style={{ fontSize: '3rem', marginBottom: '20px' }}>
-                                            {selectedContent.type === 'doc' ? '📄' : '📦'}
-                                        </div>
-                                        <h3>{selectedContent.type === 'doc' ? 'Document Content' : 'Preview not available'}</h3>
-                                        <p style={{ marginBottom: '24px' }}>
-                                            {selectedContent.type === 'doc'
-                                                ? 'This document can be downloaded for viewing.'
-                                                : `This file type (${selectedContent.type}) cannot be previewed directly.`}
-                                        </p>
+                                    <div style={{ display: 'flex', gap: '10px' }}>
+                                        {selectedContent.type === 'doc' && (
+                                            <a
+                                                href={getContentUrl(selectedContent.url)}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                style={{
+                                                    padding: '8px 12px',
+                                                    background: '#4A5568',
+                                                    color: 'white',
+                                                    border: 'none',
+                                                    borderRadius: '8px',
+                                                    fontSize: '0.8rem',
+                                                    fontWeight: 'bold',
+                                                    textDecoration: 'none',
+                                                    cursor: 'pointer',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '6px'
+                                                }}
+                                            >
+                                                📥 Download
+                                            </a>
+                                        )}
                                         <a
                                             href={getContentUrl(selectedContent.url)}
                                             target="_blank"
                                             rel="noopener noreferrer"
                                             style={{
-                                                display: 'inline-block',
-                                                padding: '12px 24px',
-                                                background: '#6C63FF',
-                                                color: 'white',
-                                                borderRadius: '10px',
+                                                padding: '8px 12px',
+                                                background: '#edf2f7',
+                                                color: '#4a5568',
+                                                border: 'none',
+                                                borderRadius: '8px',
+                                                fontSize: '0.8rem',
+                                                fontWeight: 'bold',
                                                 textDecoration: 'none',
-                                                fontWeight: 'bold'
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '6px'
                                             }}
                                         >
-                                            {selectedContent.type === 'doc' ? 'Download Document' : 'Download / View File'}
+                                            🚀 Open in New Tab
                                         </a>
                                     </div>
-                                )}
+                                </div>
+
+                                <div style={{ flex: 1, background: 'white', borderRadius: '10px', border: '1px solid #e2e8f0', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                                    {selectedContent.type === 'pdf' || selectedContent.type === 'doc' ? (
+                                        <iframe
+                                            src={`${getContentUrl(selectedContent.url)}`}
+                                            width="100%"
+                                            height="700px"
+                                            style={{ border: 'none' }}
+                                            title={selectedContent.title}
+                                        />
+                                    ) : selectedContent.type === 'link' ? (
+                                        <div style={{ padding: '60px', textAlign: 'center', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                                            <div style={{ fontSize: '3rem', marginBottom: '20px' }}>🔗</div>
+                                            <h3>External Content</h3>
+                                            <p style={{ color: '#718096', marginBottom: '20px' }}>This content is hosted on an external website.</p>
+                                            <a
+                                                href={selectedContent.url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                style={{ color: '#6C63FF', fontWeight: 'bold', fontSize: '1.1rem', wordBreak: 'break-all' }}
+                                            >
+                                                {selectedContent.url}
+                                            </a>
+                                        </div>
+                                    ) : selectedContent.type === 'video' ? (
+                                        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1, padding: '20px', background: '#000' }}>
+                                            <video
+                                                src={getContentUrl(selectedContent.url)}
+                                                controls
+                                                style={{ maxWidth: '100%', maxHeight: '100%' }}
+                                            />
+                                        </div>
+                                    ) : selectedContent.type === 'image' ? (
+                                        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1, padding: '20px', overflow: 'auto' }}>
+                                            <img
+                                                src={getContentUrl(selectedContent.url)}
+                                                alt={selectedContent.title}
+                                                style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                                            />
+                                        </div>
+                                    ) : (
+                                        <div style={{ padding: '60px', textAlign: 'center', color: '#718096', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                                            <div style={{ fontSize: '3rem', marginBottom: '20px' }}>
+                                                {selectedContent.type === 'doc' ? '📄' : '📦'}
+                                            </div>
+                                            <h3>{selectedContent.type === 'doc' ? 'Document Content' : 'Preview not available'}</h3>
+                                            <p style={{ marginBottom: '24px' }}>
+                                                {selectedContent.type === 'doc'
+                                                    ? 'This document can be downloaded for viewing.'
+                                                    : `This file type (${selectedContent.type}) cannot be previewed directly.`}
+                                            </p>
+                                            <a
+                                                href={getContentUrl(selectedContent.url)}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                style={{
+                                                    display: 'inline-block',
+                                                    padding: '12px 24px',
+                                                    background: '#6C63FF',
+                                                    color: 'white',
+                                                    borderRadius: '10px',
+                                                    textDecoration: 'none',
+                                                    fontWeight: 'bold'
+                                                }}
+                                            >
+                                                {selectedContent.type === 'doc' ? 'Download Document' : 'Download / View File'}
+                                            </a>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
-                        </div>
-                    ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#a0aec0' }}>
-                            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: '20px' }}>
-                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" />
-                            </svg>
-                            <p>Select a lesson from the sidebar to start learning</p>
-                        </div>
-                    )}
+                        ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#a0aec0' }}>
+                                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: '20px' }}>
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" />
+                                </svg>
+                                <p>Select a lesson from the sidebar to start learning</p>
+                            </div>
+                        )}
+                    </div>
                 </div>
+
+                {activeAIFeature && selectedContent && (
+                    <div style={{ flex: 0.3, background: 'white', borderRadius: '15px', border: '1px solid #edf2f7', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
+                        <AIAssistantSidebar
+                            content={selectedContent}
+                            activeFeature={activeAIFeature}
+                            aiSummary={aiSummary}
+                            setAiSummary={setAiSummary}
+                            isGeneratingSummary={isGeneratingSummary}
+                            setIsGeneratingSummary={setIsGeneratingSummary}
+                        />
+                    </div>
+                )}
             </div>
         </div>
     );
 };
 
-const MyCoursesSection = ({ courses, allProgress, onSelectCourse }) => {
-    const calculateProgress = (course) => {
+export default StudentDashboard;
+
+const generateCertificate = (studentName, courseName) => {
+    const doc = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4'
+    });
+
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+
+    // --- Border & Background ---
+    doc.setDrawColor(74, 85, 104); // Dark border
+    doc.setLineWidth(5);
+    doc.rect(5, 5, pageWidth - 10, pageHeight - 10);
+
+    doc.setDrawColor(108, 99, 255); // Inner purple border
+    doc.setLineWidth(1);
+    doc.rect(10, 10, pageWidth - 20, pageHeight - 20);
+
+    // --- Header ---
+    doc.setTextColor(108, 99, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(40);
+    doc.text('CERTIFICATE OF COMPLETION', pageWidth / 2, 45, { align: 'center' });
+
+    doc.setTextColor(74, 85, 104);
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'normal');
+    doc.text('This is to certify that', pageWidth / 2, 70, { align: 'center' });
+
+    // --- Student Name ---
+    doc.setTextColor(0, 0, 0);
+    doc.setFont('helvetica', 'bolditalic');
+    doc.setFontSize(35);
+    doc.text(studentName.toUpperCase(), pageWidth / 2, 95, { align: 'center' });
+
+    // --- Body ---
+    doc.setTextColor(74, 85, 104);
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'normal');
+    doc.text('has successfully completed the course', pageWidth / 2, 115, { align: 'center' });
+
+    // --- Course Name ---
+    doc.setTextColor(108, 99, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(26);
+    doc.text(courseName, pageWidth / 2, 135, { align: 'center' });
+
+    // --- Footer & Date ---
+    doc.setTextColor(113, 128, 150);
+    doc.setFontSize(12);
+    const date = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+    doc.text(`Issued on: ${date}`, pageWidth / 2, 160, { align: 'center' });
+
+    // --- Signature ---
+    doc.setDrawColor(203, 213, 224);
+    doc.line(pageWidth / 2 - 30, 185, pageWidth / 2 + 30, 185);
+    doc.setFontSize(10);
+    doc.text('Authorized Signature', pageWidth / 2, 192, { align: 'center' });
+
+    // --- ID Placeholder ---
+    const certId = 'CERT-' + Math.random().toString(36).substr(2, 9).toUpperCase();
+    doc.setFontSize(8);
+    doc.text(`Verify at: lms.example.com/verify | ID: ${certId}`, 15, pageHeight - 15);
+
+    doc.save(`${studentName}_${courseName}_Certificate.pdf`);
+};
+
+const CertificatesSection = ({ courses, allProgress, user }) => {
+    const checkCompletion = (course) => {
         const progress = allProgress.find(p => p.course.toString() === course._id.toString());
-        if (!progress) return { percent: 0, hasActivity: false };
+        if (!progress) return 0;
 
-        const allContents = course.chapters?.flatMap(c => c.modules?.flatMap(m => m.contents) || []) || [];
-        const allQuizzes = course.chapters?.flatMap(c => c.modules || []).filter(m => m.quiz?.questions?.length > 0) || [];
+        const allContents = course.chapters.flatMap(c => c.modules.flatMap(m => m.contents));
+        if (allContents.length === 0) return 0;
 
-        const totalItems = allContents.length + allQuizzes.length;
-        if (totalItems === 0) return { percent: 0, hasActivity: false };
-
-        let totalPoints = 0;
-        allContents.forEach(content => {
-            const cp = progress.contentProgress?.find(p => p.contentId?.toString() === content._id?.toString());
-            if (cp) {
-                if (cp.isCompleted) totalPoints += 1;
-                else if (content.minTime > 0) totalPoints += Math.min(0.9, cp.timeSpent / content.minTime);
-                else if (cp.timeSpent > 0) totalPoints += 0.1;
-            }
-        });
-
-        const passedQuizzes = allQuizzes.filter(module =>
-            progress.completedModules?.some(cm => cm.moduleId?.toString() === module._id?.toString())
+        const completedContentsCount = allContents.filter(content =>
+            progress.contentProgress?.some(cp => cp.contentId.toString() === content._id.toString() && cp.isCompleted)
         ).length;
-        totalPoints += passedQuizzes;
 
-        const hasAnyTimeSpent = progress.contentProgress?.some(cp => cp.timeSpent > 0);
-        const hasAnyQuizAttempt = progress.completedModules?.length > 0;
-        const percent = Math.min(100, Math.round((totalPoints / totalItems) * 100));
-
-        return { percent, hasActivity: hasAnyTimeSpent || hasAnyQuizAttempt || percent > 0 };
+        return Math.round((completedContentsCount / allContents.length) * 100);
     };
 
-    const categorizedCourses = courses.reduce((acc, course) => {
-        const { percent, hasActivity } = calculateProgress(course);
-        const isCompleted = percent === 100 && course.chapters.flatMap(c => c.modules).length > 0;
-
-        if (hasActivity) {
-            if (isCompleted) {
-                acc.completed.push({ ...course, progressPercent: percent });
-            } else {
-                acc.inProgress.push({ ...course, progressPercent: percent });
-            }
-        }
-        return acc;
-    }, { inProgress: [], completed: [] });
-
-    const renderCourseCard = (course) => (
-        <div
-            key={course._id}
-            onClick={() => onSelectCourse(course)}
-            style={{
-                background: 'white',
-                padding: '20px',
-                borderRadius: '15px',
-                boxShadow: '0 4px 6px rgba(0,0,0,0.05)',
-                cursor: 'pointer',
-                border: '1px solid #edf2f7',
-                transition: 'transform 0.2s'
-            }}
-            onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-5px)'}
-            onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
-        >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '15px' }}>
-                <h3 style={{ margin: 0, fontSize: '1.1rem', color: '#2d3748' }}>{course.subject}</h3>
-                <span style={{
-                    fontSize: '0.75rem',
-                    padding: '4px 8px',
-                    background: course.progressPercent === 100 ? '#C6F6D5' : '#EBF8FF',
-                    color: course.progressPercent === 100 ? '#22543D' : '#2A4365',
-                    borderRadius: '12px',
-                    fontWeight: 'bold'
-                }}>
-                    {course.progressPercent}%
-                </span>
-            </div>
-
-            <div style={{ height: '8px', background: '#edf2f7', borderRadius: '4px', overflow: 'hidden', marginBottom: '15px' }}>
-                <div style={{
-                    height: '100%',
-                    width: `${course.progressPercent}%`,
-                    background: course.progressPercent === 100 ? '#38A169' : '#6C63FF',
-                    transition: 'width 0.5s ease-out'
-                }}></div>
-            </div>
-
-            <div style={{ fontSize: '0.8rem', color: '#718096' }}>
-                Teacher: {course.teacher?.name || 'Unknown'}
-            </div>
-        </div>
-    );
+    const completedCourses = courses.filter(course => {
+        const percent = checkCompletion(course);
+        return percent === 100 && course.chapters.flatMap(c => c.modules).length > 0;
+    });
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '40px' }}>
-            {/* In Progress Section */}
-            <section>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
-                    <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#6C63FF' }}></div>
-                    <h2 style={{ fontSize: '1.25rem', color: '#2d3748', margin: 0 }}>In Progress</h2>
-                    <span style={{ color: '#a0aec0', fontSize: '0.9rem' }}>({categorizedCourses.inProgress.length})</span>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '25px' }}>
+            {completedCourses.length > 0 ? (
+                completedCourses.map(course => (
+                    <div
+                        key={course._id}
+                        style={{
+                            background: 'white',
+                            padding: '25px',
+                            borderRadius: '15px',
+                            boxShadow: '0 4px 6px rgba(0,0,0,0.05)',
+                            border: '1px solid #edf2f7',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            textAlign: 'center'
+                        }}
+                    >
+                        <div style={{ fontSize: '3rem', marginBottom: '15px' }}>🏆</div>
+                        <h3 style={{ margin: '0 0 10px 0', fontSize: '1.2rem', color: '#2d3748' }}>{course.subject}</h3>
+                        <p style={{ fontSize: '0.85rem', color: '#718096', marginBottom: '20px' }}>
+                            Congratulations! You have successfully mastered this course.
+                        </p>
+                        <button
+                            onClick={() => generateCertificate(user.name, course.subject)}
+                            style={{
+                                background: '#6C63FF',
+                                color: 'white',
+                                border: 'none',
+                                padding: '10px 20px',
+                                borderRadius: '8px',
+                                cursor: 'pointer',
+                                fontWeight: 'bold',
+                                width: '100%',
+                                transition: 'background 0.2s'
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.background = '#5A52E5'}
+                            onMouseLeave={e => e.currentTarget.style.background = '#6C63FF'}
+                        >
+                            Download Certificate (PDF)
+                        </button>
+                    </div>
+                ))
+            ) : (
+                <div style={{
+                    gridColumn: '1 / -1',
+                    padding: '60px',
+                    textAlign: 'center',
+                    background: '#fff',
+                    borderRadius: '15px',
+                    border: '2px dashed #edf2f7'
+                }}>
+                    <div style={{ fontSize: '3rem', marginBottom: '20px' }}>🎓</div>
+                    <h3 style={{ color: '#2d3748', marginBottom: '10px' }}>No Certificates Yet</h3>
+                    <p style={{ color: '#a0aec0', margin: 0 }}>
+                        Complete all modules and quizzes in a course to unlock your official certificate.
+                    </p>
                 </div>
-                {categorizedCourses.inProgress.length > 0 ? (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '25px' }}>
-                        {categorizedCourses.inProgress.map(renderCourseCard)}
-                    </div>
-                ) : (
-                    <div style={{ padding: '40px', textAlign: 'center', background: '#fff', borderRadius: '15px', border: '2px dashed #edf2f7' }}>
-                        <p style={{ color: '#a0aec0', margin: 0 }}>No courses in progress. Start learning from the Dashboard!</p>
-                    </div>
-                )}
-            </section>
-
-            {/* Completed Section */}
-            <section>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
-                    <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#38A169' }}></div>
-                    <h2 style={{ fontSize: '1.25rem', color: '#2d3748', margin: 0 }}>Completed</h2>
-                    <span style={{ color: '#a0aec0', fontSize: '0.9rem' }}>({categorizedCourses.completed.length})</span>
-                </div>
-                {categorizedCourses.completed.length > 0 ? (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '25px' }}>
-                        {categorizedCourses.completed.map(renderCourseCard)}
-                    </div>
-                ) : (
-                    <div style={{ padding: '40px', textAlign: 'center', background: '#fff', borderRadius: '15px', border: '2px dashed #edf2f7' }}>
-                        <p style={{ color: '#a0aec0', margin: 0 }}>No courses completed yet. Keep going! 🚀</p>
-                    </div>
-                )}
-            </section>
+            )}
         </div>
     );
 };
@@ -1141,153 +1271,68 @@ const QuizViewer = ({ quiz, isFastTrack, alreadyPassed, onSubmit, onClose }) => 
     );
 };
 
-export default StudentDashboard;
+const RoadmapSection = () => {
+    const [goal, setGoal] = useState('');
+    const [roadmap, setRoadmap] = useState('');
+    const [loading, setLoading] = useState(false);
 
-const generateCertificate = (studentName, courseName) => {
-    const doc = new jsPDF({
-        orientation: 'landscape',
-        unit: 'mm',
-        format: 'a4'
-    });
-
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-
-    // --- Border & Background ---
-    doc.setDrawColor(74, 85, 104); // Dark border
-    doc.setLineWidth(5);
-    doc.rect(5, 5, pageWidth - 10, pageHeight - 10);
-
-    doc.setDrawColor(108, 99, 255); // Inner purple border
-    doc.setLineWidth(1);
-    doc.rect(10, 10, pageWidth - 20, pageHeight - 20);
-
-    // --- Header ---
-    doc.setTextColor(108, 99, 255);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(40);
-    doc.text('CERTIFICATE OF COMPLETION', pageWidth / 2, 45, { align: 'center' });
-
-    doc.setTextColor(74, 85, 104);
-    doc.setFontSize(18);
-    doc.setFont('helvetica', 'normal');
-    doc.text('This is to certify that', pageWidth / 2, 70, { align: 'center' });
-
-    // --- Student Name ---
-    doc.setTextColor(0, 0, 0);
-    doc.setFont('helvetica', 'bolditalic');
-    doc.setFontSize(35);
-    doc.text(studentName.toUpperCase(), pageWidth / 2, 95, { align: 'center' });
-
-    // --- Body ---
-    doc.setTextColor(74, 85, 104);
-    doc.setFontSize(18);
-    doc.setFont('helvetica', 'normal');
-    doc.text('has successfully completed the course', pageWidth / 2, 115, { align: 'center' });
-
-    // --- Course Name ---
-    doc.setTextColor(108, 99, 255);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(26);
-    doc.text(courseName, pageWidth / 2, 135, { align: 'center' });
-
-    // --- Footer & Date ---
-    doc.setTextColor(113, 128, 150);
-    doc.setFontSize(12);
-    const date = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
-    doc.text(`Issued on: ${date}`, pageWidth / 2, 160, { align: 'center' });
-
-    // --- Signature ---
-    doc.setDrawColor(203, 213, 224);
-    doc.line(pageWidth / 2 - 30, 185, pageWidth / 2 + 30, 185);
-    doc.setFontSize(10);
-    doc.text('Authorized Signature', pageWidth / 2, 192, { align: 'center' });
-
-    // --- ID Placeholder ---
-    const certId = 'CERT-' + Math.random().toString(36).substr(2, 9).toUpperCase();
-    doc.setFontSize(8);
-    doc.text(`Verify at: lms.example.com/verify | ID: ${certId}`, 15, pageHeight - 15);
-
-    doc.save(`${studentName}_${courseName}_Certificate.pdf`);
-};
-
-const CertificatesSection = ({ courses, allProgress, user }) => {
-    const checkCompletion = (course) => {
-        const progress = allProgress.find(p => p.course.toString() === course._id.toString());
-        if (!progress) return 0;
-
-        const allContents = course.chapters.flatMap(c => c.modules.flatMap(m => m.contents));
-        if (allContents.length === 0) return 0;
-
-        const completedContentsCount = allContents.filter(content =>
-            progress.contentProgress?.some(cp => cp.contentId.toString() === content._id.toString() && cp.isCompleted)
-        ).length;
-
-        return Math.round((completedContentsCount / allContents.length) * 100);
+    const generateRoadmap = async () => {
+        if (!goal.trim()) return alert('Please enter a career goal or topic!');
+        setLoading(true);
+        try {
+            const token = localStorage.getItem('token');
+            const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/ai/generate-roadmap`,
+                { goal },
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            setRoadmap(res.data.data);
+        } catch (err) {
+            console.error('Error generating roadmap:', err);
+            alert('Failed to generate roadmap. Please try again.');
+        } finally {
+            setLoading(false);
+        }
     };
 
-    const completedCourses = courses.filter(course => {
-        const percent = checkCompletion(course);
-        return percent === 100 && course.chapters.flatMap(c => c.modules).length > 0;
-    });
-
     return (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '25px' }}>
-            {completedCourses.length > 0 ? (
-                completedCourses.map(course => (
-                    <div
-                        key={course._id}
-                        style={{
-                            background: 'white',
-                            padding: '25px',
-                            borderRadius: '15px',
-                            boxShadow: '0 4px 6px rgba(0,0,0,0.05)',
-                            border: '1px solid #edf2f7',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            textAlign: 'center'
-                        }}
-                    >
-                        <div style={{ fontSize: '3rem', marginBottom: '15px' }}>🏆</div>
-                        <h3 style={{ margin: '0 0 10px 0', fontSize: '1.2rem', color: '#2d3748' }}>{course.subject}</h3>
-                        <p style={{ fontSize: '0.85rem', color: '#718096', marginBottom: '20px' }}>
-                            Congratulations! You have successfully mastered this course.
-                        </p>
+        <div style={{ background: 'white', padding: '30px', borderRadius: '15px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
+            <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+                <div style={{ fontSize: '3rem', marginBottom: '15px' }}>🚀</div>
+                <h2 style={{ fontSize: '1.8rem', color: '#2D3748', marginBottom: '10px' }}>AI Career Roadmap Generator</h2>
+                <p style={{ color: '#718096' }}>Tell AI your dream job or topic, and we'll build your learning path.</p>
+            </div>
+
+            <div style={{ maxWidth: '600px', margin: '0 auto', display: 'flex', gap: '10px', marginBottom: '40px' }}>
+                <input
+                    type="text"
+                    placeholder="e.g. Become a Full Stack Web Developer in 6 months"
+                    value={goal}
+                    onChange={(e) => setGoal(e.target.value)}
+                    style={{ flex: 1, padding: '15px', borderRadius: '12px', border: '2px solid #edf2f7', fontSize: '1rem', outline: 'none' }}
+                />
+                <button
+                    onClick={generateRoadmap}
+                    disabled={loading}
+                    style={{ padding: '15px 25px', background: '#6C63FF', color: 'white', border: 'none', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s' }}
+                >
+                    {loading ? 'Generating...' : 'Build Path'}
+                </button>
+            </div>
+
+            {roadmap && (
+                <div style={{ background: '#f8fafc', padding: '30px', borderRadius: '15px', border: '1px solid #edf2f7', lineHeight: '1.8' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                        <h3 style={{ margin: 0 }}>Your Personalized Learning Path</h3>
                         <button
-                            onClick={() => generateCertificate(user.name, course.subject)}
-                            style={{
-                                background: '#6C63FF',
-                                color: 'white',
-                                border: 'none',
-                                padding: '10px 20px',
-                                borderRadius: '8px',
-                                cursor: 'pointer',
-                                fontWeight: 'bold',
-                                width: '100%',
-                                transition: 'background 0.2s'
-                            }}
-                            onMouseEnter={e => e.currentTarget.style.background = '#5A52E5'}
-                            onMouseLeave={e => e.currentTarget.style.background = '#6C63FF'}
+                            onClick={() => window.print()}
+                            style={{ background: 'transparent', border: '1px solid #6C63FF', color: '#6C63FF', padding: '5px 15px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
                         >
-                            Download Certificate (PDF)
+                            ⎙ Print Roadmap
                         </button>
                     </div>
-                ))
-            ) : (
-                <div style={{
-                    gridColumn: '1 / -1',
-                    padding: '60px',
-                    textAlign: 'center',
-                    background: '#fff',
-                    borderRadius: '15px',
-                    border: '2px dashed #edf2f7'
-                }}>
-                    <div style={{ fontSize: '3rem', marginBottom: '20px' }}>🎓</div>
-                    <h3 style={{ color: '#2d3748', marginBottom: '10px' }}>No Certificates Yet</h3>
-                    <p style={{ color: '#a0aec0', margin: 0 }}>
-                        Complete all modules and quizzes in a course to unlock your official certificate.
-                    </p>
+                    <div style={{ whiteSpace: 'pre-wrap', color: '#4A5568', fontSize: '1.05rem' }}>
+                        {roadmap}
+                    </div>
                 </div>
             )}
         </div>
