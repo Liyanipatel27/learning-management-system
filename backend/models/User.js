@@ -19,6 +19,15 @@ const userSchema = new mongoose.Schema({
     enum: ['student', 'teacher', 'admin'],
     default: 'student',
     required: true
+  },
+  enrollment: {
+    type: Number
+  },
+  branch: {
+    type: String
+  },
+  employeeId: {
+    type: Number
   }
 }, { timestamps: true });
 

@@ -7,7 +7,10 @@ function Register() {
         name: '',
         email: '',
         password: '',
-        role: 'student'
+        role: 'student',
+        enrollment: '',
+        branch: '',
+        employeeId: ''
     });
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
@@ -84,6 +87,50 @@ function Register() {
                                 <option value="admin">Admin</option>
                             </select>
                         </div>
+
+                        {formData.role === 'student' && (
+                            <>
+                                <div className="form-group">
+                                    <label className="form-label">Enrollment Number</label>
+                                    <input
+                                        type="number"
+                                        name="enrollment"
+                                        className="form-input"
+                                        value={formData.enrollment}
+                                        onChange={handleChange}
+                                        placeholder="e.g. 123456"
+                                        required
+                                    />
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">Branch</label>
+                                    <input
+                                        type="text"
+                                        name="branch"
+                                        className="form-input"
+                                        value={formData.branch}
+                                        onChange={handleChange}
+                                        placeholder="e.g. Computer Science"
+                                        required
+                                    />
+                                </div>
+                            </>
+                        )}
+
+                        {(formData.role === 'teacher' || formData.role === 'admin') && (
+                            <div className="form-group">
+                                <label className="form-label">Employee ID</label>
+                                <input
+                                    type="number"
+                                    name="employeeId"
+                                    className="form-input"
+                                    value={formData.employeeId}
+                                    onChange={handleChange}
+                                    placeholder="e.g. 98765"
+                                    required
+                                />
+                            </div>
+                        )}
 
                         <div className="form-group">
                             <label className="form-label">Email Address</label>

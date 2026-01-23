@@ -24,7 +24,7 @@ app.use('/api/courses', require('./routes/course'));
 app.use('/uploads', express.static('uploads'));
 
 app.get('/ping', (req, res) => {
-    res.send('pong v2');
+    res.send('pong v3-schema-test');
 });
 
 app.get('/', (req, res) => {

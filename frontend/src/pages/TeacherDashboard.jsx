@@ -6,8 +6,8 @@ import CourseBuilder from './CourseBuilder';
 function TeacherDashboard() {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     const navigate = useNavigate();
-    const [showCourseBuilder, setShowCourseBuilder] = useState(false);
-    const [selectedCourse, setSelectedCourse] = useState(null);
+    const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard', 'my-courses', 'create-course'
+    const [selectedCourse, setSelectedCourse] = useState(null); // For editing existing
     const [courses, setCourses] = useState([]);
 
     useEffect(() => {
@@ -27,7 +27,7 @@ function TeacherDashboard() {
     };
 
     const deleteCourse = async (courseId, e) => {
-        e.stopPropagation(); // Prevent opening the course builder
+        e.stopPropagation();
         if (!window.confirm('Are you sure you want to delete this course? This will remove all chapters and modules.')) return;
         try {
             await axios.delete(`${import.meta.env.VITE_API_URL}/api/courses/${courseId}`);
@@ -43,6 +43,10 @@ function TeacherDashboard() {
         localStorage.removeItem('token');
         navigate('/login');
     };
+
+    // Filtered lists
+    const publishedCourses = courses.filter(c => c.isPublished);
+    const draftCourses = courses.filter(c => !c.isPublished);
 
     return (
         <div className="dashboard-container">
@@ -66,37 +70,35 @@ function TeacherDashboard() {
                 </div>
                 <nav style={{ flex: 1 }}>
                     <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                        <li
-                            onClick={() => setShowCourseBuilder(false)}
-                            style={{
-                                padding: '12px 16px',
-                                borderRadius: '10px',
-                                marginBottom: '8px',
-                                cursor: 'pointer',
-                                background: !showCourseBuilder ? 'rgba(99, 102, 241, 0.1)' : 'transparent',
-                                color: !showCourseBuilder ? '#818cf8' : '#a0aec0',
-                                fontWeight: !showCourseBuilder ? '600' : '500',
-                                transition: 'all 0.2s'
-                            }}
-                        >
-                            Dashboard
-                        </li>
-                        <li
-                            onClick={() => setShowCourseBuilder(true)}
-                            style={{
-                                padding: '12px 16px',
-                                borderRadius: '10px',
-                                marginBottom: '8px',
-                                cursor: 'pointer',
-                                background: showCourseBuilder ? 'rgba(99, 102, 241, 0.1)' : 'transparent',
-                                color: showCourseBuilder ? '#818cf8' : '#a0aec0',
-                                fontWeight: showCourseBuilder ? '600' : '500',
-                                transition: 'all 0.2s'
-                            }}
-                        >
-                            Create Course
-                        </li>
-                        <li style={{ padding: '12px 16px', borderRadius: '10px', marginBottom: '8px', cursor: 'pointer', color: '#a0aec0' }} onClick={() => alert('Coming Soon!')}>Students</li>
+                        {[
+                            { id: 'dashboard', label: 'Dashboard', icon: '🏠' },
+                            { id: 'my-courses', label: 'My Courses', icon: '📚' },
+                            { id: 'create-course', label: 'Create Course', icon: '➕' },
+                            { id: 'students', label: 'Students List', icon: '👥' },
+                            { id: 'student-grades', label: 'Student Grades', icon: '📊' },
+                            { id: 'profile', label: 'My Profile', icon: '👤' }
+                        ].map(item => (
+                            <li
+                                key={item.id}
+                                onClick={() => { setActiveTab(item.id); setSelectedCourse(null); }}
+                                style={{
+                                    padding: '12px 16px',
+                                    borderRadius: '10px',
+                                    marginBottom: '8px',
+                                    cursor: 'pointer',
+                                    background: activeTab === item.id ? 'rgba(99, 102, 241, 0.1)' : 'transparent',
+                                    color: activeTab === item.id ? '#818cf8' : '#a0aec0',
+                                    fontWeight: activeTab === item.id ? '600' : '500',
+                                    transition: 'all 0.2s',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '12px'
+                                }}
+                            >
+                                <span>{item.icon}</span>
+                                {item.label}
+                            </li>
+                        ))}
                         <li style={{ padding: '12px 16px', borderRadius: '10px', marginBottom: '8px', cursor: 'pointer', color: '#a0aec0' }} onClick={() => alert('Coming Soon!')}>Assignments</li>
                         <li style={{ padding: '12px 16px', borderRadius: '10px', marginBottom: '8px', cursor: 'pointer', color: '#a0aec0' }} onClick={() => alert('Coming Soon!')}>Analytics</li>
                     </ul>
@@ -122,7 +124,13 @@ function TeacherDashboard() {
             <main className="main-content" style={{ flex: 1, marginLeft: '260px', padding: '40px' }}>
                 <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
                     <div>
-                        <h1 style={{ fontSize: '1.875rem', fontWeight: '700', color: '#1a202c', margin: '0 0 4px 0' }}>Instructor Portal</h1>
+                        <h1 style={{ fontSize: '1.875rem', fontWeight: '700', color: '#1a202c', margin: '0 0 4px 0' }}>
+                            {activeTab === 'dashboard' ? 'Instructor Portal' :
+                                activeTab === 'my-courses' ? 'My Courses' :
+                                    activeTab === 'students' ? 'Students Directory' :
+                                        activeTab === 'student-grades' ? 'Academic Performance' :
+                                            activeTab === 'profile' ? 'My Profile' : 'Course Builder'}
+                        </h1>
                         <p style={{ color: '#718096', margin: 0 }}>Welcome back, <span style={{ color: '#4a5568', fontWeight: '600' }}>{user.name}</span>! Ready to inspire today?</p>
                     </div>
                     <div className="user-profile" style={{ display: 'flex', alignItems: 'center', gap: '15px', background: 'white', padding: '8px 16px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
@@ -136,26 +144,77 @@ function TeacherDashboard() {
                     </div>
                 </header>
 
-                {showCourseBuilder || selectedCourse ? (
+                {(activeTab === 'create-course' || selectedCourse) ? (
                     <CourseBuilder
                         teacherId={user.id || user._id}
                         initialCourse={selectedCourse}
                         onCourseCreated={() => {
-                            setShowCourseBuilder(false);
+                            setActiveTab('my-courses');
                             setSelectedCourse(null);
                             fetchCourses(user.id || user._id);
                         }}
                     />
+                ) : activeTab === 'students' ? (
+                    <StudentsSection />
+                ) : activeTab === 'profile' ? (
+                    <ProfileSection userId={user.id || user._id} />
+                ) : activeTab === 'student-grades' ? (
+                    <StudentGradesSection teacherId={user.id || user._id} allPublishedCourses={publishedCourses} />
+                ) : activeTab === 'my-courses' ? (
+                    <div>
+                        {/* Published Section */}
+                        <section style={{ marginBottom: '40px' }}>
+                            <h3 style={{ fontSize: '1.25rem', fontWeight: '700', color: '#2d3748', marginBottom: '20px', borderBottom: '2px solid #10b981', paddingBottom: '10px', display: 'inline-block' }}>
+                                Published Courses
+                            </h3>
+                            {publishedCourses.length === 0 ? (
+                                <p style={{ color: '#718096', fontStyle: 'italic' }}>No published courses yet.</p>
+                            ) : (
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '24px' }}>
+                                    {publishedCourses.map(course => (
+                                        <CourseCard
+                                            key={course._id}
+                                            course={course}
+                                            onEdit={() => setSelectedCourse(course)}
+                                            onDelete={(e) => deleteCourse(course._id, e)}
+                                        />
+                                    ))}
+                                </div>
+                            )}
+                        </section>
+
+                        {/* Drafts Section */}
+                        <section>
+                            <h3 style={{ fontSize: '1.25rem', fontWeight: '700', color: '#2d3748', marginBottom: '20px', borderBottom: '2px solid #f59e0b', paddingBottom: '10px', display: 'inline-block' }}>
+                                Drafts
+                            </h3>
+                            {draftCourses.length === 0 ? (
+                                <p style={{ color: '#718096', fontStyle: 'italic' }}>No drafts currently.</p>
+                            ) : (
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '24px' }}>
+                                    {draftCourses.map(course => (
+                                        <CourseCard
+                                            key={course._id}
+                                            course={course}
+                                            onEdit={() => setSelectedCourse(course)}
+                                            onDelete={(e) => deleteCourse(course._id, e)}
+                                        />
+                                    ))}
+                                </div>
+                            )}
+                        </section>
+                    </div>
                 ) : (
+                    // Dashboard View
                     <>
                         <section className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px', marginBottom: '40px' }}>
                             <div style={{ background: 'white', padding: '20px', borderRadius: '15px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
                                 <h3 style={{ color: '#718096', fontSize: '0.9rem', marginBottom: '10px' }}>Active Courses</h3>
-                                <p style={{ fontSize: '2rem', fontWeight: 'bold', color: '#2D3748' }}>{courses.length}</p>
+                                <p style={{ fontSize: '2rem', fontWeight: 'bold', color: '#2D3748' }}>{publishedCourses.length}</p>
                             </div>
                             <div style={{ background: 'white', padding: '20px', borderRadius: '15px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
-                                <h3 style={{ color: '#718096', fontSize: '0.9rem', marginBottom: '10px' }}>Total Students</h3>
-                                <p style={{ fontSize: '2rem', fontWeight: 'bold', color: '#6C63FF' }}>142</p>
+                                <h3 style={{ color: '#718096', fontSize: '0.9rem', marginBottom: '10px' }}>Drafts</h3>
+                                <p style={{ fontSize: '2rem', fontWeight: 'bold', color: '#f59e0b' }}>{draftCourses.length}</p>
                             </div>
                             <div style={{ background: 'white', padding: '20px', borderRadius: '15px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
                                 <h3 style={{ color: '#718096', fontSize: '0.9rem', marginBottom: '10px' }}>Pending Grading</h3>
@@ -163,91 +222,421 @@ function TeacherDashboard() {
                             </div>
                         </section>
 
-                        <section>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-                                <h2 style={{ fontSize: '1.5rem', fontWeight: '700', color: '#1a202c', margin: 0 }}>Your Courses</h2>
-                                <button
-                                    onClick={() => setShowCourseBuilder(true)}
-                                    style={{ padding: '10px 20px', background: '#6366f1', color: 'white', border: 'none', borderRadius: '10px', fontWeight: '600', cursor: 'pointer', boxShadow: '0 4px 6px rgba(99, 102, 241, 0.2)' }}
-                                >
-                                    + Create New
-                                </button>
-                            </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '24px' }}>
-                                {courses.map(course => (
-                                    <div
-                                        key={course._id}
-                                        style={{
-                                            background: 'white',
-                                            padding: '24px',
-                                            borderRadius: '20px',
-                                            boxShadow: '0 4px 6px rgba(0,0,0,0.02), 0 10px 15px -3px rgba(0,0,0,0.03)',
-                                            cursor: 'pointer',
-                                            transition: 'transform 0.2s, box-shadow 0.2s',
-                                            border: '1px solid #edf2f7'
-                                        }}
-                                        onMouseEnter={(e) => {
-                                            e.currentTarget.style.transform = 'translateY(-4px)';
-                                            e.currentTarget.style.boxShadow = '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)';
-                                        }}
-                                        onMouseLeave={(e) => {
-                                            e.currentTarget.style.transform = 'translateY(0)';
-                                            e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.02), 0 10px 15px -3px rgba(0,0,0,0.03)';
-                                        }}
-                                        onClick={() => setSelectedCourse(course)}
-                                    >
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
-                                            <div style={{ background: 'rgba(99, 102, 241, 0.1)', color: '#6366f1', padding: '4px 12px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: '700' }}>
-                                                Development
-                                            </div>
-                                            <div style={{ color: '#cbd5e0', display: 'flex', gap: '8px' }}>
-                                                <div
-                                                    onClick={(e) => deleteCourse(course._id, e)}
-                                                    style={{ color: '#f87171', padding: '4px', borderRadius: '4px', cursor: 'pointer', transition: 'background 0.2s' }}
-                                                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(248, 113, 113, 0.1)'}
-                                                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                                                    title="Delete Course"
-                                                >
-                                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
-                                                </div>
-                                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" /></svg>
-                                            </div>
-                                        </div>
-                                        <h3 style={{ margin: '0 0 8px 0', fontSize: '1.25rem', fontWeight: '700', color: '#2d3748' }}>{course.subject}</h3>
-                                        <p style={{ fontSize: '0.875rem', color: '#718096', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /></svg>
-                                            {course.chapters.length} Chapters
-                                        </p>
-                                        <div style={{ height: '1px', background: '#edf2f7', marginBottom: '16px' }}></div>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                <span style={{ fontSize: '0.875rem', fontWeight: '600', color: '#4a5568' }}>4.8</span>
-                                                <svg style={{ color: '#fbbf24' }} width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.27 5.82 22 7 14.14l-5-4.87 6.91-1.01L12 2z" /></svg>
-                                            </div>
-                                            <span style={{ color: '#6366f1', fontSize: '0.875rem', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                Manage <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
-                                            </span>
-                                        </div>
-                                    </div>
-                                ))}
-                                {courses.length === 0 && (
-                                    <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '60px', background: 'white', borderRadius: '20px', border: '2px dashed #edf2f7' }}>
-                                        <p style={{ color: '#718096', fontSize: '1.1rem' }}>No courses created yet. Start by creating your first subject!</p>
-                                        <button
-                                            onClick={() => setShowCourseBuilder(true)}
-                                            style={{ marginTop: '16px', padding: '10px 24px', background: '#6366f1', color: 'white', border: 'none', borderRadius: '10px', fontWeight: '600', cursor: 'pointer' }}
-                                        >
-                                            Create Course
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-                        </section>
+                        <div style={{ background: '#f8fafc', padding: '30px', borderRadius: '20px', textAlign: 'center' }}>
+                            <h2 style={{ fontSize: '1.5rem', color: '#2d3748', marginBottom: '15px' }}>Quick Start</h2>
+                            <p style={{ color: '#718096', marginBottom: '25px' }}>Start creating a new course structure or finish a draft.</p>
+                            <button
+                                onClick={() => setActiveTab('create-course')}
+                                style={{ padding: '12px 30px', background: '#6366f1', color: 'white', border: 'none', borderRadius: '12px', fontWeight: '700', cursor: 'pointer', boxShadow: '0 4px 6px rgba(99, 102, 241, 0.3)' }}
+                            >
+                                + Create New Course
+                            </button>
+                        </div>
                     </>
                 )}
             </main>
         </div>
     );
 }
+
+// Helper Component for Course Card
+const CourseCard = ({ course, onEdit, onDelete }) => (
+    <div
+        style={{
+            background: 'white',
+            padding: '24px',
+            borderRadius: '20px',
+            boxShadow: '0 4px 6px rgba(0,0,0,0.02), 0 10px 15px -3px rgba(0,0,0,0.03)',
+            cursor: 'pointer',
+            transition: 'transform 0.2s, box-shadow 0.2s',
+            border: '1px solid #edf2f7'
+        }}
+        onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateY(-4px)';
+            e.currentTarget.style.boxShadow = '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)';
+        }}
+        onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.02), 0 10px 15px -3px rgba(0,0,0,0.03)';
+        }}
+        onClick={onEdit}
+    >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+            <div style={{ background: 'rgba(99, 102, 241, 0.1)', color: '#6366f1', padding: '4px 12px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: '700' }}>
+                Development
+            </div>
+            <div style={{
+                background: course.isPublished ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)',
+                color: course.isPublished ? '#10b981' : '#f59e0b',
+                padding: '4px 12px',
+                borderRadius: '20px',
+                fontSize: '0.75rem',
+                fontWeight: '700',
+                marginLeft: '8px'
+            }}>
+                {course.isPublished ? 'PUBLISHED' : 'DRAFT'}
+            </div>
+            <div style={{ color: '#cbd5e0', display: 'flex', gap: '8px', marginLeft: 'auto' }}>
+                <div
+                    onClick={onDelete}
+                    style={{ color: '#f87171', padding: '4px', borderRadius: '4px', cursor: 'pointer', transition: 'background 0.2s' }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(248, 113, 113, 0.1)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                    title="Delete Course"
+                >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                </div>
+            </div>
+        </div>
+        <h3 style={{ margin: '0 0 8px 0', fontSize: '1.25rem', fontWeight: '700', color: '#2d3748' }}>{course.subject}</h3>
+        <p style={{ fontSize: '0.875rem', color: '#718096', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /></svg>
+            {course.chapters.length} Chapters
+        </p>
+        <div style={{ height: '1px', background: '#edf2f7', marginBottom: '16px' }}></div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span style={{ fontSize: '0.875rem', fontWeight: '600', color: '#4a5568' }}>4.8</span>
+                <svg style={{ color: '#fbbf24' }} width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.27 5.82 22 7 14.14l-5-4.87 6.91-1.01L12 2z" /></svg>
+            </div>
+            <span style={{ color: '#6366f1', fontSize: '0.875rem', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                Manage <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+            </span>
+        </div>
+    </div>
+);
+
+const StudentGradesSection = ({ teacherId, allPublishedCourses }) => {
+    const [gradesData, setGradesData] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [selectedCourseId, setSelectedCourseId] = useState('all');
+
+    useEffect(() => {
+        fetchStudentGrades();
+    }, [teacherId]);
+
+    const fetchStudentGrades = async () => {
+        if (!teacherId || teacherId === 'undefined') {
+            console.warn('[GRADES] No valid teacherId provided. Skipping fetch.');
+            setLoading(false);
+            return;
+        }
+
+        console.log('Fetching student grades for teacherId:', teacherId);
+        try {
+            const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+            const res = await axios.get(`${apiUrl}/api/courses/grades/teacher/${teacherId}`);
+            console.log('Received grades data:', res.data);
+            setGradesData(res.data);
+        } catch (err) {
+            console.error('Error fetching student grades:', err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const filteredData = selectedCourseId === 'all'
+        ? gradesData
+        : gradesData.filter(c => c.courseId === selectedCourseId);
+
+    if (loading) return (
+        <div style={{ textAlign: 'center', padding: '100px', background: '#fff', borderRadius: '20px' }}>
+            <div className="spinner" style={{ border: '4px solid #f3f3f3', borderTop: '4px solid #6366f1', borderRadius: '50%', width: '40px', height: '40px', animation: 'spin 1s linear infinite', margin: '0 auto 20px' }}></div>
+            <div style={{ color: '#718096', fontSize: '1.1rem' }}>Analyzing student performance data...</div>
+            <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+        </div>
+    );
+
+    return (
+        <div style={{ background: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 25px rgba(0,0,0,0.05)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', borderBottom: '1px solid #edf2f7', paddingBottom: '20px' }}>
+                <div>
+                    <h2 style={{ fontSize: '1.75rem', fontWeight: '800', color: '#1a202c', margin: 0 }}>Student Performance</h2>
+                    <p style={{ color: '#718096', margin: '5px 0 0 0' }}>Track quiz results across your courses</p>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '15px', background: '#f8fafc', padding: '10px 20px', borderRadius: '12px' }}>
+                    <label style={{ fontSize: '0.9rem', fontWeight: '600', color: '#4a5568' }}>Filter:</label>
+                    <select
+                        value={selectedCourseId}
+                        onChange={(e) => setSelectedCourseId(e.target.value)}
+                        style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white', outline: 'none', cursor: 'pointer' }}
+                    >
+                        <option value="all">All My Courses</option>
+                        {allPublishedCourses.map(course => (
+                            <option key={course._id} value={course._id}>{course.subject}</option>
+                        ))}
+                    </select>
+                </div>
+            </div>
+
+            {filteredData.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '80px 40px', background: '#f8fafc', borderRadius: '15px', border: '2px dashed #e2e8f0' }}>
+                    <div style={{ fontSize: '4rem', marginBottom: '20px' }}>📁</div>
+                    <h3 style={{ color: '#2d3748', fontSize: '1.25rem', marginBottom: '10px' }}>No Quiz Data Found</h3>
+                    <p style={{ color: '#718096', maxWidth: '400px', margin: '0 auto' }}>
+                        When students pass quizzes in your published courses, their detailed scores and completion dates will appear here.
+                    </p>
+                </div>
+            ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+                    {filteredData.map((course) => (
+                        <div key={course.courseId} style={{ border: '1px solid #edf2f7', borderRadius: '15px', overflow: 'hidden' }}>
+                            <div style={{ background: '#f8fafc', padding: '15px 20px', borderBottom: '1px solid #edf2f7' }}>
+                                <h3 style={{ margin: 0, fontSize: '1.1rem', color: '#2d3748' }}>Course: {course.courseName}</h3>
+                            </div>
+
+                            {course.students.length === 0 ? (
+                                <div style={{ padding: '20px', textAlign: 'center', color: '#a0aec0' }}>No students have started this course yet.</div>
+                            ) : (
+                                <div style={{ overflowX: 'auto' }}>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                        <thead>
+                                            <tr style={{ background: '#fff', borderBottom: '1px solid #edf2f7' }}>
+                                                <th style={{ padding: '12px 20px', textAlign: 'left', color: '#718096', fontSize: '0.85rem' }}>Student Details</th>
+                                                <th style={{ padding: '12px 20px', textAlign: 'left', color: '#718096', fontSize: '0.85rem' }}>Quiz (Module)</th>
+                                                <th style={{ padding: '12px 20px', textAlign: 'center', color: '#718096', fontSize: '0.85rem' }}>Score</th>
+                                                <th style={{ padding: '12px 20px', textAlign: 'center', color: '#718096', fontSize: '0.85rem' }}>Status</th>
+                                                <th style={{ padding: '12px 20px', textAlign: 'center', color: '#718096', fontSize: '0.85rem' }}>Date</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {course.students.map((student) => (
+                                                <React.Fragment key={student.studentId}>
+                                                    {student.quizzes.length === 0 ? (
+                                                        <tr style={{ borderBottom: '1px solid #f8fafc' }}>
+                                                            <td style={{ padding: '15px 20px' }}>
+                                                                <div style={{ fontWeight: '600', color: '#2d3748' }}>{student.studentName}</div>
+                                                                <div style={{ fontSize: '0.75rem', color: '#a0aec0' }}>{student.studentEmail}</div>
+                                                            </td>
+                                                            <td colSpan="4" style={{ padding: '15px 20px', color: '#a0aec0', fontSize: '0.85rem' }}>No quizzes attempted yet.</td>
+                                                        </tr>
+                                                    ) : (
+                                                        student.quizzes.map((quiz, qIdx) => (
+                                                            <tr key={`${student.studentId}-${quiz.moduleId}`} style={{ borderBottom: '1px solid #f8fafc' }}>
+                                                                {qIdx === 0 && (
+                                                                    <td rowSpan={student.quizzes.length} style={{ padding: '15px 20px', verticalAlign: 'top', borderRight: '1px solid #f8fafc' }}>
+                                                                        <div style={{ fontWeight: '600', color: '#2d3748' }}>{student.studentName}</div>
+                                                                        <div style={{ fontSize: '0.75rem', color: '#a0aec0' }}>{student.studentEmail}</div>
+                                                                    </td>
+                                                                )}
+                                                                <td style={{ padding: '15px 20px' }}>
+                                                                    <div style={{ fontSize: '0.85rem', color: '#4a5568' }}>{quiz.chapterTitle}</div>
+                                                                    <div style={{ fontSize: '0.9rem', fontWeight: '500', color: '#2d3748' }}>{quiz.moduleTitle}</div>
+                                                                </td>
+                                                                <td style={{ padding: '15px 20px', textAlign: 'center' }}>
+                                                                    {quiz.score !== null ? (
+                                                                        <span style={{ fontWeight: 'bold', fontSize: '1rem', color: quiz.score >= 70 ? '#10b981' : '#f87171' }}>
+                                                                            {quiz.score}%
+                                                                        </span>
+                                                                    ) : '-'}
+                                                                </td>
+                                                                <td style={{ padding: '15px 20px', textAlign: 'center' }}>
+                                                                    {quiz.score !== null ? (
+                                                                        <span style={{
+                                                                            padding: '4px 10px',
+                                                                            borderRadius: '20px',
+                                                                            fontSize: '0.7rem',
+                                                                            fontWeight: 'bold',
+                                                                            background: quiz.score >= 70 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(248, 113, 113, 0.1)',
+                                                                            color: quiz.score >= 70 ? '#10b981' : '#f87171'
+                                                                        }}>
+                                                                            {quiz.score >= 70 ? (quiz.isFastTracked ? '⚡ FAST TRACK' : 'PASSED') : 'FAILED'}
+                                                                        </span>
+                                                                    ) : '-'}
+                                                                </td>
+                                                                <td style={{ padding: '15px 20px', textAlign: 'center', fontSize: '0.8rem', color: '#718096' }}>
+                                                                    {quiz.completedAt ? new Date(quiz.completedAt).toLocaleDateString('en-GB') : '-'}
+                                                                </td>
+                                                            </tr>
+                                                        ))
+                                                    )}
+                                                </React.Fragment>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
+
+// --- NEW SECTION: Students Directory ---
+const StudentsSection = () => {
+    const [students, setStudents] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    const fetchStudents = async () => {
+        setLoading(true);
+        try {
+            const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/auth/students`);
+            setStudents(res.data);
+        } catch (err) {
+            console.error('Error fetching students:', err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchStudents();
+    }, []);
+
+    if (loading) return <div style={{ textAlign: 'center', padding: '50px' }}>Loading students...</div>;
+
+    return (
+        <div style={{ background: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#1a202c', margin: 0 }}>Registered Students</h2>
+                <button
+                    onClick={fetchStudents}
+                    style={{ padding: '8px 16px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem' }}
+                >
+                    🔄 Refresh List
+                </button>
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                        <tr style={{ background: '#f8fafc', borderBottom: '1px solid #edf2f7' }}>
+                            <th style={{ padding: '15px 20px', textAlign: 'left', color: '#718096' }}>Student Name</th>
+                            <th style={{ padding: '15px 20px', textAlign: 'left', color: '#718096' }}>Email</th>
+                            <th style={{ padding: '15px 20px', textAlign: 'left', color: '#718096' }}>Joined Date</th>
+                            <th style={{ padding: '15px 20px', textAlign: 'center', color: '#718096' }}>Account Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {students.length === 0 ? (
+                            <tr>
+                                <td colSpan="4" style={{ padding: '40px', textAlign: 'center', color: '#a0aec0' }}>No students registered yet.</td>
+                            </tr>
+                        ) : (
+                            students.map(student => (
+                                <tr key={student._id} style={{ borderBottom: '1px solid #f8fafc' }}>
+                                    <td style={{ padding: '15px 20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                        <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#6366f1', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '600' }}>
+                                            {student.name.charAt(0).toUpperCase()}
+                                        </div>
+                                        <span style={{ fontWeight: '600', color: '#2d3748' }}>{student.name}</span>
+                                    </td>
+                                    <td style={{ padding: '15px 20px', color: '#4a5568' }}>{student.email}</td>
+                                    <td style={{ padding: '15px 20px', color: '#718096' }}>
+                                        {student.createdAt ? new Date(student.createdAt).toLocaleDateString('en-GB') : 'N/A'}
+                                    </td>
+                                    <td style={{ padding: '15px 20px', textAlign: 'center' }}>
+                                        <span style={{ padding: '4px 12px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: '700', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}>
+                                            ACTIVE
+                                        </span>
+                                    </td>
+                                </tr>
+                            ))
+                        )}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+};
+
+// --- NEW SECTION: Profile View ---
+const ProfileSection = ({ userId }) => {
+    const sessionUser = JSON.parse(localStorage.getItem('user') || '{}');
+    const [profile, setProfile] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    useEffect(() => {
+        const fetchProfile = async () => {
+            if (!userId || userId === 'undefined') {
+                console.warn('[PROFILE] No valid userId provided. Falling back to session data.');
+                setProfile(sessionUser);
+                setLoading(false);
+                return;
+            }
+
+            try {
+                console.log(`[PROFILE] Fetching profile for: ${userId}`);
+                const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+                const res = await axios.get(`${apiUrl}/api/auth/profile/${userId}`);
+                setProfile(res.data);
+            } catch (err) {
+                console.error('[PROFILE] Error fetching profile:', err);
+                setError(err.message);
+                // Fallback to session user if fetch fails
+                setProfile(sessionUser);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchProfile();
+    }, [userId]);
+
+    if (loading) return <div style={{ textAlign: 'center', padding: '50px' }}>Loading profile...</div>;
+
+    // If no profile found anywhere
+    if (!profile || !profile.name) {
+        return (
+            <div style={{ textAlign: 'center', padding: '50px' }}>
+                <h3>Profile not found</h3>
+                <p style={{ color: '#718096' }}>Please try logging out and logging in again.</p>
+                {error && <p style={{ fontSize: '0.8rem', color: '#e53e3e' }}>Error: {error}</p>}
+            </div>
+        );
+    }
+
+    return (
+        <div style={{ maxWidth: '800px', margin: '0 auto', background: 'white', padding: '40px', borderRadius: '25px', boxShadow: '0 10px 25px rgba(0,0,0,0.05)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '30px', marginBottom: '40px', borderBottom: '1px solid #edf2f7', paddingBottom: '30px' }}>
+                <div style={{ width: '100px', height: '100px', borderRadius: '30px', background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.5rem', fontWeight: 'bold', boxShadow: '0 10px 20px rgba(99, 102, 241, 0.2)' }}>
+                    {profile.name ? profile.name.charAt(0).toUpperCase() : '?'}
+                </div>
+                <div>
+                    <h2 style={{ fontSize: '2rem', margin: '0 0 5px 0', color: '#1a202c' }}>{profile.name}</h2>
+                    <p style={{ margin: 0, color: '#6366f1', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px', fontSize: '0.9rem' }}>{profile.role}</p>
+                </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px' }}>
+                <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '15px', border: '1px solid #edf2f7' }}>
+                    <label style={{ display: 'block', fontSize: '0.8rem', color: '#718096', marginBottom: '5px', fontWeight: '600' }}>Email Address</label>
+                    <div style={{ fontSize: '1.1rem', color: '#2d3748', fontWeight: '500' }}>{profile.email}</div>
+                </div>
+                <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '15px', border: '1px solid #edf2f7' }}>
+                    <label style={{ display: 'block', fontSize: '0.8rem', color: '#718096', marginBottom: '5px', fontWeight: '600' }}>Joined Date</label>
+                    <div style={{ fontSize: '1.1rem', color: '#2d3748', fontWeight: '500' }}>
+                        {profile.createdAt ? new Date(profile.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : 'Recently Joined'}
+                    </div>
+                </div>
+                <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '15px', border: '1px solid #edf2f7' }}>
+                    <label style={{ display: 'block', fontSize: '0.8rem', color: '#718096', marginBottom: '5px', fontWeight: '600' }}>Status</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981' }}></div>
+                        <div style={{ fontSize: '1rem', color: '#10b981', fontWeight: '700' }}>Active</div>
+                    </div>
+                </div>
+                {profile.employeeId && (
+                    <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '15px', border: '1px solid #edf2f7' }}>
+                        <label style={{ display: 'block', fontSize: '0.8rem', color: '#718096', marginBottom: '5px', fontWeight: '600' }}>Employee ID</label>
+                        <div style={{ fontSize: '1.1rem', color: '#2d3748', fontWeight: '500' }}>{profile.employeeId}</div>
+                    </div>
+                )}
+            </div>
+
+            <div style={{ marginTop: '40px', padding: '20px', background: 'rgba(99, 102, 241, 0.05)', borderRadius: '15px', border: '1px dashed #6366f1' }}>
+                <p style={{ margin: 0, color: '#4a5568', fontSize: '0.9rem', textAlign: 'center' }}>
+                    Experience a personalized learning journey with LMS Academy. More profile features coming soon!
+                </p>
+            </div>
+            {error && (
+                <div style={{ marginTop: '20px', padding: '10px', background: '#fff5f5', color: '#c53030', fontSize: '0.75rem', borderRadius: '8px', textAlign: 'center' }}>
+                    Note: Using offline session data. (Original error: {error})
+                </div>
+            )}
+        </div>
+    );
+};
 
 export default TeacherDashboard;
