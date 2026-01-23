@@ -10,10 +10,15 @@ cloudinary.config({
 
 const storage = new CloudinaryStorage({
     cloudinary: cloudinary,
-    params: {
-        folder: 'lms-uploads',
-        resource_type: 'auto', // Important for non-image files like PDFs
-        allowed_formats: ['jpg', 'png', 'pdf', 'mp4', 'mkv', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'],
+    params: async (req, file) => {
+        console.log('Cloudinary Storage evaluating file:', file.originalname, file.mimetype);
+        const isRaw = file.mimetype === 'text/plain' || file.mimetype.includes('word') || file.mimetype.includes('msword');
+        return {
+            folder: 'lms-uploads',
+            resource_type: isRaw ? 'raw' : 'auto',
+            public_id: file.originalname.split('.')[0] + Date.now(),
+            // allowed_formats: ['jpg', 'png', 'pdf', 'mp4', 'mkv', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt'], // Removed to let Cloudinary handle via resource_type
+        };
     },
 });
 

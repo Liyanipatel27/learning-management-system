@@ -21,8 +21,8 @@ function Login() {
             const res = await axios.post('http://localhost:5000/api/auth/login', formData);
             const { user, token } = res.data;
 
-            localStorage.setItem('user', JSON.stringify(user));
-            if (token) localStorage.setItem('token', token);
+            sessionStorage.setItem('user', JSON.stringify(user));
+            if (token) sessionStorage.setItem('token', token);
 
             if (user.role === 'student') {
                 navigate('/student-dashboard');

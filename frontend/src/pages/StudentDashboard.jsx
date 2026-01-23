@@ -8,23 +8,30 @@ import ReactMarkdown from 'react-markdown';
 import AIAssistantSidebar from '../components/AIAssistantSidebar'; // Import the new component
 
 function StudentDashboard() {
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const user = JSON.parse(sessionStorage.getItem('user') || '{}');
     const navigate = useNavigate();
     const [courses, setCourses] = useState([]);
     const [selectedCourse, setSelectedCourse] = useState(null);
     const [isCinemaMode, setIsCinemaMode] = useState(false);
     const [activeTab, setActiveTab] = useState('dashboard');
+    const [showStudyReminder, setShowStudyReminder] = useState(null);
     const [allProgress, setAllProgress] = useState([]);
+    const [dailyHours, setDailyHours] = useState(2);
+    const [weekendHours, setWeekendHours] = useState(4);
 
     useEffect(() => {
         fetchCourses();
     }, []);
 
     useEffect(() => {
-        if (activeTab === 'my-courses') {
+        if (activeTab === 'dashboard' || activeTab === 'my-courses' || activeTab === 'ai-roadmap') {
             fetchAllProgress();
+
+            // Periodically refresh every 60 seconds to keep stats fresh
+            const interval = setInterval(fetchAllProgress, 60000);
+            return () => clearInterval(interval);
         }
-    }, [activeTab]);
+    }, [activeTab, selectedCourse]); // Also refetch when exiting CourseViewer
 
     const fetchAllProgress = async () => {
         try {
@@ -48,8 +55,8 @@ function StudentDashboard() {
     };
 
     const handleLogout = () => {
-        localStorage.removeItem('user');
-        localStorage.removeItem('token');
+        sessionStorage.removeItem('user');
+        sessionStorage.removeItem('token');
         navigate('/login');
     };
 
@@ -171,6 +178,27 @@ function StudentDashboard() {
                         isCinemaMode={isCinemaMode}
                         setIsCinemaMode={setIsCinemaMode}
                         onBack={() => {
+                            // Calculate if goal met before leaving
+                            const today = new Date().toISOString().split('T')[0];
+                            let totalMin = 0;
+                            allProgress.forEach(p => {
+                                const activity = p.dailyActivity?.find(a => a.date === today);
+                                if (activity) totalMin += activity.minutes;
+                            });
+
+                            const day = new Date().getDay();
+                            const targetHours = (day === 0 || day === 6) ? weekendHours : dailyHours;
+                            const thresholdMin = targetHours * 60 * 0.5;
+
+                            if (totalMin < thresholdMin) {
+                                setShowStudyReminder({
+                                    remaining: Math.round(thresholdMin - totalMin),
+                                    goal: thresholdMin
+                                });
+                                // Auto hide after 5 seconds
+                                setTimeout(() => setShowStudyReminder(null), 5000);
+                            }
+
                             setSelectedCourse(null);
                             setIsCinemaMode(false);
                         }}
@@ -194,6 +222,64 @@ function StudentDashboard() {
                             <div style={{ background: 'white', padding: '20px', borderRadius: '15px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
                                 <h3 style={{ color: '#718096', fontSize: '0.9rem', marginBottom: '10px' }}>Attendance</h3>
                                 <p style={{ fontSize: '2rem', fontWeight: 'bold', color: '#38B2AC' }}>95%</p>
+                            </div>
+
+                            {/* Card 4: Today's Study Time */}
+                            <div style={{ background: 'linear-gradient(135deg, #6C63FF 0%, #4338CA 100%)', padding: '20px', borderRadius: '15px', boxShadow: '0 10px 15px rgba(108, 99, 255, 0.2)', color: 'white' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                                    <h3 style={{ color: 'rgba(255,255,255,0.8)', fontSize: '0.9rem', margin: 0 }}>Today's Study Time</h3>
+                                    <span style={{ fontSize: '0.7rem', background: 'rgba(255,255,255,0.2)', padding: '2px 8px', borderRadius: '10px' }}>
+                                        {new Date().getDay() === 0 || new Date().getDay() === 6 ? 'Weekend Goal' : 'Daily Goal'}
+                                    </span>
+                                </div>
+                                <p style={{ fontSize: '2.2rem', fontWeight: 'bold', margin: '0 0 10px 0' }}>
+                                    {(() => {
+                                        const today = new Date().toISOString().split('T')[0];
+                                        let totalMin = 0;
+                                        allProgress.forEach(progress => {
+                                            const todayActivity = progress.dailyActivity?.find(a => a.date === today);
+                                            if (todayActivity) totalMin += todayActivity.minutes;
+                                        });
+
+                                        if (totalMin === 0) return '0 mins';
+                                        return `${Number(totalMin).toFixed(1)} mins`;
+                                    })()}
+                                </p>
+
+                                {(() => {
+                                    const today = new Date().toISOString().split('T')[0];
+                                    let totalMin = 0;
+                                    allProgress.forEach(progress => {
+                                        const todayActivity = progress.dailyActivity?.find(a => a.date === today);
+                                        if (todayActivity) totalMin += todayActivity.minutes;
+                                    });
+
+                                    const day = new Date().getDay();
+                                    const targetHours = (day === 0 || day === 6) ? weekendHours : dailyHours;
+                                    const totalTargetMin = targetHours * 60;
+                                    const thresholdMin = totalTargetMin * 0.5;
+                                    const percentOfThreshold = Math.min(100, Math.round((totalMin / thresholdMin) * 100));
+
+                                    return (
+                                        <div style={{ marginTop: '10px' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '5px' }}>
+                                                <span>Roadmap Threshold (50%)</span>
+                                                <span>{percentOfThreshold}%</span>
+                                            </div>
+                                            <div style={{ height: '6px', background: 'rgba(255,255,255,0.2)', borderRadius: '3px', overflow: 'hidden' }}>
+                                                <div style={{
+                                                    height: '100%',
+                                                    width: `${percentOfThreshold}%`,
+                                                    background: percentOfThreshold >= 100 ? '#48BB78' : '#F6AD55',
+                                                    transition: 'width 0.5s ease'
+                                                }}></div>
+                                            </div>
+                                            <p style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.7)', marginTop: '8px', fontStyle: 'italic' }}>
+                                                {percentOfThreshold >= 100 ? '✅ Target Met for today!' : `Need ${Math.round(Math.max(0, thresholdMin - totalMin))} mins more to satisfy AI Roadmap.`}
+                                            </p>
+                                        </div>
+                                    );
+                                })()}
                             </div>
                         </section>
 
@@ -219,7 +305,14 @@ function StudentDashboard() {
                         onSelectCourse={(course) => setSelectedCourse(course)}
                     />
                 ) : activeTab === 'ai-roadmap' ? (
-                    <RoadmapSection courses={courses} />
+                    <RoadmapSection
+                        courses={courses}
+                        allProgress={allProgress}
+                        dailyHours={dailyHours}
+                        setDailyHours={setDailyHours}
+                        weekendHours={weekendHours}
+                        setWeekendHours={setWeekendHours}
+                    />
                 ) : (
                     <CertificatesSection
                         courses={courses}
@@ -228,6 +321,60 @@ function StudentDashboard() {
                     />
                 )}
             </main>
+
+            {/* Premium Study Reminder Toast */}
+            {showStudyReminder && (
+                <div style={{
+                    position: 'fixed',
+                    bottom: '30px',
+                    right: '30px',
+                    background: 'white',
+                    padding: '20px',
+                    borderRadius: '16px',
+                    boxShadow: '0 15px 35px rgba(0,0,0,0.15)',
+                    border: '1px solid #edf2f7',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '12px',
+                    minWidth: '320px',
+                    zIndex: 9999,
+                    animation: 'slideInRight 0.5s ease-out'
+                }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <span style={{ fontSize: '1.5rem' }}>🎯</span>
+                            <h4 style={{ margin: 0, color: '#2d3748', fontSize: '1rem' }}>Study Goal Reminder</h4>
+                        </div>
+                        <button onClick={() => setShowStudyReminder(null)} style={{ border: 'none', background: 'none', color: '#a0aec0', cursor: 'pointer', fontSize: '1.2rem' }}>&times;</button>
+                    </div>
+                    <div>
+                        <p style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: '#718096', lineHeight: '1.4' }}>
+                            You're doing great! You still need **{showStudyReminder.remaining} mins** more to reach your daily activity target.
+                        </p>
+                        <div style={{ height: '8px', background: '#edf2f7', borderRadius: '4px', overflow: 'hidden' }}>
+                            <div style={{
+                                height: '100%',
+                                width: `${Math.round(((showStudyReminder.goal - showStudyReminder.remaining) / showStudyReminder.goal) * 100)}%`,
+                                background: 'linear-gradient(90deg, #F6AD55, #ED8936)',
+                                borderRadius: '4px'
+                            }}></div>
+                        </div>
+                    </div>
+                    <button
+                        onClick={() => setShowStudyReminder(null)}
+                        style={{ background: '#6C63FF', color: 'white', border: 'none', padding: '8px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem' }}
+                    >
+                        Keep Studying (Got it!)
+                    </button>
+
+                    <style>{`
+                        @keyframes slideInRight {
+                            from { transform: translateX(100%); opacity: 0; }
+                            to { transform: translateX(0); opacity: 1; }
+                        }
+                    `}</style>
+                </div>
+            )}
         </div>
     );
 }
@@ -297,12 +444,16 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
                 if (document.hidden || !document.hasFocus()) return;
 
                 setTimeSpent(prev => {
-                    const next = prev + 1;
-                    timeSpentRef.current = next; // Update ref immediately
-                    if (next >= selectedContent.minTime) {
-                        setIsTimeRequirementMet(true);
+                    // Check if window is focused AND document is visible
+                    if (document.hasFocus() && !document.hidden) {
+                        const next = prev + 1;
+                        timeSpentRef.current = next; // Update ref immediately
+                        if (next >= selectedContent.minTime) {
+                            setIsTimeRequirementMet(true);
+                        }
+                        return next;
                     }
-                    return next;
+                    return prev;
                 });
             }, 1000);
 
@@ -330,11 +481,7 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
     const saveProgress = async (forceCompleted = false) => {
         if (!selectedContent || !user || (!user.id && !user._id)) return;
 
-        const isAlreadyDone = studentProgress?.contentProgress?.find(
-            cp => cp.contentId.toString() === selectedContent._id.toString()
-        )?.isCompleted;
-
-        if (isAlreadyDone && !forceCompleted) return;
+        // REMOVED early return: Allow saving even if already completed to track total study time for daily goals
 
         try {
             const studentId = user.id || user._id;
@@ -475,7 +622,7 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
     }, [course]);
 
     const checkIsLocked = (chapter, module) => {
-        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        const user = JSON.parse(sessionStorage.getItem('user') || '{}');
         if (user.role === 'teacher' || user.role === 'admin') return false;
 
         // Find module index in course
@@ -496,7 +643,7 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
 
     const handleQuizSubmission = async (moduleId, score, isFastTrack, onFail) => {
         try {
-            const studentId = JSON.parse(localStorage.getItem('user') || '{}').id || JSON.parse(localStorage.getItem('user') || '{}')._id;
+            const studentId = JSON.parse(sessionStorage.getItem('user') || '{}').id || JSON.parse(sessionStorage.getItem('user') || '{}')._id;
             const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/courses/${course._id}/modules/${moduleId}/submit-quiz`, {
                 studentId,
                 score,
@@ -561,11 +708,9 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
     };
 
     const formatTime = (seconds) => {
-        if (seconds <= 0) return '0s';
-        const m = Math.floor(seconds / 60);
-        const s = seconds % 60;
-        if (m > 0) return `${m}m ${s}s`;
-        return `${s}s`;
+        if (seconds <= 0) return '0 mins';
+        const mins = (seconds / 60).toFixed(1);
+        return `${mins} mins`;
     };
 
     return (
@@ -1122,6 +1267,135 @@ const CertificatesSection = ({ courses, allProgress, user }) => {
     );
 };
 
+const MyCoursesSection = ({ courses, allProgress, onSelectCourse }) => {
+    const calculateProgress = (course) => {
+        const progress = allProgress.find(p => p.course.toString() === course._id.toString());
+        if (!progress) return 0;
+
+        const allContents = course.chapters.flatMap(c => c.modules.flatMap(m => m.contents)) || [];
+        const allQuizzes = course.chapters.flatMap(c => c.modules || []).filter(m => m.quiz?.questions?.length > 0) || [];
+        const totalItems = allContents.length + allQuizzes.length;
+
+        if (totalItems === 0) return 0;
+
+        let completedItems = 0;
+        allContents.forEach(content => {
+            if (progress.contentProgress?.some(cp => cp.contentId.toString() === content._id.toString() && cp.isCompleted)) {
+                completedItems++;
+            }
+        });
+
+        allQuizzes.forEach(module => {
+            if (progress.completedModules?.some(cm => cm.moduleId.toString() === module._id.toString())) {
+                completedItems++;
+            }
+        });
+
+        return Math.min(100, Math.round((completedItems / totalItems) * 100));
+    };
+
+    const sortedCourses = [...courses].sort((a, b) => {
+        const progressA = calculateProgress(a);
+        const progressB = calculateProgress(b);
+        if (progressA === 100 && progressB < 100) return 1;
+        if (progressA < 100 && progressB === 100) return -1;
+        return 0;
+    });
+
+    return (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '25px' }}>
+            {sortedCourses.length > 0 ? (
+                sortedCourses.map(course => {
+                    const progressPercent = calculateProgress(course);
+                    return (
+                        <div
+                            key={course._id}
+                            style={{
+                                background: 'white',
+                                padding: '25px',
+                                borderRadius: '15px',
+                                boxShadow: '0 4px 6px rgba(0,0,0,0.05)',
+                                border: '1px solid #edf2f7',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                transition: 'transform 0.2s, box-shadow 0.2s',
+                                cursor: 'pointer'
+                            }}
+                            onClick={() => onSelectCourse(course)}
+                            onMouseEnter={e => {
+                                e.currentTarget.style.transform = 'translateY(-5px)';
+                                e.currentTarget.style.boxShadow = '0 10px 15px rgba(0,0,0,0.1)';
+                            }}
+                            onMouseLeave={e => {
+                                e.currentTarget.style.transform = 'translateY(0)';
+                                e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.05)';
+                            }}
+                        >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '15px' }}>
+                                <h3 style={{ margin: 0, fontSize: '1.2rem', color: '#2d3748', fontWeight: '700' }}>{course.subject}</h3>
+                                <span style={{ padding: '4px 10px', background: progressPercent === 100 ? '#C6F6D5' : '#EBF8FF', color: progressPercent === 100 ? '#22543D' : '#2B6CB0', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 'bold' }}>
+                                    {progressPercent === 100 ? 'Completed' : 'In Progress'}
+                                </span>
+                            </div>
+
+                            <p style={{ fontSize: '0.85rem', color: '#718096', marginBottom: '20px', flex: 1 }}>
+                                Teacher: {course.teacher?.name || 'Assigned Instructor'}
+                            </p>
+
+                            <div style={{ marginBottom: '10px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                    <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#4a5568' }}>Progress</span>
+                                    <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#6C63FF' }}>{progressPercent}%</span>
+                                </div>
+                                <div style={{ height: '8px', background: '#edf2f7', borderRadius: '4px', overflow: 'hidden' }}>
+                                    <div style={{
+                                        height: '100%',
+                                        width: `${progressPercent}%`,
+                                        background: 'linear-gradient(90deg, #6C63FF, #4834d4)',
+                                        borderRadius: '4px',
+                                        transition: 'width 0.5s ease'
+                                    }}></div>
+                                </div>
+                            </div>
+
+                            <button
+                                style={{
+                                    marginTop: '10px',
+                                    padding: '12px',
+                                    background: '#f8fafc',
+                                    color: '#6C63FF',
+                                    border: '1px solid #6C63FF',
+                                    borderRadius: '10px',
+                                    fontWeight: 'bold',
+                                    cursor: 'pointer',
+                                    fontSize: '0.9rem',
+                                    transition: 'all 0.2s'
+                                }}
+                                onMouseEnter={e => {
+                                    e.currentTarget.style.background = '#6C63FF';
+                                    e.currentTarget.style.color = 'white';
+                                }}
+                                onMouseLeave={e => {
+                                    e.currentTarget.style.background = '#f8fafc';
+                                    e.currentTarget.style.color = '#6C63FF';
+                                }}
+                            >
+                                Continue Learning
+                            </button>
+                        </div>
+                    );
+                })
+            ) : (
+                <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '100px 20px' }}>
+                    <div style={{ fontSize: '4rem', marginBottom: '20px' }}>📚</div>
+                    <h2 style={{ color: '#2d3748' }}>No Courses Enrolled</h2>
+                    <p style={{ color: '#718096' }}>You haven't enrolled in any courses yet. Visit the Dashboard to find and start a course!</p>
+                </div>
+            )}
+        </div>
+    );
+};
+
 const QuizViewer = ({ quiz, isFastTrack, alreadyPassed, onSubmit, onClose }) => {
     const [answers, setAnswers] = useState({});
     const [submitted, setSubmitted] = useState(false);
@@ -1271,25 +1545,118 @@ const QuizViewer = ({ quiz, isFastTrack, alreadyPassed, onSubmit, onClose }) => 
     );
 };
 
-const RoadmapSection = ({ courses = [] }) => {
+const RoadmapSection = ({
+    courses = [],
+    allProgress = [],
+    dailyHours,
+    setDailyHours,
+    weekendHours,
+    setWeekendHours
+}) => {
     const [goal, setGoal] = useState('');
-    const [selectedCourseId, setSelectedCourseId] = useState('');
+    const [selectedCourseIds, setSelectedCourseIds] = useState([]);
     const [roadmap, setRoadmap] = useState('');
     const [loading, setLoading] = useState(false);
+    const [revisionMode, setRevisionMode] = useState(false);
+    const [showGapModal, setShowGapModal] = useState(false);
+    const [missedDaysCount, setMissedDaysCount] = useState(0);
+
+    const checkStudyGap = () => {
+        if (allProgress.length === 0 || selectedCourseIds.length === 0) return;
+
+        // Check activity for "Yesterday"
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        const dateStr = yesterday.toISOString().split('T')[0];
+        const dayOfWeek = yesterday.getDay(); // 0 is Sunday, 6 is Saturday
+        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+
+        const targetHours = isWeekend ? weekendHours : dailyHours;
+        const thresholdMinutes = targetHours * 60 * 0.5;
+
+        // Sum minutes from all selected courses for yesterday
+        let totalMinutesYesterday = 0;
+        selectedCourseIds.forEach(courseId => {
+            const progress = allProgress.find(p => p.course.toString() === courseId.toString());
+            const yesterdayActivity = progress?.dailyActivity?.find(a => a.date === dateStr);
+            if (yesterdayActivity) {
+                totalMinutesYesterday += yesterdayActivity.minutes;
+            }
+        });
+
+        if (totalMinutesYesterday < thresholdMinutes) {
+            setMissedDaysCount(1); // For now, we just track yesterday. Could be expanded.
+            setShowGapModal(true);
+        } else {
+            generateRoadmapInternal(0);
+        }
+    };
 
     const generateRoadmap = async () => {
-        if (!goal.trim()) return alert('Please enter a career goal or topic!');
+        console.log('[Roadmap] Generate button clicked');
+        console.log('[Roadmap] Goal:', goal);
+        console.log('[Roadmap] Selected Courses:', selectedCourseIds);
+
+        if (!goal.trim()) {
+            alert('Please enter a career goal or topic!');
+            return;
+        }
+        if (selectedCourseIds.length === 0) {
+            alert('Please select at least one course!');
+            return;
+        }
+
+        console.log('[Roadmap] Validation passed, checking study gap...');
+        // Trigger Gap Check first
+        checkStudyGap();
+    };
+
+    const generateRoadmapInternal = async (missed = 0) => {
+        console.log('[Roadmap] Starting internal generation with missed days:', missed);
         setLoading(true);
         try {
-            const token = localStorage.getItem('token');
+            const token = sessionStorage.getItem('token'); // Fixed: Changed from localStorage to sessionStorage
+            console.log('[Roadmap] Token found:', token ? 'Yes' : 'No');
+
+            if (!token) {
+                alert('Session expired. Please log in again.');
+                setLoading(false);
+                return;
+            }
+
+            // Extract progress for all selected courses
+            const courseProgressData = selectedCourseIds.map(courseId => {
+                const progress = allProgress.find(p => p.course.toString() === courseId.toString());
+                return {
+                    courseId,
+                    completedModules: progress?.completedModules?.map(m => m.moduleId.toString()) || []
+                };
+            });
+
+            console.log('[Roadmap] Sending request to API...');
             const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/ai/generate-roadmap`,
-                { goal, courseId: selectedCourseId || null },
+                {
+                    goal,
+                    courseIds: selectedCourseIds,
+                    revisionMode,
+                    dailyHours,
+                    weekendHours,
+                    courseProgressData,
+                    missedDays: missed
+                },
                 { headers: { Authorization: `Bearer ${token}` } }
             );
+            console.log('[Roadmap] Received response:', res.data);
             setRoadmap(res.data.data);
         } catch (err) {
-            console.error('Error generating roadmap:', err);
-            alert('Failed to generate roadmap. Please try again.');
+            console.error('[Roadmap] Error details:', err);
+            console.error('[Roadmap] Error response:', err.response);
+
+            if (err.response?.status === 401) {
+                alert('Your session has expired. Please log out and log in again.');
+            } else {
+                alert(`Failed to generate roadmap: ${err.response?.data?.message || err.message}`);
+            }
         } finally {
             setLoading(false);
         }
@@ -1303,25 +1670,112 @@ const RoadmapSection = ({ courses = [] }) => {
                 <p style={{ color: '#718096' }}>Tell AI your dream job or topic, and we'll build your learning path.</p>
             </div>
 
-            <div style={{ maxWidth: '700px', margin: '0 auto', display: 'flex', gap: '10px', marginBottom: '40px', flexDirection: 'column' }}>
-                <div style={{ display: 'flex', gap: '10px' }}>
-                    <select
-                        value={selectedCourseId}
-                        onChange={(e) => setSelectedCourseId(e.target.value)}
-                        style={{ padding: '15px', borderRadius: '12px', border: '2px solid #edf2f7', fontSize: '1rem', outline: 'none', background: 'white', minWidth: '200px' }}
-                    >
-                        <option value="">General / No Specific Course</option>
+            <div style={{ maxWidth: '800px', margin: '0 auto', display: 'flex', gap: '20px', marginBottom: '40px', flexDirection: 'column' }}>
+                <div style={{ background: '#f8fafc', padding: '25px', borderRadius: '15px', border: '1px solid #edf2f7' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                        <h3 style={{ fontSize: '1.2rem', margin: 0, color: '#2d3748' }}>📚 Select Subjects to Include</h3>
+                        <div style={{ display: 'flex', gap: '10px' }}>
+                            <button
+                                onClick={() => setSelectedCourseIds(courses.map(c => c._id))}
+                                style={{ background: 'white', border: '1px solid #6C63FF', color: '#6C63FF', padding: '5px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}
+                            >
+                                Select All
+                            </button>
+                            <button
+                                onClick={() => setSelectedCourseIds([])}
+                                style={{ background: 'white', border: '1px solid #e53e3e', color: '#e53e3e', padding: '5px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}
+                            >
+                                Clear All
+                            </button>
+                        </div>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '12px' }}>
                         {courses.map(course => (
-                            <option key={course._id} value={course._id}>{course.subject}</option>
+                            <label key={course._id} style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '10px',
+                                padding: '10px 15px',
+                                background: selectedCourseIds.includes(course._id) ? '#EEF2FF' : 'white',
+                                border: `1px solid ${selectedCourseIds.includes(course._id) ? '#6C63FF' : '#edf2f7'}`,
+                                borderRadius: '10px',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s'
+                            }}>
+                                <input
+                                    type="checkbox"
+                                    checked={selectedCourseIds.includes(course._id)}
+                                    onChange={(e) => {
+                                        if (e.target.checked) {
+                                            setSelectedCourseIds([...selectedCourseIds, course._id]);
+                                        } else {
+                                            setSelectedCourseIds(selectedCourseIds.filter(id => id !== course._id));
+                                        }
+                                    }}
+                                    style={{ width: '18px', height: '18px' }}
+                                />
+                                <span style={{ fontSize: '0.9rem', fontWeight: '600', color: selectedCourseIds.includes(course._id) ? '#4338CA' : '#4A5568' }}>
+                                    {course.subject}
+                                </span>
+                            </label>
                         ))}
-                    </select>
+                    </div>
+                    {courses.length === 0 && <p style={{ color: '#a0aec0', fontSize: '0.9rem' }}>No courses available to select.</p>}
+                </div>
+
+                <div style={{ width: '100%' }}>
+                    <label style={{ fontSize: '0.9rem', fontWeight: 'bold', display: 'block', marginBottom: '8px', color: '#4a5568' }}>🚀 Your Career Goal or Target</label>
                     <input
                         type="text"
-                        placeholder="e.g. Become a Full Stack Web Developer in 6 months"
+                        placeholder="e.g. Master these subjects for upcoming finals in 2 weeks"
                         value={goal}
                         onChange={(e) => setGoal(e.target.value)}
-                        style={{ flex: 1, padding: '15px', borderRadius: '12px', border: '2px solid #edf2f7', fontSize: '1rem', outline: 'none' }}
+                        style={{ width: '100%', padding: '15px', borderRadius: '12px', border: '2px solid #edf2f7', fontSize: '1rem', outline: 'none' }}
                     />
+                </div>
+
+                <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '15px', border: '1px solid #edf2f7', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                    {/* Time Inputs Row - Always Visible */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                        <div>
+                            <label style={{ fontSize: '0.85rem', fontWeight: '700', display: 'block', marginBottom: '8px', color: '#4a5568' }}>📅 Weekday Study (Hours)</label>
+                            <input
+                                type="number"
+                                min="1"
+                                max="24"
+                                value={dailyHours}
+                                onChange={(e) => setDailyHours(Number(e.target.value))}
+                                style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '2px solid #edf2f7', outline: 'none', transition: 'border-color 0.2s' }}
+                            />
+                        </div>
+                        <div>
+                            <label style={{ fontSize: '0.85rem', fontWeight: '700', display: 'block', marginBottom: '8px', color: '#4a5568' }}>🎉 Weekend Study (Hours)</label>
+                            <input
+                                type="number"
+                                min="1"
+                                max="24"
+                                value={weekendHours}
+                                onChange={(e) => setWeekendHours(Number(e.target.value))}
+                                style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '2px solid #edf2f7', outline: 'none', transition: 'border-color 0.2s' }}
+                            />
+                        </div>
+                    </div>
+
+                    {/* Revision Toggle Row - Only if Courses Selected */}
+                    {selectedCourseIds.length > 0 && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: '#f0f4ff', padding: '12px 15px', borderRadius: '10px', border: '1px solid #d1d9ff' }}>
+                            <input
+                                type="checkbox"
+                                id="revisionToggle"
+                                checked={revisionMode}
+                                onChange={(e) => setRevisionMode(e.target.checked)}
+                                style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                            />
+                            <label htmlFor="revisionToggle" style={{ cursor: 'pointer', fontWeight: '600', color: '#4c51bf', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem' }}>
+                                🎓 Revision Mode (Includes completed modules for exam prep)
+                            </label>
+                        </div>
+                    )}
                 </div>
                 <button
                     onClick={generateRoadmap}
@@ -1332,19 +1786,101 @@ const RoadmapSection = ({ courses = [] }) => {
                 </button>
             </div>
 
+            {/* Gap Detection Modal */}
+            {showGapModal && (
+                <div style={{
+                    position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+                    background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center',
+                    justifyContent: 'center', zIndex: 9999, backdropFilter: 'blur(5px)'
+                }}>
+                    <div style={{
+                        background: 'white', padding: '40px', borderRadius: '20px',
+                        maxWidth: '500px', width: '90%', textAlign: 'center',
+                        boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)'
+                    }}>
+                        <div style={{ fontSize: '3rem', marginBottom: '20px' }}>🕒</div>
+                        <h2 style={{ color: '#2d3748', marginBottom: '15px' }}>Study Gap Detected</h2>
+                        <p style={{ color: '#718096', marginBottom: '30px', lineHeight: '1.6' }}>
+                            We noticed your activity yesterday was below your 50% study target.
+                            Did you miss your scheduled study time, or did you study offline using your notes?
+                        </p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                            <button
+                                onClick={() => {
+                                    setShowGapModal(false);
+                                    generateRoadmapInternal(missedDaysCount);
+                                }}
+                                style={{
+                                    background: '#6C63FF', color: 'white', padding: '15px',
+                                    borderRadius: '10px', border: 'none', fontWeight: 'bold', cursor: 'pointer'
+                                }}
+                            >
+                                ❗ Yes, I missed it (Readjust Plan)
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setShowGapModal(false);
+                                    generateRoadmapInternal(0);
+                                }}
+                                style={{
+                                    background: '#EDF2FF', color: '#4338CA', padding: '15px',
+                                    borderRadius: '10px', border: 'none', fontWeight: 'bold', cursor: 'pointer'
+                                }}
+                            >
+                                📝 No, I studied offline
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {roadmap && (
-                <div style={{ background: '#f8fafc', padding: '30px', borderRadius: '15px', border: '1px solid #edf2f7', lineHeight: '1.8' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                        <h3 style={{ margin: 0 }}>Your Personalized Learning Path</h3>
+                <div style={{ marginTop: '40px', background: 'white', borderRadius: '20px', border: '1px solid #edf2f7', overflow: 'hidden', boxShadow: '0 10px 25px rgba(0,0,0,0.05)' }}>
+                    <div style={{ padding: '25px 35px', background: 'linear-gradient(135deg, #6C63FF, #4834d4)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'white' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                            <span style={{ fontSize: '1.8rem' }}>🗺️</span>
+                            <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: '800' }}>Your Personalized Learning Path</h3>
+                        </div>
                         <button
                             onClick={() => window.print()}
-                            style={{ background: 'transparent', border: '1px solid #6C63FF', color: '#6C63FF', padding: '5px 15px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
+                            style={{
+                                background: 'rgba(255,255,255,0.2)',
+                                border: '1px solid rgba(255,255,255,0.4)',
+                                color: 'white',
+                                padding: '8px 18px',
+                                borderRadius: '10px',
+                                cursor: 'pointer',
+                                fontWeight: 'bold',
+                                fontSize: '0.9rem',
+                                transition: 'all 0.2s',
+                                backdropFilter: 'blur(5px)'
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.3)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
                         >
                             ⎙ Print Roadmap
                         </button>
                     </div>
-                    <div style={{ whiteSpace: 'pre-wrap', color: '#4A5568', fontSize: '1.05rem' }}>
-                        {roadmap}
+
+                    <div className="markdown-container" style={{ padding: '40px', color: '#2d3748', fontSize: '1.05rem', lineHeight: '1.7' }}>
+                        <ReactMarkdown
+                            components={{
+                                h1: ({ node, ...props }) => <h1 style={{ color: '#2d3748', borderBottom: '2px solid #edf2f7', paddingBottom: '10px', marginTop: '30px' }} {...props} />,
+                                h2: ({ node, ...props }) => <h2 style={{ color: '#4a5568', marginTop: '25px' }} {...props} />,
+                                h3: ({ node, ...props }) => <h3 style={{ color: '#6C63FF', marginTop: '20px' }} {...props} />,
+                                strong: ({ node, ...props }) => <strong style={{ color: '#2d3748', fontWeight: '800' }} {...props} />,
+                                ul: ({ node, ...props }) => <ul style={{ paddingLeft: '20px', listStyleType: 'none' }} {...props} />,
+                                li: ({ node, ...props }) => (
+                                    <li style={{ marginBottom: '10px', position: 'relative', paddingLeft: '25px' }} {...props}>
+                                        <span style={{ position: 'absolute', left: 0, color: '#6C63FF' }}>•</span>
+                                        {props.children}
+                                    </li>
+                                ),
+                                p: ({ node, ...props }) => <p style={{ marginBottom: '15px' }} {...props} />
+                            }}
+                        >
+                            {roadmap}
+                        </ReactMarkdown>
                     </div>
                 </div>
             )}

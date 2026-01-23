@@ -2,12 +2,12 @@ const mongoose = require('mongoose');
 
 const ContentSchema = new mongoose.Schema({
     title: { type: String, required: true },
-    type: { type: String, enum: ['video', 'image', 'pdf', 'doc', 'link', 'text'], required: true },
-    url: { type: String }, // For files (path) or external links
-    originalName: { type: String }, // Original file name
+    type: { type: String, enum: ['video', 'pdf', 'quiz', 'article', 'image', 'doc', 'link', 'text'], required: true },
+    url: { type: String }, // For video/pdf/image/doc/link/text
+    originalName: { type: String },
     description: { type: String },
-    minTime: { type: Number, default: 0 }, // Minimum read/watch time in seconds
-    extractedText: { type: String, select: false } // Hidden by default for performance
+    minTime: { type: Number, default: 0 }, // Minimum time required in minutes
+    extractedText: { type: String }, // For AI context
 });
 
 const QuestionSchema = new mongoose.Schema({
@@ -44,6 +44,7 @@ const CourseSchema = new mongoose.Schema({
     description: { type: String },
     teacher: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     chapters: [ChapterSchema],
+    isPublished: { type: Boolean, default: false },
     createdAt: { type: Date, default: Date.now }
 });
 

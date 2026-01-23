@@ -15,6 +15,10 @@ const ProgressSchema = new mongoose.Schema({
         isCompleted: { type: Boolean, default: false },
         updatedAt: { type: Date, default: Date.now }
     }],
+    dailyActivity: [{
+        date: { type: String, required: true }, // Format: YYYY-MM-DD
+        minutes: { type: Number, default: 0 }
+    }],
     lastAttemptedModule: mongoose.Schema.Types.ObjectId,
     updatedAt: { type: Date, default: Date.now }
 });

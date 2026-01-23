@@ -37,7 +37,7 @@ const AIAssistantSidebar = ({ content, activeFeature, aiSummary, setAiSummary, i
     const generateSummary = async () => {
         setIsGeneratingSummary(true);
         try {
-            const token = localStorage.getItem('token');
+            const token = sessionStorage.getItem('token');
             const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/ai/summarize`,
                 { text: content.title + " " + (content.description || ''), type: 'document' },
                 { headers: { Authorization: `Bearer ${token}` } }
@@ -57,7 +57,7 @@ const AIAssistantSidebar = ({ content, activeFeature, aiSummary, setAiSummary, i
         setQuizAnswers({});
         setShowExplanations({});
         try {
-            const token = localStorage.getItem('token');
+            const token = sessionStorage.getItem('token');
             const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/ai/generate-quiz`,
                 { topic: content.title, context: content.description || '' },
                 { headers: { Authorization: `Bearer ${token}` } }
@@ -79,7 +79,7 @@ const AIAssistantSidebar = ({ content, activeFeature, aiSummary, setAiSummary, i
         setIsAsking(true);
 
         try {
-            const token = localStorage.getItem('token');
+            const token = sessionStorage.getItem('token');
             const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/ai/solve-doubt`,
                 { question: input, context: content.title + " " + (content.description || '') },
                 { headers: { Authorization: `Bearer ${token}` } }

@@ -11,13 +11,28 @@ const axios = require('axios');
 
 const upload = multer({ storage: storage });
 
-// Get all courses (for students/public)
+// Get all courses (for students/public) - ONLY PUBLISHED
 router.get('/', async (req, res) => {
     try {
-        const courses = await Course.populate(await Course.find(), { path: 'teacher', select: 'name email' });
+        const courses = await Course.populate(await Course.find({ isPublished: true }), { path: 'teacher', select: 'name email' });
         res.json(courses);
     } catch (err) {
         res.status(500).json({ message: err.message });
+    }
+});
+
+// Toggle Publish Status
+router.put('/:courseId/publish', async (req, res) => {
+    try {
+        const { isPublished } = req.body;
+        const course = await Course.findByIdAndUpdate(
+            req.params.courseId,
+            { isPublished: isPublished },
+            { new: true }
+        );
+        res.json(course);
+    } catch (err) {
+        res.status(400).json({ message: err.message });
     }
 });
 
@@ -134,7 +149,17 @@ router.post('/:courseId/chapters/:chapterId/modules', async (req, res) => {
 });
 
 // Upload Content
-router.post('/:courseId/chapters/:chapterId/modules/:moduleId/content', upload.single('file'), async (req, res) => {
+const uploadMiddleware = (req, res, next) => {
+    upload.single('file')(req, res, (err) => {
+        if (err) {
+            console.error('Multer/Cloudinary Upload Error:', err);
+            return res.status(500).json({ message: 'File Upload Failed', error: err.message, stack: err.stack });
+        }
+        next();
+    });
+};
+
+router.post('/:courseId/chapters/:chapterId/modules/:moduleId/content', uploadMiddleware, async (req, res) => {
     try {
         const course = await Course.findById(req.params.courseId);
         if (!course) return res.status(404).json({ message: 'Course not found' });
@@ -146,26 +171,28 @@ router.post('/:courseId/chapters/:chapterId/modules/:moduleId/content', upload.s
         if (!module) return res.status(404).json({ message: 'Module not found' });
 
         const { title, type, url: linkUrl, description, minTime } = req.body;
+        console.log('Upload Request Body:', req.body); // DEBUG LOG
+
         let contentUrl = linkUrl;
         let originalName = '';
         let extractedText = '';
 
         if (req.file) {
-            contentUrl = req.file.path; // Cloudinary returns the full URL in .path
+            console.log('File uploaded:', req.file.originalname, req.file.mimetype, req.file.path);
+            contentUrl = req.file.path;
             originalName = req.file.originalname;
 
-            // Extract Text from PDF
-            if (req.file.mimetype === 'application/pdf') {
-                try {
-                    console.log('Extracting text from PDF...');
-                    const response = await axios.get(contentUrl, { responseType: 'arraybuffer' });
-                    const pdfData = await pdfParse(response.data);
-                    extractedText = pdfData.text;
-                    console.log(`Extracted ${extractedText.length} characters.`);
-                } catch (pdfError) {
-                    console.error('PDF Extraction Failed:', pdfError.message);
-                }
+            // Extract Text using Utility
+            try {
+                // TEMPORARILY DISABLED FOR DEBUGGING
+                // const { extractTextFromUrl } = require('../utils/contentProcessor');
+                // extractedText = await extractTextFromUrl(contentUrl, req.file.mimetype);
+                console.log('Skipping extraction for debug');
+            } catch (extractErr) {
+                console.error('Extraction Error (non-fatal):', extractErr);
             }
+        } else {
+            console.log('No file in request, using link:', linkUrl);
         }
 
         module.contents.push({
@@ -181,8 +208,8 @@ router.post('/:courseId/chapters/:chapterId/modules/:moduleId/content', upload.s
         await course.save();
         res.json(course);
     } catch (err) {
-        console.error('Upload Error:', err);
-        res.status(400).json({ message: err.message });
+        console.error('Upload Route Error:', err);
+        res.status(500).json({ message: err.message, stack: err.stack });
     }
 });
 
@@ -365,24 +392,41 @@ router.post('/:courseId/contents/:contentId/progress', async (req, res) => {
             cp => cp.contentId.toString() === req.params.contentId
         );
 
+        let deltaSeconds = 0;
         if (contentIndex > -1) {
-            // Update existing progress
-            // Only update timeSpent if the new value is greater or it's not completed yet
-            if (!progress.contentProgress[contentIndex].isCompleted) {
-                progress.contentProgress[contentIndex].timeSpent = timeSpent;
-                progress.contentProgress[contentIndex].isCompleted = isCompleted;
-                progress.contentProgress[contentIndex].updatedAt = Date.now();
-            } else if (isCompleted) {
-                // Ensure it stays completed
+            const oldTime = progress.contentProgress[contentIndex].timeSpent || 0;
+            deltaSeconds = Math.max(0, timeSpent - oldTime);
+
+            // Update existing content record
+            // Always update timeSpent to allow correct delta calculation for dailyActivity
+            progress.contentProgress[contentIndex].timeSpent = timeSpent;
+            progress.contentProgress[contentIndex].updatedAt = Date.now();
+
+            if (!progress.contentProgress[contentIndex].isCompleted && isCompleted) {
                 progress.contentProgress[contentIndex].isCompleted = true;
             }
         } else {
-            // Add new content progress
+            // New content record
+            deltaSeconds = timeSpent;
             progress.contentProgress.push({
                 contentId: req.params.contentId,
                 timeSpent,
-                isCompleted
+                isCompleted,
+                updatedAt: Date.now()
             });
+        }
+
+        // Update Daily Activity using the delta
+        const todayStr = new Date().toISOString().split('T')[0];
+        let activityIndex = progress.dailyActivity.findIndex(a => a.date === todayStr);
+
+        if (activityIndex === -1) {
+            progress.dailyActivity.push({ date: todayStr, minutes: 0 });
+            activityIndex = progress.dailyActivity.length - 1;
+        }
+
+        if (deltaSeconds > 0) {
+            progress.dailyActivity[activityIndex].minutes += (deltaSeconds / 60);
         }
 
         progress.updatedAt = Date.now();

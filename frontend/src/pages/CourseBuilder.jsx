@@ -258,7 +258,7 @@ const CourseBuilder = ({ teacherId, onCourseCreated, initialCourse }) => {
                                                         const fastTrackScore = module.quiz?.fastTrackScore || 85;
                                                         const quizConfig = module.quizConfig || { questionsPerAttempt: 10 };
                                                         const quizData = { questions, passingScore, fastTrackScore };
-                                                        setEditingQuiz({ chapterId: chapter._id, moduleId: module._id, quiz: quizData, quizConfig });
+                                                        setEditingQuiz({ chapterId: chapter._id, moduleId: module._id, quiz: quizData, quizConfig, moduleTitle: module.title });
                                                     }}
                                                     style={{ padding: '8px 16px', background: '#f8fafc', color: '#6366f1', border: '1px solid #e2e8f0', borderRadius: '10px', fontSize: '0.85rem', fontWeight: 'bold', cursor: 'pointer' }}
                                                 >
@@ -324,18 +324,47 @@ const CourseBuilder = ({ teacherId, onCourseCreated, initialCourse }) => {
                             moduleId={editingQuiz.moduleId}
                             quiz={editingQuiz.quiz}
                             quizConfig={editingQuiz.quizConfig}
+                            courseId={currentCourseId}
+                            moduleTitle={editingQuiz.moduleTitle}
                             onClose={() => setEditingQuiz(null)}
                             onSave={saveQuiz}
                         />
                     )}
 
                     <div style={{ marginTop: '40px', textAlign: 'center' }}>
-                        <button
-                            onClick={onCourseCreated}
-                            style={{ padding: '14px 40px', background: '#10b981', color: 'white', border: 'none', borderRadius: '12px', fontWeight: '700', fontSize: '1rem', cursor: 'pointer', boxShadow: '0 4px 6px rgba(16, 185, 129, 0.2)' }}
-                        >
-                            Complete Course & Publish
-                        </button>
+                        <div style={{ marginTop: '40px', textAlign: 'center', display: 'flex', justifyContent: 'center', gap: '20px' }}>
+                            <button
+                                onClick={async () => {
+                                    try {
+                                        await axios.put(`${import.meta.env.VITE_API_URL}/api/courses/${currentCourseId}/publish`, { isPublished: false });
+                                        alert('Course saved as Draft!');
+                                        onCourseCreated();
+                                    } catch (err) {
+                                        console.error(err);
+                                        alert('Error saving draft');
+                                    }
+                                }}
+                                style={{ padding: '14px 40px', background: 'white', color: '#4a5568', border: '1px solid #cbd5e0', borderRadius: '12px', fontWeight: '700', fontSize: '1rem', cursor: 'pointer', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}
+                            >
+                                Save as Draft
+                            </button>
+                            <button
+                                onClick={async () => {
+                                    if (!window.confirm('Are you sure you want to publish this course? It will be visible to students immediately.')) return;
+                                    try {
+                                        await axios.put(`${import.meta.env.VITE_API_URL}/api/courses/${currentCourseId}/publish`, { isPublished: true });
+                                        alert('Course Published Successfully!');
+                                        onCourseCreated();
+                                    } catch (err) {
+                                        console.error(err);
+                                        alert('Error publishing course');
+                                    }
+                                }}
+                                style={{ padding: '14px 40px', background: '#10b981', color: 'white', border: 'none', borderRadius: '12px', fontWeight: '700', fontSize: '1rem', cursor: 'pointer', boxShadow: '0 4px 6px rgba(16, 185, 129, 0.2)' }}
+                            >
+                                Publish Course
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
@@ -368,9 +397,10 @@ const ContentUploader = ({ onUpload }) => {
                     style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white', color: '#4a5568' }}
                 >
                     <option value="pdf">PDF</option>
+
+
                     <option value="video">Video</option>
                     <option value="image">Image</option>
-                    <option value="doc">Document</option>
                     <option value="link">External Link</option>
                 </select>
                 <input
@@ -426,7 +456,7 @@ const ContentUploader = ({ onUpload }) => {
     );
 };
 
-const QuizEditor = ({ chapterId, moduleId, quiz, quizConfig, onSave, onClose }) => {
+const QuizEditor = ({ chapterId, moduleId, quiz, quizConfig, onSave, onClose, courseId, moduleTitle }) => {
     const [questions, setQuestions] = useState(quiz?.questions || [{
         question: '',
         options: ['', '', '', ''],
@@ -442,6 +472,15 @@ const QuizEditor = ({ chapterId, moduleId, quiz, quizConfig, onSave, onClose }) 
         questionsPerAttemptFastTrack: quizConfig?.questionsPerAttemptFastTrack || quizConfig?.questionsPerAttempt || 5
     });
     const [showExplanation, setShowExplanation] = useState({}); // Track which explanation is visible
+    const [isGenerating, setIsGenerating] = useState(false);
+    const [aiTopic, setAiTopic] = useState(moduleTitle || '');
+    const [aiCount, setAiCount] = useState(5);
+    const [showAiModal, setShowAiModal] = useState(false);
+
+    // NEW: State for AI Review/Selection
+    const [generatedQuestions, setGeneratedQuestions] = useState([]);
+    const [selectedGenerated, setSelectedGenerated] = useState({}); // { index: boolean }
+    const [viewMode, setViewMode] = useState('input'); // 'input' or 'review'
 
     const handleQuestionChange = (index, field, value) => {
         const newQuestions = [...questions];
@@ -463,13 +502,178 @@ const QuizEditor = ({ chapterId, moduleId, quiz, quizConfig, onSave, onClose }) 
         setQuestions(questions.filter((_, i) => i !== index));
     };
 
+    // AI Generation Logic
+    const handleAiGenerate = async () => {
+        if (!aiTopic) return alert('Please enter a topic');
+        setIsGenerating(true);
+        try {
+            const token = sessionStorage.getItem('token');
+            const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/ai/generate-quiz`, {
+                topic: aiTopic,
+                count: aiCount,
+                courseId,
+                moduleId
+            }, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+
+            if (res.data.success) {
+                const newQs = res.data.data.map(q => ({
+                    question: q.question,
+                    options: q.options,
+                    correctAnswerIndex: q.correctAnswer,
+                    explanation: q.explanation,
+                    difficulty: 'medium'
+                }));
+
+                // Switch to Review Mode
+                setGeneratedQuestions(newQs);
+                // Select all by default
+                const initialSelection = {};
+                newQs.forEach((_, i) => initialSelection[i] = true);
+                setSelectedGenerated(initialSelection);
+                setViewMode('review');
+            }
+        } catch (err) {
+            console.error(err);
+            const msg = err.response?.status === 429
+                ? 'AI Quota Exceeded. Please try again later.'
+                : 'Error generating quiz. Please try again.';
+            alert(msg);
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+
+    const confirmAiSelection = () => {
+        const toAdd = generatedQuestions.filter((_, i) => selectedGenerated[i]);
+        if (toAdd.length === 0) return alert('Please select at least one question.');
+
+        setQuestions([...questions, ...toAdd]);
+        resetAiModal();
+        alert(`Added ${toAdd.length} questions to the quiz.`);
+    };
+
+    const resetAiModal = () => {
+        setShowAiModal(false);
+        setGeneratedQuestions([]);
+        setViewMode('input');
+        setAiTopic(moduleTitle || '');
+    };
+
+    // Render logic for AI Modal Content
+    const renderAiModalContent = () => {
+        if (viewMode === 'review') {
+            return (
+                <div>
+                    <h4 style={{ margin: '0 0 16px 0', color: '#4338CA' }}>Review Generated Questions</h4>
+                    <p style={{ fontSize: '0.9rem', color: '#666', marginBottom: '16px' }}>
+                        The AI generated {generatedQuestions.length} questions. Uncheck any you don't want to include.
+                    </p>
+
+                    <div style={{ maxHeight: '60vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px' }}>
+                        {generatedQuestions.map((q, i) => (
+                            <div key={i} style={{ display: 'flex', gap: '12px', padding: '12px', background: 'white', border: '1px solid #ddd', borderRadius: '8px' }}>
+                                <input
+                                    type="checkbox"
+                                    checked={!!selectedGenerated[i]}
+                                    onChange={(e) => setSelectedGenerated(prev => ({ ...prev, [i]: e.target.checked }))}
+                                    style={{ marginTop: '4px', cursor: 'pointer', width: '16px', height: '16px' }}
+                                />
+                                <div style={{ flex: 1 }}>
+                                    <p style={{ margin: '0 0 8px 0', fontWeight: '600', fontSize: '0.9rem' }}>{i + 1}. {q.question}</p>
+                                    <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '0.85rem', color: '#555' }}>
+                                        {q.options.map((opt, oi) => (
+                                            <li key={oi} style={oi === q.correctAnswerIndex ? { color: 'green', fontWeight: 'bold' } : {}}>{opt}</li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                        <button
+                            onClick={() => setViewMode('input')}
+                            style={{ padding: '9px 16px', background: 'transparent', color: '#666', border: '1px solid #ccc', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}
+                        >
+                            Back
+                        </button>
+                        <button
+                            onClick={confirmAiSelection}
+                            style={{ padding: '9px 16px', background: '#4338CA', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}
+                        >
+                            Add Selected ({Object.values(selectedGenerated).filter(Boolean).length})
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+
+        return (
+            <div>
+                <h4 style={{ margin: '0 0 12px 0', color: '#4338CA' }}>Generate Questions with AI</h4>
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end' }}>
+                    <div style={{ flex: 1 }}>
+                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 'bold', marginBottom: '4px', color: '#555' }}>Topic / Context</label>
+                        <input
+                            type="text"
+                            value={aiTopic}
+                            onChange={e => setAiTopic(e.target.value)}
+                            placeholder="e.g. React Hooks"
+                            style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #ccc' }}
+                        />
+                    </div>
+                    <div style={{ width: '80px' }}>
+                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 'bold', marginBottom: '4px', color: '#555' }}>Count</label>
+                        <input
+                            type="number"
+                            value={aiCount}
+                            onChange={e => setAiCount(Number(e.target.value))}
+                            min="1"
+                            max="10"
+                            style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #ccc' }}
+                        />
+                    </div>
+                    <button
+                        onClick={handleAiGenerate}
+                        disabled={isGenerating}
+                        style={{ padding: '9px 16px', background: '#4338CA', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: isGenerating ? 'wait' : 'pointer', opacity: isGenerating ? 0.7 : 1 }}
+                    >
+                        {isGenerating ? 'Generating...' : 'Generate'}
+                    </button>
+                    <button
+                        onClick={resetAiModal}
+                        style={{ padding: '9px 16px', background: 'transparent', color: '#666', border: '1px solid #ccc', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}
+                    >
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        );
+    };
+
     return (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
             <div style={{ background: 'white', padding: '32px', borderRadius: '24px', width: '100%', maxWidth: '800px', maxHeight: '90vh', overflowY: 'auto' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
                     <h2 style={{ margin: 0 }}>Module Quiz Editor</h2>
-                    <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }}>&times;</button>
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                        <button
+                            onClick={() => setShowAiModal(true)}
+                            style={{ background: 'linear-gradient(135deg, #6C63FF 0%, #4338CA 100%)', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                        >
+                            ✨ Generate with AI
+                        </button>
+                        <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }}>&times;</button>
+                    </div>
                 </div>
+
+                {showAiModal && (
+                    <div style={{ marginBottom: '24px', padding: '16px', background: '#F0EFFF', borderRadius: '12px', border: '1px solid #6C63FF' }}>
+                        {renderAiModalContent()}
+                    </div>
+                )}
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '15px', marginBottom: '32px' }}>
                     <div>
