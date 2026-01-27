@@ -331,7 +331,16 @@ const CourseBuilder = ({ teacherId, onCourseCreated, initialCourse }) => {
 
                     <div style={{ marginTop: '40px', textAlign: 'center' }}>
                         <button
-                            onClick={onCourseCreated}
+                            onClick={async () => {
+                                try {
+                                    await axios.put(`${import.meta.env.VITE_API_URL}/api/courses/${currentCourseId}/publish`, { isPublished: true });
+                                    alert('Course published successfully!');
+                                    onCourseCreated();
+                                } catch (err) {
+                                    console.error(err);
+                                    alert('Error publishing course');
+                                }
+                            }}
                             style={{ padding: '14px 40px', background: '#10b981', color: 'white', border: 'none', borderRadius: '12px', fontWeight: '700', fontSize: '1rem', cursor: 'pointer', boxShadow: '0 4px 6px rgba(16, 185, 129, 0.2)' }}
                         >
                             Complete Course & Publish

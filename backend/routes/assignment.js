@@ -50,6 +50,16 @@ router.get('/:id', async (req, res) => {
     }
 });
 
+// Update assignment
+router.put('/:id', async (req, res) => {
+    try {
+        const assignment = await Assignment.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        res.json(assignment);
+    } catch (err) {
+        res.status(400).json({ message: err.message });
+    }
+});
+
 // Delete assignment
 router.delete('/:id', async (req, res) => {
     try {
@@ -104,6 +114,16 @@ router.get('/student/:studentId/assignment/:assignmentId', async (req, res) => {
             assignment: req.params.assignmentId
         });
         res.json(submission);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
+// Get all submissions for a student
+router.get('/submissions/student/:studentId', async (req, res) => {
+    try {
+        const submissions = await Submission.find({ student: req.params.studentId });
+        res.json(submissions);
     } catch (err) {
         res.status(500).json({ message: err.message });
     }

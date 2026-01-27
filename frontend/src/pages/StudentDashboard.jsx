@@ -20,8 +20,8 @@ function StudentDashboard() {
     const navigate = useNavigate();
     const [courses, setCourses] = useState([]);
     const [selectedCourse, setSelectedCourse] = useState(null);
-    const [isCinemaMode, setIsCinemaMode] = useState(false);
-    const [activeTab, setActiveTab] = useState('dashboard');
+    const [isCinemaMode, setIsCinemaMode] = useState(localStorage.getItem(`cinemaMode_${user.id || user._id}`) === 'true');
+    const [activeTab, setActiveTab] = useState(localStorage.getItem(`activeTab_${user.id || user._id}`) || 'dashboard');
     const [showStudyReminder, setShowStudyReminder] = useState(null);
     const [allProgress, setAllProgress] = useState([]);
     const [dailyHours, setDailyHours] = useState(2);
@@ -43,6 +43,42 @@ function StudentDashboard() {
         }
     }, [activeTab, selectedCourse]); // Also refetch when exiting CourseViewer
 
+    // Persist activeTab
+    useEffect(() => {
+        if (user.id || user._id) {
+            localStorage.setItem(`activeTab_${user.id || user._id}`, activeTab);
+        }
+    }, [activeTab, user]);
+
+    // Persist cinemaMode
+    useEffect(() => {
+        if (user.id || user._id) {
+            localStorage.setItem(`cinemaMode_${user.id || user._id}`, isCinemaMode);
+        }
+    }, [isCinemaMode, user]);
+
+    // Persist selectedCourse and restore it on fetch
+    useEffect(() => {
+        if (user.id || user._id) {
+            if (selectedCourse) {
+                localStorage.setItem(`selectedCourseId_${user.id || user._id}`, selectedCourse._id);
+            } else {
+                localStorage.removeItem(`selectedCourseId_${user.id || user._id}`);
+            }
+        }
+    }, [selectedCourse, user]);
+
+    // Restore selectedCourse after courses are fetched
+    useEffect(() => {
+        if (courses.length > 0 && !selectedCourse) {
+            const savedCourseId = localStorage.getItem(`selectedCourseId_${user.id || user._id}`);
+            if (savedCourseId) {
+                const course = courses.find(c => c._id === savedCourseId);
+                if (course) setSelectedCourse(course);
+            }
+        }
+    }, [courses]);
+
     const fetchAllProgress = async () => {
         try {
             const studentId = user.id || user._id;
@@ -63,24 +99,33 @@ function StudentDashboard() {
             setCourses(res.data);
 
             // Fetch assignments for all courses to show pending count
-            const allAsgns = [];
-            for (const course of res.data) {
-                const asgnRes = await axios.get(`${import.meta.env.VITE_API_URL}/api/assignments/course/${course._id}`);
-                allAsgns.push(...asgnRes.data);
-            }
+            // Fetch assignments for all courses in parallel
+            const assignmentsPromises = res.data.map(course =>
+                axios.get(`${import.meta.env.VITE_API_URL}/api/assignments/course/${course._id}`)
+                    .then(r => r.data)
+                    .catch(e => {
+                        console.error(`Error fetching assignments for course ${course._id}:`, e);
+                        return []; // Return empty array on error
+                    })
+            );
 
-            // Check submissions for these assignments
-            let pendingCount = 0;
+            const assignmentsResults = await Promise.all(assignmentsPromises);
+            const allAsgns = assignmentsResults.flat();
+
+            // Fetch ALL submissions for this student in one go
             const userId = user.id || user._id;
-            for (const asgn of allAsgns) {
-                const subRes = await axios.get(`${import.meta.env.VITE_API_URL}/api/assignments/student/${userId}/assignment/${asgn._id}`);
-                if (!subRes.data) pendingCount++;
-            }
+            const subRes = await axios.get(`${import.meta.env.VITE_API_URL}/api/assignments/submissions/student/${userId}`);
+            const submittedAssignmentIds = new Set(subRes.data.map(s => String(s.assignment)));
+
+            // Calculate pending: Assignment exists but ID is NOT in submitted set
+            const pendingCount = allAsgns.filter(asgn => !submittedAssignmentIds.has(String(asgn._id))).length;
             setPendingAssignmentsCount(pendingCount);
+
         } catch (err) {
-            console.error(err);
+            console.error('Error in fetchCourses:', err);
         }
     };
+
 
     const handleLogout = () => {
         localStorage.removeItem('user');
@@ -383,6 +428,13 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
     const [aiSummary, setAiSummary] = useState('');
     const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
 
+    // Persist selectedContentId
+    useEffect(() => {
+        if (selectedContent && (user.id || user._id)) {
+            localStorage.setItem(`selectedContentId_${user.id || user._id}_${course._id}`, selectedContent._id);
+        }
+    }, [selectedContent, user, course]);
+
     // Sync ref with state
     useEffect(() => {
         timeSpentRef.current = timeSpent;
@@ -393,61 +445,85 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
     useEffect(() => {
         const handleVisibilityChange = () => {
             setIsTabActive(!document.hidden && document.hasFocus());
+            if (document.hidden) {
+                saveProgress(false); // Save when tab hidden
+            }
         };
 
-        const handleFocus = () => setIsTabActive(true);
-        const handleBlur = () => setIsTabActive(false);
+        const handleFocus = () => {
+            setIsTabActive(true);
+        };
+        const handleBlur = () => {
+            setIsTabActive(false);
+            saveProgress(false); // Save when window loses focus
+        };
+
+        const handleBeforeUnload = () => {
+            saveProgress(false); // Final attempt to save on close/refresh
+        };
 
         window.addEventListener('visibilitychange', handleVisibilityChange);
         window.addEventListener('focus', handleFocus);
         window.addEventListener('blur', handleBlur);
+        window.addEventListener('beforeunload', handleBeforeUnload);
 
         return () => {
             window.removeEventListener('visibilitychange', handleVisibilityChange);
             window.removeEventListener('focus', handleFocus);
             window.removeEventListener('blur', handleBlur);
+            window.removeEventListener('beforeunload', handleBeforeUnload);
         };
-    }, []);
+    }, [selectedContent, user]); // Include dependencies for saveProgress
 
     useEffect(() => {
         if (selectedContent && studentProgress) {
-            // 1. Initialize time spent from progress
+            const contentKey = `timer_${user.id || user._id}_${selectedContent._id}`;
+
+            // 1. Initialize time spent
+            // Priority: localStorage (for refresh/instant) > progress from server
             const existingProgress = studentProgress.contentProgress?.find(
                 cp => cp.contentId.toString() === selectedContent._id.toString()
             );
 
-            const initialTime = existingProgress ? existingProgress.timeSpent : 0;
+            const serverTime = existingProgress ? existingProgress.timeSpent : 0;
+            const locallySavedTime = parseInt(localStorage.getItem(contentKey) || '0', 10);
+
+            // If local storage has a higher value, it means the user refreshed before an auto-save
+            const initialTime = Math.max(serverTime, locallySavedTime);
             const alreadyCompleted = existingProgress ? existingProgress.isCompleted : false;
 
             setTimeSpent(initialTime);
-            timeSpentRef.current = initialTime; // Sync ref immediately
+            timeSpentRef.current = initialTime;
+
+            if (alreadyCompleted) {
+                setIsTimeRequirementMet(true);
+            } else if (initialTime >= selectedContent.minTime) {
+                setIsTimeRequirementMet(true);
+            } else {
+                setIsTimeRequirementMet(false);
+            }
 
             let timer = null;
             let autoSaveTimer = null;
 
-            if (alreadyCompleted) {
-                setIsTimeRequirementMet(true);
-                // DO NOT start timer if already completed
-            } else {
-                setIsTimeRequirementMet(false);
-
-                // 2. Start Timer ONLY if not completed
+            if (!alreadyCompleted) {
+                // 2. Start Timer
                 timer = setInterval(() => {
                     if (document.hidden || !document.hasFocus()) return;
 
                     setTimeSpent(prev => {
-                        // Check if window is focused AND document is visible
                         if (document.hasFocus() && !document.hidden) {
-                            // STOP timer if requirement met
                             if (prev >= selectedContent.minTime) {
                                 setIsTimeRequirementMet(true);
-                                return prev; // Stop incrementing
+                                // Continue counting even after requirement met if they stay on page
+                                // but the user requested it to stop at requirement? 
+                                // Actually, typical LMS keeps counting total study time.
                             }
 
-
-
                             const next = prev + 1;
-                            timeSpentRef.current = next; // Update ref immediately
+                            timeSpentRef.current = next;
+                            // Sync with localStorage for refresh persistence
+                            localStorage.setItem(contentKey, next.toString());
                             return next;
                         }
                         return prev;
@@ -457,17 +533,16 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
 
             // 3. Periodic Auto-save (Every 10 seconds)
             autoSaveTimer = setInterval(() => {
-                saveProgress(false); // saveProgress will use the ref
+                saveProgress(false);
             }, 10000);
 
             return () => {
                 if (timer) clearInterval(timer);
                 if (autoSaveTimer) clearInterval(autoSaveTimer);
-                // Save latest progress using the ref
                 saveProgress(false);
             };
         }
-    }, [selectedContent, studentProgress]);
+    }, [selectedContent, studentProgress, user]);
 
     // Separate effect for completion save
     useEffect(() => {
@@ -604,9 +679,27 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
         console.log('Selected Content Changed:', selectedContent);
     }, [selectedContent]);
 
-    // Auto-select first content if available
+    // Auto-select first content if available, but check localStorage first
     useEffect(() => {
         if (course.chapters.length > 0) {
+            const savedContentId = localStorage.getItem(`selectedContentId_${user.id || user._id}_${course._id}`);
+
+            if (savedContentId) {
+                // Find and restore
+                for (const chapter of course.chapters) {
+                    for (const module of chapter.modules) {
+                        const content = module.contents.find(c => c._id === savedContentId);
+                        if (content) {
+                            setSelectedContent(content);
+                            setExpandedChapters(prev => ({ ...prev, [chapter._id]: true }));
+                            setExpandedModules(prev => ({ ...prev, [module._id]: true }));
+                            return;
+                        }
+                    }
+                }
+            }
+
+            // Fallback to first
             const firstChapter = course.chapters[0];
             setExpandedChapters({ [firstChapter._id]: true });
             if (firstChapter.modules.length > 0) {
@@ -1120,7 +1213,7 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
 // --- NEW SECTION: Assignments View ---
 const AssignmentsSection = ({ userId, courses }) => {
     const [assignments, setAssignments] = useState([]);
-    const [selectedCourseId, setSelectedCourseId] = useState(courses[0]?._id || '');
+    const [selectedCourseId, setSelectedCourseId] = useState(''); // Default to all
     const [submissions, setSubmissions] = useState({}); // Tracking student's own submissions
     const [activeAssignment, setActiveAssignment] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -1133,18 +1226,49 @@ const AssignmentsSection = ({ userId, courses }) => {
     const [executionResult, setExecutionResult] = useState(null);
     const [isExecuting, setIsExecuting] = useState(false);
 
-    useEffect(() => {
-        if (selectedCourseId) {
-            fetchAssignmentsAndSubmissions();
+    const handleRunCode = async () => {
+        setIsExecuting(true);
+        setExecutionResult(null);
+        try {
+            const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/assignments/execute`, {
+                code,
+                language: activeAssignment.codingDetails?.language || 'javascript',
+                stdin
+            });
+            setExecutionResult(res.data);
+        } catch (err) {
+            console.error(err);
+            setExecutionResult({ output: 'Error executing code: ' + (err.response?.data?.message || err.message) });
+        } finally {
+            setIsExecuting(false);
         }
-    }, [selectedCourseId]);
+    };
+
+    useEffect(() => {
+        // No longer auto-selecting first course
+    }, [courses]);
+
+    useEffect(() => {
+        fetchAssignmentsAndSubmissions();
+    }, [selectedCourseId, courses]);
 
     const fetchAssignmentsAndSubmissions = async () => {
         setLoading(true);
         try {
-            // 1. Fetch all assignments for chosen course
-            const asgnRes = await axios.get(`${import.meta.env.VITE_API_URL}/api/assignments/course/${selectedCourseId}`);
-            const asgns = asgnRes.data;
+            // 1. Fetch assignments
+            let asgns = [];
+            if (selectedCourseId) {
+                // Fetch for specific course
+                const asgnRes = await axios.get(`${import.meta.env.VITE_API_URL}/api/assignments/course/${selectedCourseId}`);
+                asgns = asgnRes.data;
+            } else {
+                // Fetch ALL assignments (from all enrolled courses)
+                // We'll iterate through available courses to get their assignments
+                // Optimized: parallel fetch
+                const promises = courses.map(c => axios.get(`${import.meta.env.VITE_API_URL}/api/assignments/course/${c._id}`).catch(() => ({ data: [] })));
+                const results = await Promise.all(promises);
+                asgns = results.flatMap(r => r.data);
+            }
             setAssignments(asgns);
 
             // 2. Fetch submissions for each assignment
@@ -1161,23 +1285,6 @@ const AssignmentsSection = ({ userId, courses }) => {
         }
     };
 
-    const handleRunCode = async () => {
-        if (!code.trim()) return;
-        setIsExecuting(true);
-        setExecutionResult(null);
-        try {
-            const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/assignments/execute`, {
-                language: activeAssignment.codingDetails?.language || 'javascript',
-                code,
-                stdin
-            });
-            setExecutionResult(res.data);
-        } catch (err) {
-            setExecutionResult({ output: 'Error: Failed to execute code.' });
-        } finally {
-            setIsExecuting(false);
-        }
-    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -1199,7 +1306,7 @@ const AssignmentsSection = ({ userId, courses }) => {
             await axios.post(`${import.meta.env.VITE_API_URL}/api/assignments/submit`, {
                 assignmentId: activeAssignment._id,
                 studentId: userId,
-                courseId: selectedCourseId,
+                courseId: selectedCourseId || activeAssignment.course,
                 fileUrl,
                 code: activeAssignment.type === 'coding' ? code : '',
                 language: activeAssignment.codingDetails?.language || 'javascript'
@@ -1230,6 +1337,7 @@ const AssignmentsSection = ({ userId, courses }) => {
                     onChange={(e) => setSelectedCourseId(e.target.value)}
                     style={{ width: '300px', color: 'black', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e0' }}
                 >
+                    <option value="" style={{ color: 'black' }}>All Courses</option>
                     {courses.map(c => <option key={c._id} value={c._id} style={{ color: 'black' }}>{c.subject}</option>)}
                 </select>
             </div>
@@ -1272,6 +1380,7 @@ const AssignmentsSection = ({ userId, courses }) => {
                                     onClick={() => {
                                         setActiveAssignment(asgn);
                                         setCode(sub?.code || asgn.codingDetails?.starterCode || '');
+                                        setStdin(sub?.stdin || '');
                                     }}
                                     style={{
                                         width: '100%',
@@ -1284,7 +1393,7 @@ const AssignmentsSection = ({ userId, courses }) => {
                                         cursor: 'pointer'
                                     }}
                                 >
-                                    {isSubmitted ? 'Edit Submission' : 'Start Assignment'}
+                                    {isSubmitted ? 'View Submission' : 'Start Assignment'}
                                 </button>
                             </div>
                         );
@@ -1302,105 +1411,192 @@ const AssignmentsSection = ({ userId, courses }) => {
                         </div>
                         <p style={{ color: '#718096', marginBottom: '24px' }}>{activeAssignment.description}</p>
 
-                        <form onSubmit={handleSubmit}>
-                            {activeAssignment.type === 'file' ? (
-                                <div style={{ marginBottom: '24px' }}>
-                                    <label style={{ display: 'block', marginBottom: '10px', fontWeight: 'bold' }}>Upload your file (PDF/Image/Doc)</label>
-                                    <input
-                                        type="file"
-                                        onChange={(e) => setFile(e.target.files[0])}
-                                        style={{ border: '2px dashed #e2e8f0', padding: '20px', width: '100%', borderRadius: '12px', cursor: 'pointer' }}
-                                    />
-                                    {submissions[activeAssignment._id]?.fileUrl && (
-                                        <p style={{ fontSize: '0.8rem', color: '#10b981', marginTop: '10px' }}>Current file: {submissions[activeAssignment._id].fileUrl}</p>
-                                    )}
-                                </div>
-                            ) : (
-                                <div style={{ marginBottom: '24px' }}>
-                                    <label style={{ display: 'block', marginBottom: '10px', fontWeight: 'bold' }}>Code Editor ({activeAssignment.codingDetails?.language})</label>
-                                    <div style={{ background: '#1a202c', padding: '15px', borderRadius: '15px' }}>
-                                        <textarea
-                                            value={code}
-                                            onChange={(e) => setCode(e.target.value)}
-                                            style={{
-                                                width: '100%',
-                                                minHeight: '300px',
-                                                background: 'transparent',
-                                                color: '#818cf8',
-                                                border: 'none',
-                                                outline: 'none',
-                                                fontFamily: 'monospace',
-                                                fontSize: '1rem',
-                                                lineHeight: '1.5',
-                                                resize: 'vertical'
-                                            }}
-                                            placeholder="Write your code here..."
-                                        />
-                                        <div style={{ marginBottom: '15px' }}>
-                                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', color: '#4a5568', marginBottom: '8px' }}>Input (Standard Input):</label>
-                                            <textarea
-                                                value={stdin}
-                                                onChange={(e) => setStdin(e.target.value)}
-                                                placeholder="Enter inputs here (e.g. 29 for prime check)..."
-                                                style={{
-                                                    width: '100%',
-                                                    height: '60px',
-                                                    background: '#f8fafc',
-                                                    border: '1px solid #e2e8f0',
-                                                    borderRadius: '8px',
-                                                    padding: '10px',
-                                                    fontSize: '0.9rem',
-                                                    fontFamily: 'monospace',
-                                                    resize: 'none'
-                                                }}
-                                            />
-                                        </div>
+                        {submissions[activeAssignment._id] ? (
+                            <div style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+                                {/* --- SUBMISSION PREVIEW --- */}
+                                <div style={{ marginBottom: '20px', padding: '15px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                                        <span style={{ fontWeight: 'bold', fontSize: '0.9rem', color: '#4a5568' }}>Submission Status</span>
+                                        <span style={{
+                                            padding: '4px 10px',
+                                            borderRadius: '6px',
+                                            fontSize: '0.8rem',
+                                            fontWeight: '700',
+                                            background: submissions[activeAssignment._id].status === 'Graded' ? '#d1fae5' : '#dbeafe',
+                                            color: submissions[activeAssignment._id].status === 'Graded' ? '#065f46' : '#1e40af'
+                                        }}>
+                                            {submissions[activeAssignment._id].status}
+                                        </span>
+                                    </div>
 
-                                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>
+                                    {activeAssignment.type === 'file' ? (
+                                        <div style={{ textAlign: 'center', padding: '20px' }}>
+                                            <div style={{ fontSize: '2rem', marginBottom: '10px' }}>📄</div>
+                                            <a
+                                                href={submissions[activeAssignment._id].fileUrl}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                style={{ color: '#6366f1', fontWeight: 'bold', textDecoration: 'underline' }}
+                                            >
+                                                View Submitted File
+                                            </a>
+                                        </div>
+                                    ) : (
+                                        <div>
+                                            <div style={{ background: '#1a202c', padding: '15px', borderRadius: '10px', marginBottom: '15px' }}>
+                                                <div style={{ color: '#a0aec0', fontSize: '0.8rem', marginBottom: '5px' }}>Submitted Code:</div>
+                                                <pre style={{ color: '#818cf8', margin: 0, fontFamily: 'monospace', fontSize: '0.9rem', whiteSpace: 'pre-wrap' }}>
+                                                    {submissions[activeAssignment._id].code}
+                                                </pre>
+                                            </div>
+
+                                            <div style={{ marginBottom: '15px' }}>
+                                                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', color: '#4a5568', marginBottom: '5px' }}>Test Input (stdin):</label>
+                                                <textarea
+                                                    value={stdin}
+                                                    onChange={(e) => setStdin(e.target.value)}
+                                                    placeholder="Enter inputs..."
+                                                    style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1px solid #cbd5e0', fontFamily: 'monospace' }}
+                                                />
+                                            </div>
+
                                             <button
                                                 type="button"
-                                                disabled={isExecuting}
                                                 onClick={handleRunCode}
-                                                style={{ padding: '8px 16px', background: '#38B2AC', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.8rem' }}
+                                                disabled={isExecuting}
+                                                style={{ width: '100%', padding: '10px', background: isExecuting ? '#cbd5e0' : '#10b981', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: isExecuting ? 'not-allowed' : 'pointer' }}
                                             >
-                                                {isExecuting ? 'Running...' : '▶ Compile & Run'}
+                                                {isExecuting ? 'Running...' : '▶ Run Code'}
                                             </button>
-                                        </div>
 
-                                        {executionResult && (
-                                            <div style={{ marginTop: '20px' }}>
-                                                <p style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#4a5568', marginBottom: '8px' }}>Execution Output:</p>
-                                                <div style={{
-                                                    background: '#1a202c',
-                                                    padding: '15px',
-                                                    borderRadius: '12px',
-                                                    color: '#e2e8f0',
-                                                    fontFamily: 'monospace',
-                                                    fontSize: '0.9rem',
-                                                    maxHeight: '200px',
-                                                    overflowY: 'auto',
-                                                    whiteSpace: 'pre-wrap',
-                                                    border: '1px solid #4a5568'
-                                                }}>
-                                                    {executionResult.output}
+                                            {executionResult && (
+                                                <div style={{ marginTop: '15px', background: '#2d3748', padding: '15px', borderRadius: '10px', color: '#e2e8f0', fontFamily: 'monospace', fontSize: '0.9rem' }}>
+                                                    <div style={{ color: '#a0aec0', fontSize: '0.7rem', marginBottom: '5px' }}>Output:</div>
+                                                    <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{executionResult.output}</pre>
                                                 </div>
-                                            </div>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {submissions[activeAssignment._id].status === 'Graded' && (
+                                        <div style={{ marginTop: '20px', borderTop: '1px solid #e2e8f0', paddingTop: '15px' }}>
+                                            <div style={{ fontWeight: 'bold', color: '#2f855a', marginBottom: '5px' }}>Instructor Feedback:</div>
+                                            <p style={{ margin: '0 0 10px 0', fontSize: '0.9rem' }}>{submissions[activeAssignment._id].feedback}</p>
+                                            <div style={{ fontWeight: 'bold', color: '#2f855a' }}>Score: {submissions[activeAssignment._id].score}/{activeAssignment.maxPoints}</div>
+                                        </div>
+                                    )}
+                                </div>
+                                <button onClick={() => setActiveAssignment(null)} style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0', background: 'white', fontWeight: 'bold', cursor: 'pointer' }}>Close</button>
+                            </div>
+                        ) : (
+                            <form onSubmit={handleSubmit}>
+                                {activeAssignment.type === 'file' ? (
+                                    <div style={{ marginBottom: '24px' }}>
+                                        <label style={{ display: 'block', marginBottom: '10px', fontWeight: 'bold' }}>Upload your file (PDF/Image/Doc)</label>
+                                        <input
+                                            type="file"
+                                            disabled={!!submissions[activeAssignment._id]}
+                                            onChange={(e) => setFile(e.target.files[0])}
+                                            style={{ border: '2px dashed #e2e8f0', padding: '20px', width: '100%', borderRadius: '12px', cursor: !!submissions[activeAssignment._id] ? 'not-allowed' : 'pointer', opacity: !!submissions[activeAssignment._id] ? 0.6 : 1 }}
+                                        />
+                                        {submissions[activeAssignment._id]?.fileUrl && (
+                                            <p style={{ fontSize: '0.8rem', color: '#10b981', marginTop: '10px' }}>Current file: {submissions[activeAssignment._id].fileUrl}</p>
                                         )}
                                     </div>
-                                </div>
-                            )}
+                                ) : (
+                                    <div style={{ marginBottom: '24px' }}>
+                                        <label style={{ display: 'block', marginBottom: '10px', fontWeight: 'bold' }}>Code Editor ({activeAssignment.codingDetails?.language})</label>
+                                        <div style={{ background: '#1a202c', padding: '15px', borderRadius: '15px' }}>
+                                            <textarea
+                                                value={code}
+                                                readOnly={!!submissions[activeAssignment._id]}
+                                                onChange={(e) => setCode(e.target.value)}
+                                                style={{
+                                                    width: '100%',
+                                                    minHeight: '300px',
+                                                    background: 'transparent',
+                                                    color: '#818cf8',
+                                                    border: 'none',
+                                                    outline: 'none',
+                                                    fontFamily: 'monospace',
+                                                    fontSize: '1rem',
+                                                    lineHeight: '1.5',
+                                                    resize: 'vertical',
+                                                    cursor: !!submissions[activeAssignment._id] ? 'default' : 'text'
+                                                }}
+                                                placeholder="Write your code here..."
+                                            />
+                                            <div style={{ marginBottom: '15px' }}>
+                                                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', color: '#4a5568', marginBottom: '8px' }}>Input (Standard Input):</label>
+                                                <textarea
+                                                    value={stdin}
+                                                    readOnly={!!submissions[activeAssignment._id]}
+                                                    onChange={(e) => setStdin(e.target.value)}
+                                                    placeholder="Enter inputs here (e.g. 29 for prime check)..."
+                                                    style={{
+                                                        width: '100%',
+                                                        height: '60px',
+                                                        background: '#f8fafc',
+                                                        border: '1px solid #e2e8f0',
+                                                        borderRadius: '8px',
+                                                        padding: '10px',
+                                                        fontSize: '0.9rem',
+                                                        fontFamily: 'monospace',
+                                                        resize: 'none',
+                                                        outline: 'none',
+                                                        cursor: !!submissions[activeAssignment._id] ? 'default' : 'text'
+                                                    }}
+                                                />
+                                            </div>
 
-                            <div style={{ display: 'flex', gap: '15px' }}>
-                                <button type="button" onClick={() => setActiveAssignment(null)} style={{ flex: 1, padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0', background: 'white', fontWeight: 'bold' }}>Cancel</button>
-                                <button
-                                    disabled={submitting}
-                                    type="submit"
-                                    style={{ flex: 1, padding: '14px', borderRadius: '12px', border: 'none', background: '#6366f1', color: 'white', fontWeight: 'bold' }}
-                                >
-                                    {submitting ? 'Submitting...' : 'Submit Assignment'}
-                                </button>
-                            </div>
-                        </form>
+                                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>
+                                                <button
+                                                    type="button"
+                                                    disabled={isExecuting}
+                                                    onClick={handleRunCode}
+                                                    style={{ padding: '8px 16px', background: '#38B2AC', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.8rem' }}
+                                                >
+                                                    {isExecuting ? 'Running...' : '▶ Compile & Run'}
+                                                </button>
+                                            </div>
+
+                                            {executionResult && (
+                                                <div style={{ marginTop: '20px' }}>
+                                                    <p style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#4a5568', marginBottom: '8px' }}>Execution Output:</p>
+                                                    <div style={{
+                                                        background: '#1a202c',
+                                                        padding: '15px',
+                                                        borderRadius: '12px',
+                                                        color: '#e2e8f0',
+                                                        fontFamily: 'monospace',
+                                                        fontSize: '0.9rem',
+                                                        maxHeight: '200px',
+                                                        overflowY: 'auto',
+                                                        whiteSpace: 'pre-wrap',
+                                                        border: '1px solid #4a5568'
+                                                    }}>
+                                                        {executionResult.output}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div style={{ display: 'flex', gap: '15px' }}>
+                                    <button type="button" onClick={() => setActiveAssignment(null)} style={{ flex: 1, padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0', background: 'white', fontWeight: 'bold' }}>Close</button>
+                                    {!submissions[activeAssignment._id] && (
+                                        <button
+                                            disabled={submitting}
+                                            type="submit"
+                                            style={{ flex: 1, padding: '14px', borderRadius: '12px', border: 'none', background: '#6366f1', color: 'white', fontWeight: 'bold' }}
+                                        >
+                                            {submitting ? 'Submitting...' : 'Submit Assignment'}
+                                        </button>
+                                    )}
+                                </div>
+                            </form>
+                        )}
                     </div>
                 </div>
             )}
@@ -1584,14 +1780,26 @@ const CertificatesSection = ({ courses, allProgress, user }) => {
         const progress = allProgress.find(p => p.course.toString() === course._id.toString());
         if (!progress) return 0;
 
-        const allContents = course.chapters.flatMap(c => c.modules.flatMap(m => m.contents));
-        if (allContents.length === 0) return 0;
+        const allContents = course.chapters.flatMap(c => c.modules.flatMap(m => m.contents)) || [];
+        const allQuizzes = course.chapters.flatMap(c => c.modules || []).filter(m => m.quiz?.questions?.length > 0) || [];
+        const totalItems = allContents.length + allQuizzes.length;
 
-        const completedContentsCount = allContents.filter(content =>
-            progress.contentProgress?.some(cp => cp.contentId.toString() === content._id.toString() && cp.isCompleted)
-        ).length;
+        if (totalItems === 0) return 0;
 
-        return Math.round((completedContentsCount / allContents.length) * 100);
+        let completedItems = 0;
+        allContents.forEach(content => {
+            if (progress.contentProgress?.some(cp => cp.contentId.toString() === content._id.toString() && cp.isCompleted)) {
+                completedItems++;
+            }
+        });
+
+        allQuizzes.forEach(module => {
+            if (progress.completedModules?.some(cm => cm.moduleId.toString() === module._id.toString())) {
+                completedItems++;
+            }
+        });
+
+        return Math.floor((completedItems / totalItems) * 100);
     };
 
     const completedCourses = courses.filter(course => {
