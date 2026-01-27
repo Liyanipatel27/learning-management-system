@@ -3,6 +3,8 @@ const router = express.Router();
 const Assignment = require('../models/Assignment');
 const Submission = require('../models/Submission');
 const axios = require('axios');
+const { deleteFile } = require('../utils/cloudinaryHelper');
+const cloudinary = require('cloudinary').v2;
 const multer = require('multer');
 const { storage } = require('../config/cloudinary');
 
@@ -63,6 +65,14 @@ router.put('/:id', async (req, res) => {
 // Delete assignment
 router.delete('/:id', async (req, res) => {
     try {
+        const assignment = await Assignment.findById(req.params.id);
+        if (!assignment) return res.status(404).json({ message: 'Assignment not found' });
+
+        // Delete file from Cloudinary (using newly created helper)
+        if (assignment.type === 'file' && assignment.fileDetails && assignment.fileDetails.instructionFileUrl) {
+            await deleteFile(assignment.fileDetails.instructionFileUrl);
+        }
+
         await Assignment.findByIdAndDelete(req.params.id);
         // Also delete associated submissions
         await Submission.deleteMany({ assignment: req.params.id });

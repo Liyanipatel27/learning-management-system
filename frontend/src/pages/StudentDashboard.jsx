@@ -34,11 +34,15 @@ function StudentDashboard() {
     }, []);
 
     useEffect(() => {
-        if (activeTab === 'dashboard' || activeTab === 'my-courses' || activeTab === 'ai-roadmap') {
+        if (['dashboard', 'my-courses', 'ai-roadmap', 'certificates', 'grades'].includes(activeTab)) {
+            fetchCourses();
             fetchAllProgress();
 
-            // Periodically refresh every 60 seconds to keep stats fresh
-            const interval = setInterval(fetchAllProgress, 60000);
+            // Periodically refresh every 60 seconds
+            const interval = setInterval(() => {
+                fetchCourses();
+                fetchAllProgress();
+            }, 60000);
             return () => clearInterval(interval);
         }
     }, [activeTab, selectedCourse]); // Also refetch when exiting CourseViewer
@@ -70,14 +74,23 @@ function StudentDashboard() {
 
     // Restore selectedCourse after courses are fetched
     useEffect(() => {
-        if (courses.length > 0 && !selectedCourse) {
-            const savedCourseId = localStorage.getItem(`selectedCourseId_${user.id || user._id}`);
-            if (savedCourseId) {
-                const course = courses.find(c => c._id === savedCourseId);
-                if (course) setSelectedCourse(course);
+        if (courses.length > 0 && selectedCourse) {
+            // Find the updated version of the currently selected course
+            const updatedCourse = courses.find(c => c._id === selectedCourse._id);
+            // Only update if it actually changed to avoid infinite loops, 
+            // but for now, syncing safe if objects are new refs.
+            if (updatedCourse && JSON.stringify(updatedCourse) !== JSON.stringify(selectedCourse)) {
+                setSelectedCourse(updatedCourse);
             }
         }
-    }, [courses]);
+    }, [courses]); // Run whenever courses list refreshes
+
+    // Safety: Ensure Cinema Mode is OFF if no course is selected
+    useEffect(() => {
+        if (!selectedCourse && isCinemaMode) {
+            setIsCinemaMode(false);
+        }
+    }, [selectedCourse, isCinemaMode]);
 
     const fetchAllProgress = async () => {
         try {
@@ -562,11 +575,13 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
 
             if (timeToSave === 0 && !forceCompleted) return; // Don't overwrite if we haven't tracked anything yet
 
-            await axios.post(`${import.meta.env.VITE_API_URL}/api/courses/${course._id}/contents/${selectedContent._id}/progress`, {
+            const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/courses/${course._id}/contents/${selectedContent._id}/progress`, {
                 studentId,
                 timeSpent: timeToSave,
                 isCompleted: forceCompleted || (timeToSave >= selectedContent.minTime)
             });
+            // Update local state immediately to reflect changes in UI (e.g., Progress Bar)
+            setStudentProgress(res.data);
         } catch (err) {
             console.error('Error auto-saving progress:', err);
         }
