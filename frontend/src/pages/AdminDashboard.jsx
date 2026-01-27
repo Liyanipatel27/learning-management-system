@@ -103,12 +103,10 @@ const AdminProfileSection = ({ user }) => {
                         <div style={{ fontSize: '1rem', color: '#10b981', fontWeight: '700' }}>Active</div>
                     </div>
                 </div>
-                {user.employeeId && (
-                    <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '15px', border: '1px solid #edf2f7' }}>
-                        <label style={{ display: 'block', fontSize: '0.8rem', color: '#718096', marginBottom: '5px', fontWeight: '600' }}>Employee ID</label>
-                        <div style={{ fontSize: '1.1rem', color: '#2d3748', fontWeight: '500' }}>{user.employeeId}</div>
-                    </div>
-                )}
+                <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '15px', border: '1px solid #edf2f7' }}>
+                    <label style={{ display: 'block', fontSize: '0.8rem', color: '#718096', marginBottom: '5px', fontWeight: '600' }}>Employee ID</label>
+                    <div style={{ fontSize: '1.1rem', color: '#2d3748', fontWeight: '500' }}>{user.employeeId || 'Not Assigned'}</div>
+                </div>
             </div>
         </div>
     );

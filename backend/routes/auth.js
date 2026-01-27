@@ -12,6 +12,14 @@ router.post('/register', async (req, res) => {
         console.log('[REGISTER DEBUG] Received body:', req.body);
         const { name, email, password, role, enrollment, branch, employeeId } = req.body;
 
+        // Role-based mandatory fields validation
+        if (role === 'student') {
+            if (!enrollment) return res.status(400).json({ message: 'Enrollment Number is mandatory for students.' });
+            if (!branch) return res.status(400).json({ message: 'Branch is mandatory for students.' });
+        } else if (role === 'teacher' || role === 'admin') {
+            if (!employeeId) return res.status(400).json({ message: 'Employee ID is mandatory for instructors and admins.' });
+        }
+
         // Email validation: restrict to @gmail.com
         if (!email || !email.toLowerCase().endsWith('@gmail.com')) {
             return res.status(400).json({ message: 'Invalid email. Only @gmail.com addresses are allowed.' });

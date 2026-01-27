@@ -16,13 +16,33 @@ function Register() {
     const navigate = useNavigate();
 
     const handleChange = (e) => {
-        setFormData({ ...formData, [e.target.name]: e.target.value });
+        const { name, value } = e.target;
+        if (name === 'role') {
+            // Clear role-specific fields when role changes
+            setFormData({
+                ...formData,
+                role: value,
+                enrollment: '',
+                branch: '',
+                employeeId: ''
+            });
+        } else {
+            setFormData({ ...formData, [name]: value });
+        }
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
 
-        // Frontend validation for @gmail.com
+        // Role-based validation
+        if (formData.role === 'student') {
+            if (!formData.enrollment) { alert('Enrollment Number is mandatory for students.'); return; }
+            if (!formData.branch) { alert('Branch is mandatory for students.'); return; }
+        } else if (formData.role === 'teacher' || formData.role === 'admin') {
+            if (!formData.employeeId) { alert('Employee ID is mandatory.'); return; }
+        }
+
+        // Email validation: restrict to @gmail.com
         if (!formData.email.toLowerCase().endsWith('@gmail.com')) {
             alert('Invalid email. Please use a valid @gmail.com address.');
             return;

@@ -7,6 +7,14 @@ import ReactMarkdown from 'react-markdown';
 
 //import AIAssistantSidebar from '../components/AIAssistantSidebar'; // Import the new component
 
+const formatTime = (seconds) => {
+    if (seconds <= 0) return '0s';
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    if (m === 0) return `${s}s`;
+    return `${m}m ${s}s`;
+};
+
 function StudentDashboard() {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     const navigate = useNavigate();
@@ -18,6 +26,7 @@ function StudentDashboard() {
     const [allProgress, setAllProgress] = useState([]);
     const [dailyHours, setDailyHours] = useState(2);
     const [weekendHours, setWeekendHours] = useState(4);
+
 
     useEffect(() => {
         fetchCourses();
@@ -38,6 +47,8 @@ function StudentDashboard() {
             const studentId = user.id || user._id;
             const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/courses/progress/student/${studentId}`);
             setAllProgress(res.data);
+
+
         } catch (err) {
             console.error('Error fetching all progress:', err);
         }
@@ -178,6 +189,7 @@ function StudentDashboard() {
                         setSelectedCourse={setSelectedCourse}
                         isCinemaMode={isCinemaMode}
                         setIsCinemaMode={setIsCinemaMode}
+                        dailyHours={dailyHours}
                         onBack={() => {
                             // Calculate if goal met before leaving
                             const today = new Date().toISOString().split('T')[0];
@@ -225,63 +237,7 @@ function StudentDashboard() {
                                 <p style={{ fontSize: '2rem', fontWeight: 'bold', color: '#38B2AC' }}>95%</p>
                             </div>
 
-                            {/* Card 4: Today's Study Time */}
-                            <div style={{ background: 'linear-gradient(135deg, #6C63FF 0%, #4338CA 100%)', padding: '20px', borderRadius: '15px', boxShadow: '0 10px 15px rgba(108, 99, 255, 0.2)', color: 'white' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                                    <h3 style={{ color: 'rgba(255,255,255,0.8)', fontSize: '0.9rem', margin: 0 }}>Today's Study Time</h3>
-                                    <span style={{ fontSize: '0.7rem', background: 'rgba(255,255,255,0.2)', padding: '2px 8px', borderRadius: '10px' }}>
-                                        {new Date().getDay() === 0 || new Date().getDay() === 6 ? 'Weekend Goal' : 'Daily Goal'}
-                                    </span>
-                                </div>
-                                <p style={{ fontSize: '2.2rem', fontWeight: 'bold', margin: '0 0 10px 0' }}>
-                                    {(() => {
-                                        const today = new Date().toISOString().split('T')[0];
-                                        let totalMin = 0;
-                                        allProgress.forEach(progress => {
-                                            const todayActivity = progress.dailyActivity?.find(a => a.date === today);
-                                            if (todayActivity) totalMin += todayActivity.minutes;
-                                        });
 
-                                        if (totalMin === 0) return '0 mins';
-                                        return `${Number(totalMin).toFixed(1)} mins`;
-                                    })()}
-                                </p>
-
-                                {(() => {
-                                    const today = new Date().toISOString().split('T')[0];
-                                    let totalMin = 0;
-                                    allProgress.forEach(progress => {
-                                        const todayActivity = progress.dailyActivity?.find(a => a.date === today);
-                                        if (todayActivity) totalMin += todayActivity.minutes;
-                                    });
-
-                                    const day = new Date().getDay();
-                                    const targetHours = (day === 0 || day === 6) ? weekendHours : dailyHours;
-                                    const totalTargetMin = targetHours * 60;
-                                    const thresholdMin = totalTargetMin * 0.5;
-                                    const percentOfThreshold = Math.min(100, Math.round((totalMin / thresholdMin) * 100));
-
-                                    return (
-                                        <div style={{ marginTop: '10px' }}>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '5px' }}>
-                                                <span>Roadmap Threshold (50%)</span>
-                                                <span>{percentOfThreshold}%</span>
-                                            </div>
-                                            <div style={{ height: '6px', background: 'rgba(255,255,255,0.2)', borderRadius: '3px', overflow: 'hidden' }}>
-                                                <div style={{
-                                                    height: '100%',
-                                                    width: `${percentOfThreshold}%`,
-                                                    background: percentOfThreshold >= 100 ? '#48BB78' : '#F6AD55',
-                                                    transition: 'width 0.5s ease'
-                                                }}></div>
-                                            </div>
-                                            <p style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.7)', marginTop: '8px', fontStyle: 'italic' }}>
-                                                {percentOfThreshold >= 100 ? '✅ Target Met for today!' : `Need ${Math.round(Math.max(0, thresholdMin - totalMin))} mins more to satisfy AI Roadmap.`}
-                                            </p>
-                                        </div>
-                                    );
-                                })()}
-                            </div>
                         </section>
 
                         <section style={{ marginTop: '40px' }}>
@@ -387,7 +343,9 @@ function StudentDashboard() {
     );
 }
 
-const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMode, setIsCinemaMode, onBack }) => {
+const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMode, setIsCinemaMode, dailyHours, onBack }) => {
+    // Note: Study goal requirement is usually set to 50% of the dailyHours target.
+    // For now, we are focusing on counting the portal study time accurately.
     // State to track expanded chapters and modules
     const [expandedChapters, setExpandedChapters] = useState({});
     const [expandedModules, setExpandedModules] = useState({});
@@ -440,39 +398,47 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
             setTimeSpent(initialTime);
             timeSpentRef.current = initialTime; // Sync ref immediately
 
-            if (alreadyCompleted || !selectedContent.minTime || selectedContent.minTime === 0) {
+            let timer = null;
+            let autoSaveTimer = null;
+
+            if (alreadyCompleted) {
                 setIsTimeRequirementMet(true);
-                return;
+                // DO NOT start timer if already completed
+            } else {
+                setIsTimeRequirementMet(false);
+
+                // 2. Start Timer ONLY if not completed
+                timer = setInterval(() => {
+                    if (document.hidden || !document.hasFocus()) return;
+
+                    setTimeSpent(prev => {
+                        // Check if window is focused AND document is visible
+                        if (document.hasFocus() && !document.hidden) {
+                            // STOP timer if requirement met
+                            if (prev >= selectedContent.minTime) {
+                                setIsTimeRequirementMet(true);
+                                return prev; // Stop incrementing
+                            }
+
+
+
+                            const next = prev + 1;
+                            timeSpentRef.current = next; // Update ref immediately
+                            return next;
+                        }
+                        return prev;
+                    });
+                }, 1000);
             }
 
-            setIsTimeRequirementMet(false);
-
-            // 2. Start Timer
-            const timer = setInterval(() => {
-                if (document.hidden || !document.hasFocus()) return;
-
-                setTimeSpent(prev => {
-                    // Check if window is focused AND document is visible
-                    if (document.hasFocus() && !document.hidden) {
-                        const next = prev + 1;
-                        timeSpentRef.current = next; // Update ref immediately
-                        if (next >= selectedContent.minTime) {
-                            setIsTimeRequirementMet(true);
-                        }
-                        return next;
-                    }
-                    return prev;
-                });
-            }, 1000);
-
             // 3. Periodic Auto-save (Every 10 seconds)
-            const autoSaveTimer = setInterval(() => {
+            autoSaveTimer = setInterval(() => {
                 saveProgress(false); // saveProgress will use the ref
             }, 10000);
 
             return () => {
-                clearInterval(timer);
-                clearInterval(autoSaveTimer);
+                if (timer) clearInterval(timer);
+                if (autoSaveTimer) clearInterval(autoSaveTimer);
                 // Save latest progress using the ref
                 saveProgress(false);
             };
@@ -715,11 +681,7 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
         }));
     };
 
-    const formatTime = (seconds) => {
-        if (seconds <= 0) return '0 mins';
-        const mins = (seconds / 60).toFixed(1);
-        return `${mins} mins`;
-    };
+
 
     return (
         <div style={{ background: 'transparent', padding: '0', width: '100%' }}>
@@ -879,14 +841,22 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
                                         </div>
                                     </div>
 
+
+
                                     {/* Study Requirement Bar */}
                                     {selectedContent.minTime > 0 && (
                                         <div style={{ flex: 1, padding: '12px', background: isTimeRequirementMet ? '#C6F6D5' : '#EBF8FF', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                                             <div style={{ fontSize: '1rem' }}>{isTimeRequirementMet ? '✅' : '⏳'}</div>
                                             <div style={{ flex: 1 }}>
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
-                                                    <span style={{ fontSize: '0.75rem', fontWeight: '700', color: isTimeRequirementMet ? '#22543D' : '#2A4365' }}>
-                                                        {isTimeRequirementMet ? 'Study Complete' : `Study: ${formatTime(Math.max(0, selectedContent.minTime - timeSpent))} left`}
+                                                    <span style={{ fontSize: '0.75rem', fontWeight: '700', color: isTimeRequirementMet ? '#22543D' : '#2A4365', display: 'flex', gap: '8px' }}>
+                                                        {isTimeRequirementMet ? '✅ Requirement Met' : (
+                                                            <>
+                                                                <span>⏱️ Spent: {formatTime(timeSpent)}</span>
+                                                                <span style={{ opacity: 0.6 }}>|</span>
+                                                                <span>⏳ Left: {formatTime(Math.max(0, selectedContent.minTime - timeSpent))}</span>
+                                                            </>
+                                                        )}
                                                     </span>
                                                     <span style={{ fontSize: '0.75rem', color: '#718096' }}>{Math.min(100, Math.round((timeSpent / selectedContent.minTime) * 100))}%</span>
                                                 </div>
@@ -1143,9 +1113,11 @@ const ProfileSection = ({ userId }) => {
                 console.log(`[PROFILE] Fetching student profile for: ${userId}`);
                 const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
                 const res = await axios.get(`${apiUrl}/api/auth/profile/${userId}`);
+                console.log('[PROFILE] Data received from API:', res.data);
                 setProfile(res.data);
             } catch (err) {
                 console.error('[PROFILE] Error fetching student profile:', err);
+                console.error('[PROFILE] Error response:', err.response?.data);
                 setError(err.message);
                 // Fallback to session user
                 setProfile(sessionUser);
@@ -1198,18 +1170,14 @@ const ProfileSection = ({ userId }) => {
                         <div style={{ fontSize: '1rem', color: '#10b981', fontWeight: '700' }}>Active</div>
                     </div>
                 </div>
-                {profile.enrollment && (
-                    <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '15px', border: '1px solid #edf2f7' }}>
-                        <label style={{ display: 'block', fontSize: '0.8rem', color: '#718096', marginBottom: '5px', fontWeight: '600' }}>Enrollment Number</label>
-                        <div style={{ fontSize: '1.1rem', color: '#2d3748', fontWeight: '500' }}>{profile.enrollment}</div>
-                    </div>
-                )}
-                {profile.branch && (
-                    <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '15px', border: '1px solid #edf2f7' }}>
-                        <label style={{ display: 'block', fontSize: '0.8rem', color: '#718096', marginBottom: '5px', fontWeight: '600' }}>Branch</label>
-                        <div style={{ fontSize: '1.1rem', color: '#2d3748', fontWeight: '500' }}>{profile.branch}</div>
-                    </div>
-                )}
+                <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '15px', border: '1px solid #edf2f7' }}>
+                    <label style={{ display: 'block', fontSize: '0.8rem', color: '#718096', marginBottom: '5px', fontWeight: '600' }}>Enrollment Number</label>
+                    <div style={{ fontSize: '1.1rem', color: '#2d3748', fontWeight: '500' }}>{profile.enrollment || 'Not Assigned'}</div>
+                </div>
+                <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '15px', border: '1px solid #edf2f7' }}>
+                    <label style={{ display: 'block', fontSize: '0.8rem', color: '#718096', marginBottom: '5px', fontWeight: '600' }}>Branch</label>
+                    <div style={{ fontSize: '1.1rem', color: '#2d3748', fontWeight: '500' }}>{profile.branch || 'Not Assigned'}</div>
+                </div>
             </div>
 
             <div style={{ marginTop: '40px', padding: '20px', background: 'rgba(108, 99, 255, 0.05)', borderRadius: '15px', border: '1px dashed #6C63FF' }}>

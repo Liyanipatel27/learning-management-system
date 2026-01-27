@@ -136,7 +136,7 @@ function TeacherDashboard() {
                     <div className="user-profile" style={{ display: 'flex', alignItems: 'center', gap: '15px', background: 'white', padding: '8px 16px', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
                         <div style={{ textAlign: 'right' }}>
                             <p style={{ margin: 0, fontWeight: '600', fontSize: '0.9rem', color: '#2d3748' }}>{user.name}</p>
-                            <p style={{ margin: 0, fontSize: '0.75rem', color: '#718096' }}>Instructor</p>
+                            <p style={{ margin: 0, fontSize: '0.75rem', color: '#718096' }}>Instructor {user.employeeId ? `(ID: ${user.employeeId})` : ''}</p>
                         </div>
                         <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
                             {user.name ? user.name.charAt(0).toUpperCase() : 'T'}
@@ -503,6 +503,8 @@ const StudentsSection = () => {
                     <thead>
                         <tr style={{ background: '#f8fafc', borderBottom: '1px solid #edf2f7' }}>
                             <th style={{ padding: '15px 20px', textAlign: 'left', color: '#718096' }}>Student Name</th>
+                            <th style={{ padding: '15px 20px', textAlign: 'left', color: '#718096' }}>Enrollment</th>
+                            <th style={{ padding: '15px 20px', textAlign: 'left', color: '#718096' }}>Branch</th>
                             <th style={{ padding: '15px 20px', textAlign: 'left', color: '#718096' }}>Email</th>
                             <th style={{ padding: '15px 20px', textAlign: 'left', color: '#718096' }}>Joined Date</th>
                             <th style={{ padding: '15px 20px', textAlign: 'center', color: '#718096' }}>Account Status</th>
@@ -522,6 +524,8 @@ const StudentsSection = () => {
                                         </div>
                                         <span style={{ fontWeight: '600', color: '#2d3748' }}>{student.name}</span>
                                     </td>
+                                    <td style={{ padding: '15px 20px', color: '#4a5568', fontWeight: '600' }}>{student.enrollment || 'N/A'}</td>
+                                    <td style={{ padding: '15px 20px', color: '#4a5568' }}>{student.branch || 'N/A'}</td>
                                     <td style={{ padding: '15px 20px', color: '#4a5568' }}>{student.email}</td>
                                     <td style={{ padding: '15px 20px', color: '#718096' }}>
                                         {student.createdAt ? new Date(student.createdAt).toLocaleDateString('en-GB') : 'N/A'}
@@ -617,12 +621,10 @@ const ProfileSection = ({ userId }) => {
                         <div style={{ fontSize: '1rem', color: '#10b981', fontWeight: '700' }}>Active</div>
                     </div>
                 </div>
-                {profile.employeeId && (
-                    <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '15px', border: '1px solid #edf2f7' }}>
-                        <label style={{ display: 'block', fontSize: '0.8rem', color: '#718096', marginBottom: '5px', fontWeight: '600' }}>Employee ID</label>
-                        <div style={{ fontSize: '1.1rem', color: '#2d3748', fontWeight: '500' }}>{profile.employeeId}</div>
-                    </div>
-                )}
+                <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '15px', border: '1px solid #edf2f7' }}>
+                    <label style={{ display: 'block', fontSize: '0.8rem', color: '#718096', marginBottom: '5px', fontWeight: '600' }}>Employee ID</label>
+                    <div style={{ fontSize: '1.1rem', color: '#2d3748', fontWeight: '500' }}>{profile.employeeId || 'Not Assigned'}</div>
+                </div>
             </div>
 
             <div style={{ marginTop: '40px', padding: '20px', background: 'rgba(99, 102, 241, 0.05)', borderRadius: '15px', border: '1px dashed #6366f1' }}>
