@@ -365,13 +365,13 @@ const ContentUploader = ({ onUpload }) => {
                 <select
                     onChange={e => setType(e.target.value)}
                     value={type}
-                    style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white', color: '#4a5568' }}
+                    style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white', color: 'black' }}
                 >
-                    <option value="pdf">PDF</option>
-                    <option value="video">Video</option>
-                    <option value="image">Image</option>
-                    <option value="doc">Document</option>
-                    <option value="link">External Link</option>
+                    <option value="pdf" style={{ color: 'black' }}>PDF</option>
+                    <option value="video" style={{ color: 'black' }}>Video</option>
+                    <option value="image" style={{ color: 'black' }}>Image</option>
+                    <option value="doc" style={{ color: 'black' }}>Document</option>
+                    <option value="link" style={{ color: 'black' }}>External Link</option>
                 </select>
                 <input
                     type="text"
@@ -499,11 +499,11 @@ const QuizEditor = ({ chapterId, moduleId, quiz, quizConfig, onSave, onClose }) 
                                     <select
                                         value={q.difficulty || 'easy'}
                                         onChange={e => handleQuestionChange(qIdx, 'difficulty', e.target.value)}
-                                        style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.8rem', background: '#fff' }}
+                                        style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.8rem', background: '#fff', color: 'black' }}
                                     >
-                                        <option value="easy">Easy</option>
-                                        <option value="medium">Medium</option>
-                                        <option value="hard">Hard</option>
+                                        <option value="easy" style={{ color: 'black' }}>Easy</option>
+                                        <option value="medium" style={{ color: 'black' }}>Medium</option>
+                                        <option value="hard" style={{ color: 'black' }}>Hard</option>
                                     </select>
                                 </div>
                                 <button onClick={() => removeQuestion(qIdx)} style={{ color: '#f87171', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.8rem' }}>Remove</button>

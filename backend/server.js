@@ -21,6 +21,7 @@ mongoose.connect(MONGO_URI)
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/courses', require('./routes/course'));
+app.use('/api/assignments', require('./routes/assignment'));
 app.use('/uploads', express.static('uploads'));
 
 app.get('/ping', (req, res) => {

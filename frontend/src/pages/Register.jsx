@@ -101,10 +101,11 @@ function Register() {
                                 className="form-select"
                                 value={formData.role}
                                 onChange={handleChange}
+                                style={{ color: 'black' }}
                             >
-                                <option value="student">Student</option>
-                                <option value="teacher">Teacher</option>
-                                <option value="admin">Admin</option>
+                                <option value="student" style={{ color: 'black' }}>Student</option>
+                                <option value="teacher" style={{ color: 'black' }}>Teacher</option>
+                                <option value="admin" style={{ color: 'black' }}>Admin</option>
                             </select>
                         </div>
 

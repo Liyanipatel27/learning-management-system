@@ -9,6 +9,7 @@ function TeacherDashboard() {
     const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard', 'my-courses', 'create-course'
     const [selectedCourse, setSelectedCourse] = useState(null); // For editing existing
     const [courses, setCourses] = useState([]);
+    const [pendingGradingCount, setPendingGradingCount] = useState(0);
 
     useEffect(() => {
         const userId = user.id || user._id;
@@ -21,6 +22,19 @@ function TeacherDashboard() {
         try {
             const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/courses/teacher/${userId}`);
             setCourses(res.data);
+
+            // Fetch pending grading count
+            let totalPending = 0;
+            const published = res.data.filter(c => c.isPublished);
+            for (const course of published) {
+                const asgnRes = await axios.get(`${import.meta.env.VITE_API_URL}/api/assignments/course/${course._id}`);
+                for (const asgn of asgnRes.data) {
+                    const subRes = await axios.get(`${import.meta.env.VITE_API_URL}/api/assignments/assignment/${asgn._id}`);
+                    const pending = subRes.data.filter(s => s.status === 'Pending');
+                    totalPending += pending.length;
+                }
+            }
+            setPendingGradingCount(totalPending);
         } catch (err) {
             console.error(err);
         }
@@ -75,6 +89,7 @@ function TeacherDashboard() {
                             { id: 'my-courses', label: 'My Courses', icon: '📚' },
                             { id: 'create-course', label: 'Create Course', icon: '➕' },
                             { id: 'students', label: 'Students List', icon: '👥' },
+                            { id: 'assignments', label: 'Assignments', icon: '📝' },
                             { id: 'student-grades', label: 'Student Grades', icon: '📊' },
                             { id: 'profile', label: 'My Profile', icon: '👤' }
                         ].map(item => (
@@ -99,8 +114,7 @@ function TeacherDashboard() {
                                 {item.label}
                             </li>
                         ))}
-                        <li style={{ padding: '12px 16px', borderRadius: '10px', marginBottom: '8px', cursor: 'pointer', color: '#a0aec0' }} onClick={() => alert('Coming Soon!')}>Assignments</li>
-                        <li style={{ padding: '12px 16px', borderRadius: '10px', marginBottom: '8px', cursor: 'pointer', color: '#a0aec0' }} onClick={() => alert('Coming Soon!')}>Analytics</li>
+
                     </ul>
                 </nav>
                 <div
@@ -158,8 +172,8 @@ function TeacherDashboard() {
                     <StudentsSection />
                 ) : activeTab === 'profile' ? (
                     <ProfileSection userId={user.id || user._id} />
-                ) : activeTab === 'student-grades' ? (
-                    <StudentGradesSection teacherId={user.id || user._id} allPublishedCourses={publishedCourses} />
+                ) : activeTab === 'assignments' ? (
+                    <AssignmentsSection teacherId={user.id || user._id} courses={publishedCourses} />
                 ) : activeTab === 'my-courses' ? (
                     <div>
                         {/* Published Section */}
@@ -218,7 +232,7 @@ function TeacherDashboard() {
                             </div>
                             <div style={{ background: 'white', padding: '20px', borderRadius: '15px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
                                 <h3 style={{ color: '#718096', fontSize: '0.9rem', marginBottom: '10px' }}>Pending Grading</h3>
-                                <p style={{ fontSize: '2rem', fontWeight: 'bold', color: '#FF6584' }}>15</p>
+                                <p style={{ fontSize: '2rem', fontWeight: 'bold', color: '#FF6584' }}>{pendingGradingCount}</p>
                             </div>
                         </section>
 
@@ -359,11 +373,11 @@ const StudentGradesSection = ({ teacherId, allPublishedCourses }) => {
                     <select
                         value={selectedCourseId}
                         onChange={(e) => setSelectedCourseId(e.target.value)}
-                        style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white', outline: 'none', cursor: 'pointer' }}
+                        style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white', outline: 'none', cursor: 'pointer', color: 'black' }}
                     >
-                        <option value="all">All My Courses</option>
+                        <option value="all" style={{ color: 'black' }}>All My Courses</option>
                         {allPublishedCourses.map(course => (
-                            <option key={course._id} value={course._id}>{course.subject}</option>
+                            <option key={course._id} value={course._id} style={{ color: 'black' }}>{course.subject}</option>
                         ))}
                     </select>
                 </div>
@@ -546,6 +560,379 @@ const StudentsSection = () => {
 };
 
 // --- NEW SECTION: Profile View ---
+// --- NEW SECTION: Assignments Management ---
+const AssignmentsSection = ({ teacherId, courses }) => {
+    const [assignments, setAssignments] = useState([]);
+    const [selectedCourseId, setSelectedCourseId] = useState(courses[0]?._id || '');
+    const [showCreateModal, setShowCreateModal] = useState(false);
+    const [viewSubmissionsFor, setViewSubmissionsFor] = useState(null);
+    const [loading, setLoading] = useState(false);
+
+    const [newAssignment, setNewAssignment] = useState({
+        title: '',
+        description: '',
+        type: 'file',
+        dueDate: '',
+        maxPoints: 100,
+        codingDetails: { language: 'javascript', starterCode: '' },
+        fileDetails: { instructionFileUrl: '' }
+    });
+
+    useEffect(() => {
+        if (selectedCourseId) {
+            fetchAssignments();
+        }
+    }, [selectedCourseId]);
+
+    const fetchAssignments = async () => {
+        try {
+            const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/assignments/course/${selectedCourseId}`);
+            setAssignments(res.data);
+        } catch (err) {
+            console.error('Error fetching assignments:', err);
+        }
+    };
+
+    const handleCreate = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        try {
+            await axios.post(`${import.meta.env.VITE_API_URL}/api/assignments`, {
+                ...newAssignment,
+                course: selectedCourseId,
+                teacher: teacherId
+            });
+            setShowCreateModal(false);
+            fetchAssignments();
+            setNewAssignment({
+                title: '',
+                description: '',
+                type: 'file',
+                dueDate: '',
+                maxPoints: 100,
+                codingDetails: { language: 'javascript', starterCode: '' },
+                fileDetails: { instructionFileUrl: '' }
+            });
+        } catch (err) {
+            alert('Error creating assignment');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <div style={{ padding: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+                <div>
+                    <h2 style={{ fontSize: '1.75rem', color: '#2d3748', margin: 0 }}>Assignments Management</h2>
+                    <p style={{ color: '#718096' }}>Create and manage task for your students.</p>
+                </div>
+                <button
+                    onClick={() => setShowCreateModal(true)}
+                    style={{ padding: '12px 24px', background: '#6366f1', color: 'white', border: 'none', borderRadius: '12px', fontWeight: '700', cursor: 'pointer' }}
+                >
+                    + Create New Assignment
+                </button>
+            </div>
+
+            <div style={{ marginBottom: '30px' }}>
+                <label style={{ display: 'block', marginBottom: '10px', fontWeight: '600', color: '#4a5568' }}>Select Course</label>
+                <select
+                    value={selectedCourseId}
+                    onChange={(e) => setSelectedCourseId(e.target.value)}
+                    style={{ padding: '10px 15px', borderRadius: '10px', border: '1px solid #e2e8f0', width: '300px', color: 'black' }}
+                >
+                    {courses.map(course => (
+                        <option key={course._id} value={course._id} style={{ color: 'black' }}>{course.subject}</option>
+                    ))}
+                </select>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '20px' }}>
+                {assignments.map(asgn => (
+                    <div key={asgn._id} style={{ background: 'white', padding: '24px', borderRadius: '20px', border: '1px solid #edf2f7', boxShadow: '0 4px 6px rgba(0,0,0,0.02)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
+                            <span style={{
+                                padding: '4px 12px',
+                                borderRadius: '20px',
+                                fontSize: '0.75rem',
+                                fontWeight: '700',
+                                background: asgn.type === 'coding' ? 'rgba(99, 102, 241, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                                color: asgn.type === 'coding' ? '#6366f1' : '#10b981',
+                                textTransform: 'uppercase'
+                            }}>
+                                {asgn.type} Task
+                            </span>
+                            <span style={{ color: '#718096', fontSize: '0.85rem' }}>Due: {new Date(asgn.dueDate).toLocaleDateString()}</span>
+                        </div>
+                        <h3 style={{ margin: '0 0 10px 0', fontSize: '1.25rem', color: '#2d3748' }}>{asgn.title}</h3>
+                        <p style={{ color: '#718096', fontSize: '0.9rem', marginBottom: '20px', height: '40px', overflow: 'hidden' }}>{asgn.description}</p>
+
+                        <div style={{ borderTop: '1px solid #edf2f7', paddingTop: '15px', display: 'flex', gap: '10px' }}>
+                            <button
+                                onClick={() => setViewSubmissionsFor(asgn)}
+                                style={{ flex: 1, padding: '10px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', color: '#4a5568', fontWeight: '600', cursor: 'pointer' }}
+                            >
+                                View Submissions
+                            </button>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {/* Create Modal */}
+            {showCreateModal && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+                    <div style={{ background: 'white', padding: '32px', borderRadius: '24px', width: '100%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto' }}>
+                        <h2 style={{ marginBottom: '24px' }}>Create Assignment</h2>
+                        <form onSubmit={handleCreate}>
+                            <div style={{ marginBottom: '15px' }}>
+                                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>Title</label>
+                                <input
+                                    required
+                                    type="text"
+                                    className="form-input"
+                                    style={{ width: '100%', boxSizing: 'border-box', color: 'black' }}
+                                    value={newAssignment.title}
+                                    onChange={(e) => setNewAssignment({ ...newAssignment, title: e.target.value })}
+                                />
+                            </div>
+                            <div style={{ marginBottom: '15px' }}>
+                                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>Description / Problem Statement</label>
+                                <textarea
+                                    required
+                                    className="form-input"
+                                    style={{ width: '100%', minHeight: '100px', boxSizing: 'border-box', color: 'black' }}
+                                    value={newAssignment.description}
+                                    onChange={(e) => setNewAssignment({ ...newAssignment, description: e.target.value })}
+                                />
+                            </div>
+                            <div style={{ display: 'flex', gap: '15px', marginBottom: '15px' }}>
+                                <div style={{ flex: 1 }}>
+                                    <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>Type</label>
+                                    <select
+                                        className="form-input"
+                                        style={{ width: '100%', color: 'black' }}
+                                        value={newAssignment.type}
+                                        onChange={(e) => setNewAssignment({ ...newAssignment, type: e.target.value })}
+                                    >
+                                        <option value="file" style={{ color: 'black' }}>File Upload</option>
+                                        <option value="coding" style={{ color: 'black' }}>Coding Lab</option>
+                                    </select>
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                    <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>Points</label>
+                                    <input
+                                        type="number"
+                                        className="form-input"
+                                        style={{ width: '100%', boxSizing: 'border-box', color: 'black' }}
+                                        value={newAssignment.maxPoints}
+                                        onChange={(e) => setNewAssignment({ ...newAssignment, maxPoints: e.target.value })}
+                                    />
+                                </div>
+                            </div>
+                            <div style={{ marginBottom: '20px' }}>
+                                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>Due Date</label>
+                                <input
+                                    required
+                                    type="date"
+                                    className="form-input"
+                                    style={{ width: '100%', boxSizing: 'border-box', color: 'black' }}
+                                    value={newAssignment.dueDate}
+                                    onChange={(e) => setNewAssignment({ ...newAssignment, dueDate: e.target.value })}
+                                />
+                            </div>
+
+                            {newAssignment.type === 'coding' && (
+                                <div style={{ marginBottom: '20px', padding: '15px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                                    <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>Starter Code (Optional)</label>
+                                    <textarea
+                                        placeholder="// Write some starter code here..."
+                                        className="form-input"
+                                        style={{ width: '100%', minHeight: '120px', fontFamily: 'monospace', boxSizing: 'border-box', color: 'black' }}
+                                        value={newAssignment.codingDetails.starterCode}
+                                        onChange={(e) => setNewAssignment({
+                                            ...newAssignment,
+                                            codingDetails: { ...newAssignment.codingDetails, starterCode: e.target.value }
+                                        })}
+                                    />
+                                    <label style={{ display: 'block', marginTop: '10px', marginBottom: '5px', fontWeight: '600' }}>Language</label>
+                                    <select
+                                        className="form-input"
+                                        style={{ width: '100%', color: 'black' }}
+                                        value={newAssignment.codingDetails.language}
+                                        onChange={(e) => setNewAssignment({
+                                            ...newAssignment,
+                                            codingDetails: { ...newAssignment.codingDetails, language: e.target.value }
+                                        })}
+                                    >
+                                        <option value="javascript" style={{ color: 'black' }}>JavaScript</option>
+                                        <option value="python" style={{ color: 'black' }}>Python</option>
+                                        <option value="java" style={{ color: 'black' }}>Java</option>
+                                        <option value="cpp" style={{ color: 'black' }}>C++</option>
+                                    </select>
+                                </div>
+                            )}
+
+                            <div style={{ display: 'flex', gap: '15px' }}>
+                                <button type="button" onClick={() => setShowCreateModal(false)} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', background: 'white' }}>Cancel</button>
+                                <button disabled={loading} type="submit" style={{ flex: 1, padding: '12px', borderRadius: '12px', border: 'none', background: '#6366f1', color: 'white', fontWeight: 'bold' }}>
+                                    {loading ? 'Creating...' : 'Create Assignment'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Submissions Modal */}
+            {viewSubmissionsFor && (
+                <SubmissionsModal
+                    assignment={viewSubmissionsFor}
+                    onClose={() => setViewSubmissionsFor(null)}
+                />
+            )}
+        </div>
+    );
+};
+
+const SubmissionsModal = ({ assignment, onClose }) => {
+    const [submissions, setSubmissions] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [gradingSubmission, setGradingSubmission] = useState(null);
+
+    useEffect(() => {
+        fetchSubmissions();
+    }, []);
+
+    const fetchSubmissions = async () => {
+        try {
+            const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/assignments/assignment/${assignment._id}`);
+            setSubmissions(res.data);
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleGrade = async (score, feedback) => {
+        try {
+            await axios.put(`${import.meta.env.VITE_API_URL}/api/assignments/grade/${gradingSubmission._id}`, { score, feedback });
+            setGradingSubmission(null);
+            fetchSubmissions();
+        } catch (err) {
+            alert('Error grading submission');
+        }
+    };
+
+    return (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+            <div style={{ background: 'white', padding: '32px', borderRadius: '24px', width: '100%', maxWidth: '900px', maxHeight: '90vh', overflowY: 'auto' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                    <h2 style={{ margin: 0 }}>Submissions: {assignment.title}</h2>
+                    <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }}>&times;</button>
+                </div>
+
+                {loading ? <p>Loading...</p> : submissions.length === 0 ? <p>No submissions found for this assignment.</p> : (
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead>
+                            <tr style={{ textAlign: 'left', borderBottom: '2px solid #edf2f7' }}>
+                                <th style={{ padding: '12px' }}>Student</th>
+                                <th style={{ padding: '12px' }}>Enrollment</th>
+                                <th style={{ padding: '12px' }}>Submitted At</th>
+                                <th style={{ padding: '12px' }}>Status</th>
+                                <th style={{ padding: '12px' }}>Score</th>
+                                <th style={{ padding: '12px' }}>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {submissions.map(sub => (
+                                <tr key={sub._id} style={{ borderBottom: '1px solid #edf2f7' }}>
+                                    <td style={{ padding: '12px' }}>{sub.student.name}</td>
+                                    <td style={{ padding: '12px' }}>{sub.student.enrollment || 'N/A'}</td>
+                                    <td style={{ padding: '12px' }}>{new Date(sub.submittedAt).toLocaleString()}</td>
+                                    <td style={{ padding: '12px' }}>
+                                        <span style={{
+                                            padding: '4px 8px',
+                                            borderRadius: '6px',
+                                            fontSize: '0.7rem',
+                                            background: sub.status === 'Graded' ? '#d1fae5' : '#fef3c7',
+                                            color: sub.status === 'Graded' ? '#065f46' : '#92400e'
+                                        }}>{sub.status}</span>
+                                    </td>
+                                    <td style={{ padding: '12px' }}>{sub.score !== null ? `${sub.score}/${assignment.maxPoints}` : '-'}</td>
+                                    <td style={{ padding: '12px' }}>
+                                        <button
+                                            onClick={() => setGradingSubmission(sub)}
+                                            style={{ padding: '6px 12px', background: '#6366f1', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem' }}
+                                        >
+                                            {sub.status === 'Graded' ? 'Edit Grade' : 'Grade'}
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                )}
+
+                {gradingSubmission && (
+                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100 }}>
+                        <div style={{ background: 'white', padding: '24px', borderRadius: '20px', width: '400px', boxShadow: '0 20px 25px rgba(0,0,0,0.1)' }}>
+                            <h3>Grade Submission</h3>
+                            <p style={{ fontSize: '0.9rem', color: '#718096' }}>Student: {gradingSubmission.student.name}</p>
+
+                            <div style={{ margin: '20px 0' }}>
+                                {assignment.type === 'file' ? (
+                                    <a href={gradingSubmission.fileUrl} target="_blank" rel="noreferrer" style={{ color: '#6366f1', textDecoration: 'underline' }}>View Submitted File</a>
+                                ) : (
+                                    <div style={{ background: '#1a202c', padding: '10px', borderRadius: '8px', overflow: 'hidden' }}>
+                                        <p style={{ color: 'white', fontSize: '0.7rem', margin: '0 0 5px 0' }}>Submitted Code:</p>
+                                        <pre style={{ color: '#818cf8', fontSize: '0.8rem', margin: 0, maxHeight: '200px', overflowY: 'auto' }}>{gradingSubmission.code}</pre>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div style={{ marginBottom: '15px' }}>
+                                <label style={{ display: 'block', marginBottom: '5px' }}>Score (Out of {assignment.maxPoints})</label>
+                                <input
+                                    id="grade-score"
+                                    defaultValue={gradingSubmission.score || ''}
+                                    type="number"
+                                    className="form-input"
+                                    style={{ width: '100%', boxSizing: 'border-box', color: 'black' }}
+                                />
+                            </div>
+                            <div style={{ marginBottom: '20px' }}>
+                                <label style={{ display: 'block', marginBottom: '5px' }}>Feedback</label>
+                                <textarea
+                                    id="grade-feedback"
+                                    defaultValue={gradingSubmission.feedback || ''}
+                                    className="form-input"
+                                    style={{ width: '100%', minHeight: '80px', boxSizing: 'border-box', color: 'black' }}
+                                />
+                            </div>
+                            <div style={{ display: 'flex', gap: '10px' }}>
+                                <button onClick={() => setGradingSubmission(null)} style={{ flex: 1, padding: '10px', borderRadius: '10px', border: '1px solid #e2e8f0', background: 'white' }}>Cancel</button>
+                                <button
+                                    onClick={() => {
+                                        const score = document.getElementById('grade-score').value;
+                                        const feedback = document.getElementById('grade-feedback').value;
+                                        handleGrade(score, feedback);
+                                    }}
+                                    style={{ flex: 1, padding: '10px', borderRadius: '10px', border: 'none', background: '#6366f1', color: 'white', fontWeight: 'bold' }}
+                                >
+                                    Save Grade
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
 const ProfileSection = ({ userId }) => {
     const sessionUser = JSON.parse(localStorage.getItem('user') || '{}');
     const [profile, setProfile] = useState(null);

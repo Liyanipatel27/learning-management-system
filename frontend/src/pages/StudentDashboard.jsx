@@ -26,6 +26,7 @@ function StudentDashboard() {
     const [allProgress, setAllProgress] = useState([]);
     const [dailyHours, setDailyHours] = useState(2);
     const [weekendHours, setWeekendHours] = useState(4);
+    const [pendingAssignmentsCount, setPendingAssignmentsCount] = useState(0);
 
 
     useEffect(() => {
@@ -60,6 +61,22 @@ function StudentDashboard() {
             // For now, fetching all courses
             const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/courses`);
             setCourses(res.data);
+
+            // Fetch assignments for all courses to show pending count
+            const allAsgns = [];
+            for (const course of res.data) {
+                const asgnRes = await axios.get(`${import.meta.env.VITE_API_URL}/api/assignments/course/${course._id}`);
+                allAsgns.push(...asgnRes.data);
+            }
+
+            // Check submissions for these assignments
+            let pendingCount = 0;
+            const userId = user.id || user._id;
+            for (const asgn of allAsgns) {
+                const subRes = await axios.get(`${import.meta.env.VITE_API_URL}/api/assignments/student/${userId}/assignment/${asgn._id}`);
+                if (!subRes.data) pendingCount++;
+            }
+            setPendingAssignmentsCount(pendingCount);
         } catch (err) {
             console.error(err);
         }
@@ -81,7 +98,7 @@ function StudentDashboard() {
                         <div className={`nav-item ${activeTab === 'my-courses' ? 'active' : ''}`} onClick={() => { setActiveTab('my-courses'); setSelectedCourse(null); }}>My Courses</div>
                         <div className={`nav-item ${activeTab === 'certificates' ? 'active' : ''}`} onClick={() => { setActiveTab('certificates'); setSelectedCourse(null); }}>Certificates</div>
                         <div className={`nav-item ${activeTab === 'ai-roadmap' ? 'active' : ''}`} onClick={() => { setActiveTab('ai-roadmap'); setSelectedCourse(null); }}>AI Career Roadmap</div>
-                        <div className="nav-item" onClick={() => alert('Assignments Module Coming Soon!')}>Assignments</div>
+                        <div className={`nav-item ${activeTab === 'assignments' ? 'active' : ''}`} onClick={() => { setActiveTab('assignments'); setSelectedCourse(null); }}>Assignments</div>
                         <div className={`nav-item ${activeTab === 'grades' ? 'active' : ''}`} onClick={() => { setActiveTab('grades'); setSelectedCourse(null); }}>Grades</div>
                         <div className={`nav-item ${activeTab === 'profile' ? 'active' : ''}`} onClick={() => { setActiveTab('profile'); setSelectedCourse(null); }}>Profile</div>
                         <div
@@ -129,11 +146,16 @@ function StudentDashboard() {
                                         {activeTab === 'dashboard' ? 'Dashboard' :
                                             activeTab === 'my-courses' ? 'My Courses' :
                                                 activeTab === 'ai-roadmap' ? 'AI Roadmap' :
-                                                    activeTab === 'profile' ? 'My Profile' : 'My Certificates'}
+                                                    activeTab === 'assignments' ? 'Assignments' :
+                                                        activeTab === 'grades' ? 'My Grades' :
+                                                            activeTab === 'profile' ? 'My Profile' : 'My Certificates'}
                                     </h1>
                                     <p style={{ color: '#718096', margin: 0 }}>
                                         {activeTab === 'dashboard' ? `Welcome back, ${user.name}!` :
-                                            activeTab === 'my-courses' ? 'Track your learning progress' : 'Download your earned certifications'}
+                                            activeTab === 'my-courses' ? 'Track your learning progress' :
+                                                activeTab === 'assignments' ? 'Complete and submit your tasks' :
+                                                    activeTab === 'grades' ? 'View your quiz and assignment scores' :
+                                                        'Download your earned certifications'}
                                     </p>
                                 </div>
                             )}
@@ -228,7 +250,7 @@ function StudentDashboard() {
                             {/* Card 2 */}
                             <div style={{ background: 'white', padding: '20px', borderRadius: '15px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
                                 <h3 style={{ color: '#718096', fontSize: '0.9rem', marginBottom: '10px' }}>Pending Assignments</h3>
-                                <p style={{ fontSize: '2rem', fontWeight: 'bold', color: '#FF6584' }}>2</p>
+                                <p style={{ fontSize: '2rem', fontWeight: 'bold', color: '#FF6584' }}>{pendingAssignmentsCount}</p>
                             </div>
 
                             {/* Card 3 */}
@@ -275,6 +297,8 @@ function StudentDashboard() {
                         courses={courses}
                         allProgress={allProgress}
                     />
+                ) : activeTab === 'assignments' ? (
+                    <AssignmentsSection userId={user.id || user._id} courses={courses} />
                 ) : activeTab === 'profile' ? (
                     <ProfileSection userId={user.id || user._id} />
                 ) : (
@@ -1089,6 +1113,297 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
                     </div>
                 )}
             </div>
+        </div>
+    );
+};
+
+// --- NEW SECTION: Assignments View ---
+const AssignmentsSection = ({ userId, courses }) => {
+    const [assignments, setAssignments] = useState([]);
+    const [selectedCourseId, setSelectedCourseId] = useState(courses[0]?._id || '');
+    const [submissions, setSubmissions] = useState({}); // Tracking student's own submissions
+    const [activeAssignment, setActiveAssignment] = useState(null);
+    const [loading, setLoading] = useState(true);
+
+    // Submission states
+    const [submitting, setSubmitting] = useState(false);
+    const [code, setCode] = useState('');
+    const [file, setFile] = useState(null);
+    const [stdin, setStdin] = useState('');
+    const [executionResult, setExecutionResult] = useState(null);
+    const [isExecuting, setIsExecuting] = useState(false);
+
+    useEffect(() => {
+        if (selectedCourseId) {
+            fetchAssignmentsAndSubmissions();
+        }
+    }, [selectedCourseId]);
+
+    const fetchAssignmentsAndSubmissions = async () => {
+        setLoading(true);
+        try {
+            // 1. Fetch all assignments for chosen course
+            const asgnRes = await axios.get(`${import.meta.env.VITE_API_URL}/api/assignments/course/${selectedCourseId}`);
+            const asgns = asgnRes.data;
+            setAssignments(asgns);
+
+            // 2. Fetch submissions for each assignment
+            const subsMapped = {};
+            await Promise.all(asgns.map(async (asgn) => {
+                const subRes = await axios.get(`${import.meta.env.VITE_API_URL}/api/assignments/student/${userId}/assignment/${asgn._id}`);
+                if (subRes.data) subsMapped[asgn._id] = subRes.data;
+            }));
+            setSubmissions(subsMapped);
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleRunCode = async () => {
+        if (!code.trim()) return;
+        setIsExecuting(true);
+        setExecutionResult(null);
+        try {
+            const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/assignments/execute`, {
+                language: activeAssignment.codingDetails?.language || 'javascript',
+                code,
+                stdin
+            });
+            setExecutionResult(res.data);
+        } catch (err) {
+            setExecutionResult({ output: 'Error: Failed to execute code.' });
+        } finally {
+            setIsExecuting(false);
+        }
+    };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setSubmitting(true);
+        try {
+            let fileUrl = submissions[activeAssignment._id]?.fileUrl || '';
+
+            // 1. If file assignment, upload file first
+            if (activeAssignment.type === 'file' && file) {
+                const formData = new FormData();
+                formData.append('file', file);
+                const uploadRes = await axios.post(`${import.meta.env.VITE_API_URL}/api/assignments/upload`, formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                });
+                fileUrl = uploadRes.data.url;
+            }
+
+            // 2. Submit the assignment data
+            await axios.post(`${import.meta.env.VITE_API_URL}/api/assignments/submit`, {
+                assignmentId: activeAssignment._id,
+                studentId: userId,
+                courseId: selectedCourseId,
+                fileUrl,
+                code: activeAssignment.type === 'coding' ? code : '',
+                language: activeAssignment.codingDetails?.language || 'javascript'
+            });
+
+            alert('Assignment submitted successfully!');
+            setActiveAssignment(null);
+            fetchAssignmentsAndSubmissions();
+        } catch (err) {
+            alert('Error submitting assignment');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    return (
+        <div style={{ padding: '20px' }}>
+            <div style={{ marginBottom: '30px' }}>
+                <h2 style={{ fontSize: '1.75rem', color: '#2d3748', margin: 0 }}>My Assignments</h2>
+                <p style={{ color: '#718096' }}>Track and submit your course tasks.</p>
+            </div>
+
+            <div style={{ marginBottom: '30px' }}>
+                <label style={{ display: 'block', marginBottom: '10px', fontWeight: '600' }}>Select Course</label>
+                <select
+                    className="form-input"
+                    value={selectedCourseId}
+                    onChange={(e) => setSelectedCourseId(e.target.value)}
+                    style={{ width: '300px', color: 'black', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e0' }}
+                >
+                    {courses.map(c => <option key={c._id} value={c._id} style={{ color: 'black' }}>{c.subject}</option>)}
+                </select>
+            </div>
+
+            {loading ? <p>Loading assignments...</p> : assignments.length === 0 ? <p>No assignments found for this course.</p> : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '20px' }}>
+                    {assignments.map(asgn => {
+                        const sub = submissions[asgn._id];
+                        const isGraded = sub?.status === 'Graded';
+                        const isSubmitted = !!sub;
+
+                        return (
+                            <div key={asgn._id} style={{ background: 'white', padding: '24px', borderRadius: '20px', border: '1px solid #edf2f7', position: 'relative' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
+                                    <span style={{
+                                        padding: '4px 10px',
+                                        borderRadius: '6px',
+                                        fontSize: '0.7rem',
+                                        fontWeight: '700',
+                                        background: isGraded ? '#d1fae5' : isSubmitted ? '#dbeafe' : 'rgba(0,0,0,0.05)',
+                                        color: isGraded ? '#065f46' : isSubmitted ? '#1e40af' : '#718096'
+                                    }}>
+                                        {isGraded ? 'GRADED' : isSubmitted ? 'SUBMITTED' : 'NOT STARTED'}
+                                    </span>
+                                    <span style={{ fontSize: '0.8rem', color: '#f87171', fontWeight: 'bold' }}>
+                                        Due: {new Date(asgn.dueDate).toLocaleDateString()}
+                                    </span>
+                                </div>
+                                <h3 style={{ margin: '0 0 10px 0' }}>{asgn.title}</h3>
+                                <p style={{ color: '#718096', fontSize: '0.9rem', marginBottom: '20px', minHeight: '40px' }}>{asgn.description}</p>
+
+                                {isGraded && (
+                                    <div style={{ background: '#f0fdf4', padding: '12px', borderRadius: '12px', marginBottom: '15px', border: '1px solid #dcfce7' }}>
+                                        <p style={{ margin: 0, fontWeight: 'bold', color: '#166534', fontSize: '0.9rem' }}>Score: {sub.score}/{asgn.maxPoints}</p>
+                                        <p style={{ margin: '5px 0 0 0', fontSize: '0.8rem', color: '#15803d' }}>Feedback: {sub.feedback}</p>
+                                    </div>
+                                )}
+
+                                <button
+                                    onClick={() => {
+                                        setActiveAssignment(asgn);
+                                        setCode(sub?.code || asgn.codingDetails?.starterCode || '');
+                                    }}
+                                    style={{
+                                        width: '100%',
+                                        padding: '12px',
+                                        background: isSubmitted ? '#f8fafc' : '#6366f1',
+                                        color: isSubmitted ? '#4a5568' : 'white',
+                                        border: isSubmitted ? '1px solid #e2e8f0' : 'none',
+                                        borderRadius: '12px',
+                                        fontWeight: 'bold',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    {isSubmitted ? 'Edit Submission' : 'Start Assignment'}
+                                </button>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+
+            {/* Submission Modal */}
+            {activeAssignment && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, padding: '20px' }}>
+                    <div style={{ background: 'white', padding: '32px', borderRadius: '24px', width: '100%', maxWidth: '800px', maxHeight: '90vh', overflowY: 'auto' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                            <h2 style={{ margin: 0 }}>{activeAssignment.title}</h2>
+                            <button onClick={() => setActiveAssignment(null)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }}>&times;</button>
+                        </div>
+                        <p style={{ color: '#718096', marginBottom: '24px' }}>{activeAssignment.description}</p>
+
+                        <form onSubmit={handleSubmit}>
+                            {activeAssignment.type === 'file' ? (
+                                <div style={{ marginBottom: '24px' }}>
+                                    <label style={{ display: 'block', marginBottom: '10px', fontWeight: 'bold' }}>Upload your file (PDF/Image/Doc)</label>
+                                    <input
+                                        type="file"
+                                        onChange={(e) => setFile(e.target.files[0])}
+                                        style={{ border: '2px dashed #e2e8f0', padding: '20px', width: '100%', borderRadius: '12px', cursor: 'pointer' }}
+                                    />
+                                    {submissions[activeAssignment._id]?.fileUrl && (
+                                        <p style={{ fontSize: '0.8rem', color: '#10b981', marginTop: '10px' }}>Current file: {submissions[activeAssignment._id].fileUrl}</p>
+                                    )}
+                                </div>
+                            ) : (
+                                <div style={{ marginBottom: '24px' }}>
+                                    <label style={{ display: 'block', marginBottom: '10px', fontWeight: 'bold' }}>Code Editor ({activeAssignment.codingDetails?.language})</label>
+                                    <div style={{ background: '#1a202c', padding: '15px', borderRadius: '15px' }}>
+                                        <textarea
+                                            value={code}
+                                            onChange={(e) => setCode(e.target.value)}
+                                            style={{
+                                                width: '100%',
+                                                minHeight: '300px',
+                                                background: 'transparent',
+                                                color: '#818cf8',
+                                                border: 'none',
+                                                outline: 'none',
+                                                fontFamily: 'monospace',
+                                                fontSize: '1rem',
+                                                lineHeight: '1.5',
+                                                resize: 'vertical'
+                                            }}
+                                            placeholder="Write your code here..."
+                                        />
+                                        <div style={{ marginBottom: '15px' }}>
+                                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', color: '#4a5568', marginBottom: '8px' }}>Input (Standard Input):</label>
+                                            <textarea
+                                                value={stdin}
+                                                onChange={(e) => setStdin(e.target.value)}
+                                                placeholder="Enter inputs here (e.g. 29 for prime check)..."
+                                                style={{
+                                                    width: '100%',
+                                                    height: '60px',
+                                                    background: '#f8fafc',
+                                                    border: '1px solid #e2e8f0',
+                                                    borderRadius: '8px',
+                                                    padding: '10px',
+                                                    fontSize: '0.9rem',
+                                                    fontFamily: 'monospace',
+                                                    resize: 'none'
+                                                }}
+                                            />
+                                        </div>
+
+                                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>
+                                            <button
+                                                type="button"
+                                                disabled={isExecuting}
+                                                onClick={handleRunCode}
+                                                style={{ padding: '8px 16px', background: '#38B2AC', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.8rem' }}
+                                            >
+                                                {isExecuting ? 'Running...' : '▶ Compile & Run'}
+                                            </button>
+                                        </div>
+
+                                        {executionResult && (
+                                            <div style={{ marginTop: '20px' }}>
+                                                <p style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#4a5568', marginBottom: '8px' }}>Execution Output:</p>
+                                                <div style={{
+                                                    background: '#1a202c',
+                                                    padding: '15px',
+                                                    borderRadius: '12px',
+                                                    color: '#e2e8f0',
+                                                    fontFamily: 'monospace',
+                                                    fontSize: '0.9rem',
+                                                    maxHeight: '200px',
+                                                    overflowY: 'auto',
+                                                    whiteSpace: 'pre-wrap',
+                                                    border: '1px solid #4a5568'
+                                                }}>
+                                                    {executionResult.output}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            <div style={{ display: 'flex', gap: '15px' }}>
+                                <button type="button" onClick={() => setActiveAssignment(null)} style={{ flex: 1, padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0', background: 'white', fontWeight: 'bold' }}>Cancel</button>
+                                <button
+                                    disabled={submitting}
+                                    type="submit"
+                                    style={{ flex: 1, padding: '14px', borderRadius: '12px', border: 'none', background: '#6366f1', color: 'white', fontWeight: 'bold' }}
+                                >
+                                    {submitting ? 'Submitting...' : 'Submit Assignment'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
