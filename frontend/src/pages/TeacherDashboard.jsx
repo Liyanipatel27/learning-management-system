@@ -860,6 +860,74 @@ const AssignmentsSection = ({ teacherId, courses }) => {
                                         <option value="java" style={{ color: 'black' }}>Java</option>
                                         <option value="cpp" style={{ color: 'black' }}>C++</option>
                                     </select>
+
+                                    {/* Test Cases Section */}
+                                    <div style={{ marginTop: '20px', borderTop: '1px solid #e2e8f0', paddingTop: '15px' }}>
+                                        <label style={{ display: 'block', marginBottom: '10px', fontWeight: 'bold' }}>Test Cases (Auto-Grading)</label>
+                                        {newAssignment.codingDetails.testCases?.map((tc, idx) => (
+                                            <div key={idx} style={{ display: 'flex', gap: '10px', marginBottom: '10px', alignItems: 'flex-start' }}>
+                                                <div style={{ flex: 1 }}>
+                                                    <textarea
+                                                        placeholder="Input (stdin)"
+                                                        style={{ width: '100%', minHeight: '40px', padding: '8px', borderRadius: '8px', border: '1px solid #cbd5e0', fontSize: '0.8rem', fontFamily: 'monospace' }}
+                                                        value={tc.input}
+                                                        onChange={(e) => {
+                                                            const newTestCases = [...newAssignment.codingDetails.testCases];
+                                                            newTestCases[idx].input = e.target.value;
+                                                            setNewAssignment({
+                                                                ...newAssignment,
+                                                                codingDetails: { ...newAssignment.codingDetails, testCases: newTestCases }
+                                                            });
+                                                        }}
+                                                    />
+                                                </div>
+                                                <div style={{ flex: 1 }}>
+                                                    <textarea
+                                                        placeholder="Expected Output"
+                                                        style={{ width: '100%', minHeight: '40px', padding: '8px', borderRadius: '8px', border: '1px solid #cbd5e0', fontSize: '0.8rem', fontFamily: 'monospace' }}
+                                                        value={tc.output}
+                                                        onChange={(e) => {
+                                                            const newTestCases = [...newAssignment.codingDetails.testCases];
+                                                            newTestCases[idx].output = e.target.value;
+                                                            setNewAssignment({
+                                                                ...newAssignment,
+                                                                codingDetails: { ...newAssignment.codingDetails, testCases: newTestCases }
+                                                            });
+                                                        }}
+                                                    />
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const newTestCases = newAssignment.codingDetails.testCases.filter((_, i) => i !== idx);
+                                                        setNewAssignment({
+                                                            ...newAssignment,
+                                                            codingDetails: { ...newAssignment.codingDetails, testCases: newTestCases }
+                                                        });
+                                                    }}
+                                                    style={{ padding: '8px', background: '#ffe4e6', color: '#e11d48', border: 'none', borderRadius: '8px', cursor: 'pointer' }}
+                                                >
+                                                    🗑️
+                                                </button>
+                                            </div>
+                                        ))}
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const currentCases = newAssignment.codingDetails.testCases || [];
+                                                setNewAssignment({
+                                                    ...newAssignment,
+                                                    codingDetails: {
+                                                        ...newAssignment.codingDetails,
+                                                        testCases: [...currentCases, { input: '', output: '' }]
+                                                    }
+                                                });
+                                            }}
+                                            style={{ marginTop: '5px', padding: '8px 12px', background: '#e0e7ff', color: '#4338ca', border: 'none', borderRadius: '8px', fontSize: '0.85rem', cursor: 'pointer', fontWeight: '600' }}
+                                        >
+                                            + Add Test Case
+                                        </button>
+                                    </div>
                                 </div>
                             )}
 

@@ -1241,6 +1241,10 @@ const AssignmentsSection = ({ userId, courses }) => {
     const [executionResult, setExecutionResult] = useState(null);
     const [isExecuting, setIsExecuting] = useState(false);
 
+    // Test Case States
+    const [testResults, setTestResults] = useState(null);
+    const [isRunningTests, setIsRunningTests] = useState(false);
+
     const handleRunCode = async () => {
         setIsExecuting(true);
         setExecutionResult(null);
@@ -1256,6 +1260,24 @@ const AssignmentsSection = ({ userId, courses }) => {
             setExecutionResult({ output: 'Error executing code: ' + (err.response?.data?.message || err.message) });
         } finally {
             setIsExecuting(false);
+        }
+    };
+
+    const handleRunTests = async () => {
+        setIsRunningTests(true);
+        setTestResults(null);
+        try {
+            const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/assignments/execute-tests`, {
+                code,
+                language: activeAssignment.codingDetails?.language || 'javascript',
+                testCases: activeAssignment.codingDetails?.testCases || []
+            });
+            setTestResults(res.data.results);
+        } catch (err) {
+            console.error(err);
+            alert('Error running tests: ' + (err.response?.data?.message || err.message));
+        } finally {
+            setIsRunningTests(false);
         }
     };
 
@@ -1564,10 +1586,22 @@ const AssignmentsSection = ({ userId, courses }) => {
                                                 />
                                             </div>
 
-                                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '10px', gap: '10px' }}>
+                                                {/* Test Case Run Button */}
+                                                {activeAssignment.codingDetails?.testCases?.length > 0 && (
+                                                    <button
+                                                        type="button"
+                                                        disabled={isRunningTests || isExecuting}
+                                                        onClick={handleRunTests}
+                                                        style={{ padding: '8px 16px', background: '#805AD5', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.8rem' }}
+                                                    >
+                                                        {isRunningTests ? 'Running Tests...' : '⚡ Run Test Cases'}
+                                                    </button>
+                                                )}
+
                                                 <button
                                                     type="button"
-                                                    disabled={isExecuting}
+                                                    disabled={isExecuting || isRunningTests}
                                                     onClick={handleRunCode}
                                                     style={{ padding: '8px 16px', background: '#38B2AC', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.8rem' }}
                                                 >
@@ -1591,6 +1625,36 @@ const AssignmentsSection = ({ userId, courses }) => {
                                                         border: '1px solid #4a5568'
                                                     }}>
                                                         {executionResult.output}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {testResults && (
+                                                <div style={{ marginTop: '20px' }}>
+                                                    <p style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#4a5568', marginBottom: '8px' }}>Test Case Results:</p>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                                        {testResults.map((res, idx) => (
+                                                            <div key={idx} style={{
+                                                                background: '#1a202c',
+                                                                padding: '12px',
+                                                                borderRadius: '8px',
+                                                                borderLeft: `4px solid ${res.passed ? '#48BB78' : '#F56565'}`
+                                                            }}>
+                                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
+                                                                    <span style={{ fontWeight: 'bold', color: res.passed ? '#48BB78' : '#F56565', fontSize: '0.85rem' }}>
+                                                                        Test Case #{idx + 1}: {res.passed ? 'PASSED' : 'FAILED'}
+                                                                    </span>
+                                                                </div>
+                                                                {!res.passed && (
+                                                                    <div style={{ fontSize: '0.8rem', color: '#cbd5e0' }}>
+                                                                        <div><strong>Input:</strong> {res.input}</div>
+                                                                        <div><strong>Expected:</strong> {res.expectedOutput}</div>
+                                                                        <div><strong>Actual:</strong> {res.actualOutput || '(No Output)'}</div>
+                                                                        {res.error && <div style={{ color: '#fc8181', marginTop: '4px' }}><strong>Error:</strong> {res.error}</div>}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        ))}
                                                     </div>
                                                 </div>
                                             )}

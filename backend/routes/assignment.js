@@ -206,4 +206,71 @@ router.post('/execute', async (req, res) => {
     }
 });
 
+// Execute code against multiple test cases
+router.post('/execute-tests', async (req, res) => {
+    try {
+        const { language, code, testCases } = req.body;
+
+        const langMap = {
+            'javascript': 'javascript',
+            'python': 'python3',
+            'java': 'java',
+            'cpp': 'cpp',
+            'c': 'c'
+        };
+
+        const pistonLang = langMap[language] || language;
+
+        const runTestCase = async (testCase) => {
+            try {
+                const response = await axios.post('https://emkc.org/api/v2/piston/execute', {
+                    language: pistonLang,
+                    version: '*',
+                    files: [{ content: code }],
+                    stdin: (testCase.input || '') + '\n' // Append newline to ensure readLine() doesn't hang
+                });
+
+                const rawOutput = response.data.run.stdout || '';
+                const actual = rawOutput.trim();
+                const expected = (testCase.output || '').trim();
+
+                // Allow some flexibility (e.g., trailing newlines handled by trim)
+                // Also handle simple number comparisons if strings match
+                const passed = actual === expected;
+
+                return {
+                    input: testCase.input,
+                    expectedOutput: testCase.output,
+                    actualOutput: rawOutput, // Keep raw formatting for display
+                    passed,
+                    error: response.data.run.stderr
+                };
+            } catch (e) {
+                return {
+                    input: testCase.input,
+                    expectedOutput: testCase.output,
+                    actualOutput: '',
+                    passed: false,
+                    error: e.message
+                };
+            }
+        };
+
+        // Run all test cases sequentially to avoid 429 Rate Limits
+        const results = [];
+        for (const testCase of testCases) {
+            const result = await runTestCase(testCase);
+            results.push(result);
+            // Optional: small delay to be safe
+            await new Promise(r => setTimeout(r, 500));
+        }
+
+        res.json({ results });
+
+    } catch (err) {
+        console.error('Test execution error:', err);
+        res.status(500).json({ message: 'Error executing tests', error: err.message });
+    }
+});
+
 module.exports = router;
