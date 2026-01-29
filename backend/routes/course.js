@@ -64,7 +64,7 @@ router.get('/grades/teacher/:teacherId', async (req, res) => {
         const gradesData = await Promise.all(courses.map(async (course) => {
             console.log('### GRADES DEBUG ### Checking course:', course.subject);
             // Find all progress records for this course
-            const progressRecords = await Progress.find({ course: course._id }).populate('student', 'name email');
+            const progressRecords = await Progress.find({ course: course._id }).populate('student', 'name email enrollment');
             console.log(`### GRADES DEBUG ### Course ${course.subject}: ${progressRecords.length} progress records`);
 
             // Build student data array
@@ -95,6 +95,7 @@ router.get('/grades/teacher/:teacherId', async (req, res) => {
                     studentId: progress.student._id,
                     studentName: progress.student.name,
                     studentEmail: progress.student.email,
+                    studentEnrollment: progress.student.enrollment,
                     quizzes
                 };
             }).filter(s => s !== null);

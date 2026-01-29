@@ -178,6 +178,8 @@ function TeacherDashboard() {
                     />
                 ) : activeTab === 'students' ? (
                     <StudentsSection />
+                ) : activeTab === 'student-grades' ? (
+                    <StudentGradesSection teacherId={user.id || user._id} allPublishedCourses={publishedCourses} />
                 ) : activeTab === 'profile' ? (
                     <ProfileSection userId={user.id || user._id} />
                 ) : activeTab === 'assignments' ? (
@@ -415,6 +417,7 @@ const StudentGradesSection = ({ teacherId, allPublishedCourses }) => {
                                         <thead>
                                             <tr style={{ background: '#fff', borderBottom: '1px solid #edf2f7' }}>
                                                 <th style={{ padding: '12px 20px', textAlign: 'left', color: '#718096', fontSize: '0.85rem' }}>Student Details</th>
+                                                <th style={{ padding: '12px 20px', textAlign: 'left', color: '#718096', fontSize: '0.85rem' }}>Client ID</th>
                                                 <th style={{ padding: '12px 20px', textAlign: 'left', color: '#718096', fontSize: '0.85rem' }}>Quiz (Module)</th>
                                                 <th style={{ padding: '12px 20px', textAlign: 'center', color: '#718096', fontSize: '0.85rem' }}>Score</th>
                                                 <th style={{ padding: '12px 20px', textAlign: 'center', color: '#718096', fontSize: '0.85rem' }}>Status</th>
@@ -430,16 +433,24 @@ const StudentGradesSection = ({ teacherId, allPublishedCourses }) => {
                                                                 <div style={{ fontWeight: '600', color: '#2d3748' }}>{student.studentName}</div>
                                                                 <div style={{ fontSize: '0.75rem', color: '#a0aec0' }}>{student.studentEmail}</div>
                                                             </td>
+                                                            <td style={{ padding: '15px 20px', color: '#4a5568', fontSize: '0.85rem' }}>
+                                                                {student.studentEnrollment || '-'}
+                                                            </td>
                                                             <td colSpan="4" style={{ padding: '15px 20px', color: '#a0aec0', fontSize: '0.85rem' }}>No quizzes attempted yet.</td>
                                                         </tr>
                                                     ) : (
                                                         student.quizzes.map((quiz, qIdx) => (
                                                             <tr key={`${student.studentId}-${quiz.moduleId}`} style={{ borderBottom: '1px solid #f8fafc' }}>
                                                                 {qIdx === 0 && (
-                                                                    <td rowSpan={student.quizzes.length} style={{ padding: '15px 20px', verticalAlign: 'top', borderRight: '1px solid #f8fafc' }}>
-                                                                        <div style={{ fontWeight: '600', color: '#2d3748' }}>{student.studentName}</div>
-                                                                        <div style={{ fontSize: '0.75rem', color: '#a0aec0' }}>{student.studentEmail}</div>
-                                                                    </td>
+                                                                    <>
+                                                                        <td rowSpan={student.quizzes.length} style={{ padding: '15px 20px', verticalAlign: 'top', borderRight: '1px solid #f8fafc' }}>
+                                                                            <div style={{ fontWeight: '600', color: '#2d3748' }}>{student.studentName}</div>
+                                                                            <div style={{ fontSize: '0.75rem', color: '#a0aec0' }}>{student.studentEmail}</div>
+                                                                        </td>
+                                                                        <td rowSpan={student.quizzes.length} style={{ padding: '15px 20px', verticalAlign: 'top', borderRight: '1px solid #f8fafc', color: '#4a5568', fontSize: '0.9rem' }}>
+                                                                            {student.studentEnrollment || '-'}
+                                                                        </td>
+                                                                    </>
                                                                 )}
                                                                 <td style={{ padding: '15px 20px' }}>
                                                                     <div style={{ fontSize: '0.85rem', color: '#4a5568' }}>{quiz.chapterTitle}</div>
