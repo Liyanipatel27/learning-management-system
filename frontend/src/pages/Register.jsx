@@ -7,19 +7,42 @@ function Register() {
         name: '',
         email: '',
         password: '',
-        role: 'student'
+        role: 'student',
+        enrollment: '',
+        branch: '',
+        employeeId: ''
     });
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
 
     const handleChange = (e) => {
-        setFormData({ ...formData, [e.target.name]: e.target.value });
+        const { name, value } = e.target;
+        if (name === 'role') {
+            // Clear role-specific fields when role changes
+            setFormData({
+                ...formData,
+                role: value,
+                enrollment: '',
+                branch: '',
+                employeeId: ''
+            });
+        } else {
+            setFormData({ ...formData, [name]: value });
+        }
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
 
-        // Frontend validation for @gmail.com
+        // Role-based validation
+        if (formData.role === 'student') {
+            if (!formData.enrollment) { alert('Enrollment Number is mandatory for students.'); return; }
+            if (!formData.branch) { alert('Branch is mandatory for students.'); return; }
+        } else if (formData.role === 'teacher' || formData.role === 'admin') {
+            if (!formData.employeeId) { alert('Employee ID is mandatory.'); return; }
+        }
+
+        // Email validation: restrict to @gmail.com
         if (!formData.email.toLowerCase().endsWith('@gmail.com')) {
             alert('Invalid email. Please use a valid @gmail.com address.');
             return;
@@ -78,12 +101,57 @@ function Register() {
                                 className="form-select"
                                 value={formData.role}
                                 onChange={handleChange}
+                                style={{ color: 'black' }}
                             >
-                                <option value="student">Student</option>
-                                <option value="teacher">Teacher</option>
-                                <option value="admin">Admin</option>
+                                <option value="student" style={{ color: 'black' }}>Student</option>
+                                <option value="teacher" style={{ color: 'black' }}>Teacher</option>
+                                <option value="admin" style={{ color: 'black' }}>Admin</option>
                             </select>
                         </div>
+
+                        {formData.role === 'student' && (
+                            <>
+                                <div className="form-group">
+                                    <label className="form-label">Enrollment Number</label>
+                                    <input
+                                        type="number"
+                                        name="enrollment"
+                                        className="form-input"
+                                        value={formData.enrollment}
+                                        onChange={handleChange}
+                                        placeholder="e.g. 123456"
+                                        required
+                                    />
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">Branch</label>
+                                    <input
+                                        type="text"
+                                        name="branch"
+                                        className="form-input"
+                                        value={formData.branch}
+                                        onChange={handleChange}
+                                        placeholder="e.g. Computer Science"
+                                        required
+                                    />
+                                </div>
+                            </>
+                        )}
+
+                        {(formData.role === 'teacher' || formData.role === 'admin') && (
+                            <div className="form-group">
+                                <label className="form-label">Employee ID</label>
+                                <input
+                                    type="number"
+                                    name="employeeId"
+                                    className="form-input"
+                                    value={formData.employeeId}
+                                    onChange={handleChange}
+                                    placeholder="e.g. 98765"
+                                    required
+                                />
+                            </div>
+                        )}
 
                         <div className="form-group">
                             <label className="form-label">Email Address</label>

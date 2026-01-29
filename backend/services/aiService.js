@@ -6,7 +6,7 @@ class AIService {
         // Initialize Gemini
         if (process.env.GEMINI_API_KEY) {
             this.genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-            this.geminiModel = this.genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+            this.geminiModel = this.genAI.getGenerativeModel({ model: "gemini-pro" });
         } else {
             console.warn("GEMINI_API_KEY is not set.");
         }
@@ -44,7 +44,7 @@ class AIService {
         }
 
         // 2. Fallback to OpenAI (Secondary)
-        if (this.openai) {
+        if (this.openai && !jsonMode) {
             try {
                 const completion = await this.openai.chat.completions.create({
                     messages: [

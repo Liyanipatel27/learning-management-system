@@ -3,32 +3,106 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
+<<<<<<< HEAD
 import SummaryWidget from '../components/AI/SummaryWidget';
+=======
+import ReactMarkdown from 'react-markdown';
+
+//import AIAssistantSidebar from '../components/AIAssistantSidebar'; // Import the new component
+
+const formatTime = (seconds) => {
+    if (seconds <= 0) return '0s';
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    if (m === 0) return `${s}s`;
+    return `${m}m ${s}s`;
+};
+>>>>>>> 6b33c61809f51da2d7d0fde10ddb174f2de0cbeb
 
 function StudentDashboard() {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     const navigate = useNavigate();
     const [courses, setCourses] = useState([]);
     const [selectedCourse, setSelectedCourse] = useState(null);
-    const [isCinemaMode, setIsCinemaMode] = useState(false);
-    const [activeTab, setActiveTab] = useState('dashboard');
+    const [isCinemaMode, setIsCinemaMode] = useState(localStorage.getItem(`cinemaMode_${user.id || user._id}`) === 'true');
+    const [activeTab, setActiveTab] = useState(localStorage.getItem(`activeTab_${user.id || user._id}`) || 'dashboard');
+    const [showStudyReminder, setShowStudyReminder] = useState(null);
     const [allProgress, setAllProgress] = useState([]);
+    const [dailyHours, setDailyHours] = useState(2);
+    const [weekendHours, setWeekendHours] = useState(4);
+    const [pendingAssignmentsCount, setPendingAssignmentsCount] = useState(0);
+
 
     useEffect(() => {
         fetchCourses();
     }, []);
 
     useEffect(() => {
-        if (activeTab === 'my-courses') {
+        if (['dashboard', 'my-courses', 'ai-roadmap', 'certificates', 'grades'].includes(activeTab)) {
+            fetchCourses();
             fetchAllProgress();
+
+            // Periodically refresh every 60 seconds
+            const interval = setInterval(() => {
+                fetchCourses();
+                fetchAllProgress();
+            }, 60000);
+            return () => clearInterval(interval);
         }
-    }, [activeTab]);
+    }, [activeTab, selectedCourse]); // Also refetch when exiting CourseViewer
+
+    // Persist activeTab
+    useEffect(() => {
+        if (user.id || user._id) {
+            localStorage.setItem(`activeTab_${user.id || user._id}`, activeTab);
+        }
+    }, [activeTab, user]);
+
+    // Persist cinemaMode
+    useEffect(() => {
+        if (user.id || user._id) {
+            localStorage.setItem(`cinemaMode_${user.id || user._id}`, isCinemaMode);
+        }
+    }, [isCinemaMode, user]);
+
+    // Persist selectedCourse and restore it on fetch
+    useEffect(() => {
+        if (user.id || user._id) {
+            if (selectedCourse) {
+                localStorage.setItem(`selectedCourseId_${user.id || user._id}`, selectedCourse._id);
+            } else {
+                localStorage.removeItem(`selectedCourseId_${user.id || user._id}`);
+            }
+        }
+    }, [selectedCourse, user]);
+
+    // Restore selectedCourse after courses are fetched
+    useEffect(() => {
+        if (courses.length > 0 && selectedCourse) {
+            // Find the updated version of the currently selected course
+            const updatedCourse = courses.find(c => c._id === selectedCourse._id);
+            // Only update if it actually changed to avoid infinite loops, 
+            // but for now, syncing safe if objects are new refs.
+            if (updatedCourse && JSON.stringify(updatedCourse) !== JSON.stringify(selectedCourse)) {
+                setSelectedCourse(updatedCourse);
+            }
+        }
+    }, [courses]); // Run whenever courses list refreshes
+
+    // Safety: Ensure Cinema Mode is OFF if no course is selected
+    useEffect(() => {
+        if (!selectedCourse && isCinemaMode) {
+            setIsCinemaMode(false);
+        }
+    }, [selectedCourse, isCinemaMode]);
 
     const fetchAllProgress = async () => {
         try {
             const studentId = user.id || user._id;
             const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/courses/progress/student/${studentId}`);
             setAllProgress(res.data);
+
+
         } catch (err) {
             console.error('Error fetching all progress:', err);
         }
@@ -40,10 +114,35 @@ function StudentDashboard() {
             // For now, fetching all courses
             const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/courses`);
             setCourses(res.data);
+
+            // Fetch assignments for all courses to show pending count
+            // Fetch assignments for all courses in parallel
+            const assignmentsPromises = res.data.map(course =>
+                axios.get(`${import.meta.env.VITE_API_URL}/api/assignments/course/${course._id}`)
+                    .then(r => r.data)
+                    .catch(e => {
+                        console.error(`Error fetching assignments for course ${course._id}:`, e);
+                        return []; // Return empty array on error
+                    })
+            );
+
+            const assignmentsResults = await Promise.all(assignmentsPromises);
+            const allAsgns = assignmentsResults.flat();
+
+            // Fetch ALL submissions for this student in one go
+            const userId = user.id || user._id;
+            const subRes = await axios.get(`${import.meta.env.VITE_API_URL}/api/assignments/submissions/student/${userId}`);
+            const submittedAssignmentIds = new Set(subRes.data.map(s => String(s.assignment)));
+
+            // Calculate pending: Assignment exists but ID is NOT in submitted set
+            const pendingCount = allAsgns.filter(asgn => !submittedAssignmentIds.has(String(asgn._id))).length;
+            setPendingAssignmentsCount(pendingCount);
+
         } catch (err) {
-            console.error(err);
+            console.error('Error in fetchCourses:', err);
         }
     };
+
 
     const handleLogout = () => {
         localStorage.removeItem('user');
@@ -60,10 +159,17 @@ function StudentDashboard() {
                         <div className={`nav-item ${activeTab === 'dashboard' && !selectedCourse ? 'active' : ''}`} onClick={() => { setActiveTab('dashboard'); setSelectedCourse(null); }}>Dashboard</div>
                         <div className={`nav-item ${activeTab === 'my-courses' ? 'active' : ''}`} onClick={() => { setActiveTab('my-courses'); setSelectedCourse(null); }}>My Courses</div>
                         <div className={`nav-item ${activeTab === 'certificates' ? 'active' : ''}`} onClick={() => { setActiveTab('certificates'); setSelectedCourse(null); }}>Certificates</div>
+<<<<<<< HEAD
                         <div className="nav-item" onClick={() => alert('Assignments Module Coming Soon!')}>Assignments</div>
                         <div className="nav-item" onClick={() => navigate('/ai-hub', { state: { student: user } })}>🤖 AI Learning Hub</div>
                         <div className="nav-item" onClick={() => alert('Grades Module Coming Soon!')}>Grades</div>
                         <div className="nav-item" onClick={() => alert('Profile Module Coming Soon!')}>Profile</div>
+=======
+                        <div className={`nav-item ${activeTab === 'ai-roadmap' ? 'active' : ''}`} onClick={() => { setActiveTab('ai-roadmap'); setSelectedCourse(null); }}>AI Career Roadmap</div>
+                        <div className={`nav-item ${activeTab === 'assignments' ? 'active' : ''}`} onClick={() => { setActiveTab('assignments'); setSelectedCourse(null); }}>Assignments</div>
+                        <div className={`nav-item ${activeTab === 'grades' ? 'active' : ''}`} onClick={() => { setActiveTab('grades'); setSelectedCourse(null); }}>Grades</div>
+                        <div className={`nav-item ${activeTab === 'profile' ? 'active' : ''}`} onClick={() => { setActiveTab('profile'); setSelectedCourse(null); }}>Profile</div>
+>>>>>>> 6b33c61809f51da2d7d0fde10ddb174f2de0cbeb
                         <div
                             className="nav-item"
                             onClick={handleLogout}
@@ -107,11 +213,18 @@ function StudentDashboard() {
                                 <div>
                                     <h1 style={{ fontSize: '2rem', color: '#2D3748', margin: 0 }}>
                                         {activeTab === 'dashboard' ? 'Dashboard' :
-                                            activeTab === 'my-courses' ? 'My Courses' : 'My Certificates'}
+                                            activeTab === 'my-courses' ? 'My Courses' :
+                                                activeTab === 'ai-roadmap' ? 'AI Roadmap' :
+                                                    activeTab === 'assignments' ? 'Assignments' :
+                                                        activeTab === 'grades' ? 'My Grades' :
+                                                            activeTab === 'profile' ? 'My Profile' : 'My Certificates'}
                                     </h1>
                                     <p style={{ color: '#718096', margin: 0 }}>
                                         {activeTab === 'dashboard' ? `Welcome back, ${user.name}!` :
-                                            activeTab === 'my-courses' ? 'Track your learning progress' : 'Download your earned certifications'}
+                                            activeTab === 'my-courses' ? 'Track your learning progress' :
+                                                activeTab === 'assignments' ? 'Complete and submit your tasks' :
+                                                    activeTab === 'grades' ? 'View your quiz and assignment scores' :
+                                                        'Download your earned certifications'}
                                     </p>
                                 </div>
                             )}
@@ -167,7 +280,29 @@ function StudentDashboard() {
                         setSelectedCourse={setSelectedCourse}
                         isCinemaMode={isCinemaMode}
                         setIsCinemaMode={setIsCinemaMode}
+                        dailyHours={dailyHours}
                         onBack={() => {
+                            // Calculate if goal met before leaving
+                            const today = new Date().toISOString().split('T')[0];
+                            let totalMin = 0;
+                            allProgress.forEach(p => {
+                                const activity = p.dailyActivity?.find(a => a.date === today);
+                                if (activity) totalMin += activity.minutes;
+                            });
+
+                            const day = new Date().getDay();
+                            const targetHours = (day === 0 || day === 6) ? weekendHours : dailyHours;
+                            const thresholdMin = targetHours * 60 * 0.5;
+
+                            if (totalMin < thresholdMin) {
+                                setShowStudyReminder({
+                                    remaining: Math.round(thresholdMin - totalMin),
+                                    goal: thresholdMin
+                                });
+                                // Auto hide after 5 seconds
+                                setTimeout(() => setShowStudyReminder(null), 5000);
+                            }
+
                             setSelectedCourse(null);
                             setIsCinemaMode(false);
                         }}
@@ -184,7 +319,7 @@ function StudentDashboard() {
                             {/* Card 2 */}
                             <div style={{ background: 'white', padding: '20px', borderRadius: '15px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
                                 <h3 style={{ color: '#718096', fontSize: '0.9rem', marginBottom: '10px' }}>Pending Assignments</h3>
-                                <p style={{ fontSize: '2rem', fontWeight: 'bold', color: '#FF6584' }}>2</p>
+                                <p style={{ fontSize: '2rem', fontWeight: 'bold', color: '#FF6584' }}>{pendingAssignmentsCount}</p>
                             </div>
 
                             {/* Card 3 */}
@@ -192,6 +327,8 @@ function StudentDashboard() {
                                 <h3 style={{ color: '#718096', fontSize: '0.9rem', marginBottom: '10px' }}>Attendance</h3>
                                 <p style={{ fontSize: '2rem', fontWeight: 'bold', color: '#38B2AC' }}>95%</p>
                             </div>
+
+
                         </section>
 
                         <section style={{ marginTop: '40px' }}>
@@ -215,6 +352,24 @@ function StudentDashboard() {
                         allProgress={allProgress}
                         onSelectCourse={(course) => setSelectedCourse(course)}
                     />
+                ) : activeTab === 'ai-roadmap' ? (
+                    <RoadmapSection
+                        courses={courses}
+                        allProgress={allProgress}
+                        dailyHours={dailyHours}
+                        setDailyHours={setDailyHours}
+                        weekendHours={weekendHours}
+                        setWeekendHours={setWeekendHours}
+                    />
+                ) : activeTab === 'grades' ? (
+                    <GradesSection
+                        courses={courses}
+                        allProgress={allProgress}
+                    />
+                ) : activeTab === 'assignments' ? (
+                    <AssignmentsSection userId={user.id || user._id} courses={courses} />
+                ) : activeTab === 'profile' ? (
+                    <ProfileSection userId={user.id || user._id} />
                 ) : (
                     <CertificatesSection
                         courses={courses}
@@ -223,11 +378,67 @@ function StudentDashboard() {
                     />
                 )}
             </main>
+
+            {/* Premium Study Reminder Toast */}
+            {showStudyReminder && (
+                <div style={{
+                    position: 'fixed',
+                    bottom: '30px',
+                    right: '30px',
+                    background: 'white',
+                    padding: '20px',
+                    borderRadius: '16px',
+                    boxShadow: '0 15px 35px rgba(0,0,0,0.15)',
+                    border: '1px solid #edf2f7',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '12px',
+                    minWidth: '320px',
+                    zIndex: 9999,
+                    animation: 'slideInRight 0.5s ease-out'
+                }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <span style={{ fontSize: '1.5rem' }}>🎯</span>
+                            <h4 style={{ margin: 0, color: '#2d3748', fontSize: '1rem' }}>Study Goal Reminder</h4>
+                        </div>
+                        <button onClick={() => setShowStudyReminder(null)} style={{ border: 'none', background: 'none', color: '#a0aec0', cursor: 'pointer', fontSize: '1.2rem' }}>&times;</button>
+                    </div>
+                    <div>
+                        <p style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: '#718096', lineHeight: '1.4' }}>
+                            You're doing great! You still need **{showStudyReminder.remaining} mins** more to reach your daily activity target.
+                        </p>
+                        <div style={{ height: '8px', background: '#edf2f7', borderRadius: '4px', overflow: 'hidden' }}>
+                            <div style={{
+                                height: '100%',
+                                width: `${Math.round(((showStudyReminder.goal - showStudyReminder.remaining) / showStudyReminder.goal) * 100)}%`,
+                                background: 'linear-gradient(90deg, #F6AD55, #ED8936)',
+                                borderRadius: '4px'
+                            }}></div>
+                        </div>
+                    </div>
+                    <button
+                        onClick={() => setShowStudyReminder(null)}
+                        style={{ background: '#6C63FF', color: 'white', border: 'none', padding: '8px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem' }}
+                    >
+                        Keep Studying (Got it!)
+                    </button>
+
+                    <style>{`
+                        @keyframes slideInRight {
+                            from { transform: translateX(100%); opacity: 0; }
+                            to { transform: translateX(0); opacity: 1; }
+                        }
+                    `}</style>
+                </div>
+            )}
         </div>
     );
 }
 
-const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMode, setIsCinemaMode, onBack }) => {
+const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMode, setIsCinemaMode, dailyHours, onBack }) => {
+    // Note: Study goal requirement is usually set to 50% of the dailyHours target.
+    // For now, we are focusing on counting the portal study time accurately.
     // State to track expanded chapters and modules
     const [expandedChapters, setExpandedChapters] = useState({});
     const [expandedModules, setExpandedModules] = useState({});
@@ -235,8 +446,18 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
     const [studentProgress, setStudentProgress] = useState(null);
     const [activeQuiz, setActiveQuiz] = useState(null);
     const [timeSpent, setTimeSpent] = useState(0);
-    const timeSpentRef = useRef(0); // Add Ref to prevent stale closures
+    const timeSpentRef = useRef(0);
     const [isTimeRequirementMet, setIsTimeRequirementMet] = useState(false);
+    const [activeAIFeature, setActiveAIFeature] = useState(null);
+    const [aiSummary, setAiSummary] = useState('');
+    const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
+
+    // Persist selectedContentId
+    useEffect(() => {
+        if (selectedContent && (user.id || user._id)) {
+            localStorage.setItem(`selectedContentId_${user.id || user._id}_${course._id}`, selectedContent._id);
+        }
+    }, [selectedContent, user, course]);
 
     // Sync ref with state
     useEffect(() => {
@@ -248,69 +469,104 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
     useEffect(() => {
         const handleVisibilityChange = () => {
             setIsTabActive(!document.hidden && document.hasFocus());
+            if (document.hidden) {
+                saveProgress(false); // Save when tab hidden
+            }
         };
 
-        const handleFocus = () => setIsTabActive(true);
-        const handleBlur = () => setIsTabActive(false);
+        const handleFocus = () => {
+            setIsTabActive(true);
+        };
+        const handleBlur = () => {
+            setIsTabActive(false);
+            saveProgress(false); // Save when window loses focus
+        };
+
+        const handleBeforeUnload = () => {
+            saveProgress(false); // Final attempt to save on close/refresh
+        };
 
         window.addEventListener('visibilitychange', handleVisibilityChange);
         window.addEventListener('focus', handleFocus);
         window.addEventListener('blur', handleBlur);
+        window.addEventListener('beforeunload', handleBeforeUnload);
 
         return () => {
             window.removeEventListener('visibilitychange', handleVisibilityChange);
             window.removeEventListener('focus', handleFocus);
             window.removeEventListener('blur', handleBlur);
+            window.removeEventListener('beforeunload', handleBeforeUnload);
         };
-    }, []);
+    }, [selectedContent, user]); // Include dependencies for saveProgress
 
     useEffect(() => {
         if (selectedContent && studentProgress) {
-            // 1. Initialize time spent from progress
+            const contentKey = `timer_${user.id || user._id}_${selectedContent._id}`;
+
+            // 1. Initialize time spent
+            // Priority: localStorage (for refresh/instant) > progress from server
             const existingProgress = studentProgress.contentProgress?.find(
                 cp => cp.contentId.toString() === selectedContent._id.toString()
             );
 
-            const initialTime = existingProgress ? existingProgress.timeSpent : 0;
+            const serverTime = existingProgress ? existingProgress.timeSpent : 0;
+            const locallySavedTime = parseInt(localStorage.getItem(contentKey) || '0', 10);
+
+            // If local storage has a higher value, it means the user refreshed before an auto-save
+            const initialTime = Math.max(serverTime, locallySavedTime);
             const alreadyCompleted = existingProgress ? existingProgress.isCompleted : false;
 
             setTimeSpent(initialTime);
-            timeSpentRef.current = initialTime; // Sync ref immediately
+            timeSpentRef.current = initialTime;
 
-            if (alreadyCompleted || !selectedContent.minTime || selectedContent.minTime === 0) {
+            if (alreadyCompleted) {
                 setIsTimeRequirementMet(true);
-                return;
+            } else if (initialTime >= selectedContent.minTime) {
+                setIsTimeRequirementMet(true);
+            } else {
+                setIsTimeRequirementMet(false);
             }
 
-            setIsTimeRequirementMet(false);
+            let timer = null;
+            let autoSaveTimer = null;
 
-            // 2. Start Timer
-            const timer = setInterval(() => {
-                if (document.hidden || !document.hasFocus()) return;
+            if (!alreadyCompleted) {
+                // 2. Start Timer
+                timer = setInterval(() => {
+                    if (document.hidden || !document.hasFocus()) return;
 
-                setTimeSpent(prev => {
-                    const next = prev + 1;
-                    timeSpentRef.current = next; // Update ref immediately
-                    if (next >= selectedContent.minTime) {
-                        setIsTimeRequirementMet(true);
-                    }
-                    return next;
-                });
-            }, 1000);
+                    setTimeSpent(prev => {
+                        if (document.hasFocus() && !document.hidden) {
+                            if (prev >= selectedContent.minTime) {
+                                setIsTimeRequirementMet(true);
+                                // Continue counting even after requirement met if they stay on page
+                                // but the user requested it to stop at requirement? 
+                                // Actually, typical LMS keeps counting total study time.
+                            }
+
+                            const next = prev + 1;
+                            timeSpentRef.current = next;
+                            // Sync with localStorage for refresh persistence
+                            localStorage.setItem(contentKey, next.toString());
+                            return next;
+                        }
+                        return prev;
+                    });
+                }, 1000);
+            }
 
             // 3. Periodic Auto-save (Every 10 seconds)
-            const autoSaveTimer = setInterval(() => {
-                saveProgress(false); // saveProgress will use the ref
+            autoSaveTimer = setInterval(() => {
+                saveProgress(false);
             }, 10000);
 
             return () => {
-                clearInterval(timer);
-                clearInterval(autoSaveTimer);
-                // Save latest progress using the ref
+                if (timer) clearInterval(timer);
+                if (autoSaveTimer) clearInterval(autoSaveTimer);
                 saveProgress(false);
             };
         }
-    }, [selectedContent, studentProgress]);
+    }, [selectedContent, studentProgress, user]);
 
     // Separate effect for completion save
     useEffect(() => {
@@ -322,11 +578,7 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
     const saveProgress = async (forceCompleted = false) => {
         if (!selectedContent || !user || (!user.id && !user._id)) return;
 
-        const isAlreadyDone = studentProgress?.contentProgress?.find(
-            cp => cp.contentId.toString() === selectedContent._id.toString()
-        )?.isCompleted;
-
-        if (isAlreadyDone && !forceCompleted) return;
+        // REMOVED early return: Allow saving even if already completed to track total study time for daily goals
 
         try {
             const studentId = user.id || user._id;
@@ -334,11 +586,13 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
 
             if (timeToSave === 0 && !forceCompleted) return; // Don't overwrite if we haven't tracked anything yet
 
-            await axios.post(`${import.meta.env.VITE_API_URL}/api/courses/${course._id}/contents/${selectedContent._id}/progress`, {
+            const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/courses/${course._id}/contents/${selectedContent._id}/progress`, {
                 studentId,
                 timeSpent: timeToSave,
                 isCompleted: forceCompleted || (timeToSave >= selectedContent.minTime)
             });
+            // Update local state immediately to reflect changes in UI (e.g., Progress Bar)
+            setStudentProgress(res.data);
         } catch (err) {
             console.error('Error auto-saving progress:', err);
         }
@@ -451,9 +705,27 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
         console.log('Selected Content Changed:', selectedContent);
     }, [selectedContent]);
 
-    // Auto-select first content if available
+    // Auto-select first content if available, but check localStorage first
     useEffect(() => {
         if (course.chapters.length > 0) {
+            const savedContentId = localStorage.getItem(`selectedContentId_${user.id || user._id}_${course._id}`);
+
+            if (savedContentId) {
+                // Find and restore
+                for (const chapter of course.chapters) {
+                    for (const module of chapter.modules) {
+                        const content = module.contents.find(c => c._id === savedContentId);
+                        if (content) {
+                            setSelectedContent(content);
+                            setExpandedChapters(prev => ({ ...prev, [chapter._id]: true }));
+                            setExpandedModules(prev => ({ ...prev, [module._id]: true }));
+                            return;
+                        }
+                    }
+                }
+            }
+
+            // Fallback to first
             const firstChapter = course.chapters[0];
             setExpandedChapters({ [firstChapter._id]: true });
             if (firstChapter.modules.length > 0) {
@@ -552,13 +824,7 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
         }));
     };
 
-    const formatTime = (seconds) => {
-        if (seconds <= 0) return '0s';
-        const m = Math.floor(seconds / 60);
-        const s = seconds % 60;
-        if (m > 0) return `${m}m ${s}s`;
-        return `${s}s`;
-    };
+
 
     return (
         <div style={{ background: 'transparent', padding: '0', width: '100%' }}>
@@ -647,94 +913,78 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
                     </div>
                 )}
 
-                <div className="content-view-area" style={{ background: '#f8fafc', borderRadius: '15px', padding: '15px', border: '1px solid #edf2f7', minHeight: '500px', display: 'flex', flexDirection: 'column' }}>
-                    {activeQuiz ? (
-                        <QuizViewer
-                            quiz={activeQuiz.module.quiz}
-                            isFastTrack={activeQuiz.isFastTrack}
-                            alreadyPassed={studentProgress?.completedModules?.some(m => m.moduleId.toString() === activeQuiz.module._id.toString())}
-                            onClose={() => setActiveQuiz(null)}
-                            onSubmit={(score, onFail) => handleQuizSubmission(activeQuiz.module._id, score, activeQuiz.isFastTrack, onFail)}
-                        />
-                    ) : selectedContent ? (
-                        <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                            {/* Progress Bars Row */}
-                            <div style={{ display: 'flex', gap: '15px', marginBottom: '15px' }}>
-                                {/* Course Wide Progress Bar */}
-                                <div style={{ flex: 1, padding: '12px', background: 'white', borderRadius: '10px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', alignItems: 'center' }}>
-                                        <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#4a5568' }}>Course Overall Progress</span>
-                                        <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#6C63FF' }}>
-                                            {(() => {
-                                                const allC = course.chapters?.flatMap(c => c.modules?.flatMap(m => m.contents) || []) || [];
-                                                const allQ = course.chapters?.flatMap(c => c.modules || []).filter(m => m.quiz?.questions?.length > 0) || [];
-                                                const total = allC.length + allQ.length;
-                                                if (total === 0) return 0;
+                <div style={{ display: 'flex', gap: '20px', flex: 1, minHeight: '600px' }}>
+                    <div className="content-view-area" style={{ flex: activeAIFeature ? 0.7 : 1, background: '#f8fafc', borderRadius: '15px', padding: '15px', border: '1px solid #edf2f7', display: 'flex', flexDirection: 'column' }}>
+                        {activeQuiz ? (
+                            <QuizViewer
+                                quiz={activeQuiz.module.quiz}
+                                isFastTrack={activeQuiz.isFastTrack}
+                                alreadyPassed={studentProgress?.completedModules?.some(m => m.moduleId.toString() === activeQuiz.module._id.toString())}
+                                savedScore={studentProgress?.completedModules?.find(m => m.moduleId.toString() === activeQuiz.module._id.toString())?.score || 0}
+                                onClose={() => setActiveQuiz(null)}
+                                onSubmit={(score, onFail) => handleQuizSubmission(activeQuiz.module._id, score, activeQuiz.isFastTrack, onFail)}
+                            />
+                        ) : selectedContent ? (
+                            <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                                {/* Progress Bars Row */}
+                                <div style={{ display: 'flex', gap: '15px', marginBottom: '15px' }}>
+                                    {/* Course Wide Progress Bar */}
+                                    <div style={{ flex: 1, padding: '12px', background: 'white', borderRadius: '10px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', alignItems: 'center' }}>
+                                            <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#4a5568' }}>Course Overall Progress</span>
+                                            <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#6C63FF' }}>
+                                                {(() => {
+                                                    const allC = course.chapters?.flatMap(c => c.modules?.flatMap(m => m.contents) || []) || [];
+                                                    const allQ = course.chapters?.flatMap(c => c.modules || []).filter(m => m.quiz?.questions?.length > 0) || [];
+                                                    const total = allC.length + allQ.length;
+                                                    if (total === 0) return 0;
 
-                                                let points = 0;
-                                                allC.forEach(content => {
-                                                    const cp = studentProgress?.contentProgress?.find(p => p.contentId?.toString() === content._id?.toString());
-                                                    if (cp) {
-                                                        if (cp.isCompleted) points += 1;
-                                                        else if (content.minTime > 0) points += Math.min(0.9, cp.timeSpent / content.minTime);
-                                                        else if (cp.timeSpent > 0) points += 0.1;
-                                                    }
-                                                });
-                                                const passedQ = allQ.filter(m => studentProgress?.completedModules?.some(cm => cm.moduleId?.toString() === m._id?.toString())).length;
-                                                points += passedQ;
+                                                    let points = 0;
+                                                    allC.forEach(content => {
+                                                        const cp = studentProgress?.contentProgress?.find(p => p.contentId?.toString() === content._id?.toString());
+                                                        if (cp) {
+                                                            if (cp.isCompleted) points += 1;
+                                                            else if (content.minTime > 0) points += Math.min(0.9, cp.timeSpent / content.minTime);
+                                                            else if (cp.timeSpent > 0) points += 0.1;
+                                                        }
+                                                    });
+                                                    const passedQ = allQ.filter(m => studentProgress?.completedModules?.some(cm => cm.moduleId?.toString() === m._id?.toString())).length;
+                                                    points += passedQ;
 
-                                                return Math.min(100, Math.round((points / total) * 100));
-                                            })()}%
-                                        </span>
-                                    </div>
-                                    <div style={{ height: '6px', background: '#edf2f7', borderRadius: '3px', overflow: 'hidden' }}>
-                                        <div style={{
-                                            height: '100%',
-                                            width: `${(() => {
-                                                const allC = course.chapters?.flatMap(c => c.modules?.flatMap(m => m.contents) || []) || [];
-                                                const allQ = course.chapters?.flatMap(c => c.modules || []).filter(m => m.quiz?.questions?.length > 0) || [];
-                                                const total = allC.length + allQ.length;
-                                                if (total === 0) return 0;
+                                                    return Math.min(100, Math.round((points / total) * 100));
+                                                })()}%
+                                            </span>
+                                        </div>
+                                        <div style={{ height: '6px', background: '#edf2f7', borderRadius: '3px', overflow: 'hidden' }}>
+                                            <div style={{
+                                                height: '100%',
+                                                width: `${(() => {
+                                                    const allC = course.chapters?.flatMap(c => c.modules?.flatMap(m => m.contents) || []) || [];
+                                                    const allQ = course.chapters?.flatMap(c => c.modules || []).filter(m => m.quiz?.questions?.length > 0) || [];
+                                                    const total = allC.length + allQ.length;
+                                                    if (total === 0) return 0;
 
-                                                let points = 0;
-                                                allC.forEach(content => {
-                                                    const cp = studentProgress?.contentProgress?.find(p => p.contentId?.toString() === content._id?.toString());
-                                                    if (cp) {
-                                                        if (cp.isCompleted) points += 1;
-                                                        else if (content.minTime > 0) points += Math.min(0.9, cp.timeSpent / content.minTime);
-                                                        else if (cp.timeSpent > 0) points += 0.1;
-                                                    }
-                                                });
-                                                const passedQ = allQ.filter(m => studentProgress?.completedModules?.some(cm => cm.moduleId?.toString() === m._id?.toString())).length;
-                                                points += passedQ;
+                                                    let points = 0;
+                                                    allC.forEach(content => {
+                                                        const cp = studentProgress?.contentProgress?.find(p => p.contentId?.toString() === content._id?.toString());
+                                                        if (cp) {
+                                                            if (cp.isCompleted) points += 1;
+                                                            else if (content.minTime > 0) points += Math.min(0.9, cp.timeSpent / content.minTime);
+                                                            else if (cp.timeSpent > 0) points += 0.1;
+                                                        }
+                                                    });
+                                                    const passedQ = allQ.filter(m => studentProgress?.completedModules?.some(cm => cm.moduleId?.toString() === m._id?.toString())).length;
+                                                    points += passedQ;
 
-                                                return Math.min(100, Math.round((points / total) * 100));
-                                            })()}%`,
-                                            background: 'linear-gradient(90deg, #6C63FF, #3182CE)',
-                                            transition: 'width 0.5s ease-out'
-                                        }}></div>
-                                    </div>
-                                </div>
-
-                                {/* Study Requirement Bar */}
-                                {selectedContent.minTime > 0 && (
-                                    <div style={{ flex: 1, padding: '12px', background: isTimeRequirementMet ? '#C6F6D5' : '#EBF8FF', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                        <div style={{ fontSize: '1rem' }}>{isTimeRequirementMet ? '✅' : '⏳'}</div>
-                                        <div style={{ flex: 1 }}>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
-                                                <span style={{ fontSize: '0.75rem', fontWeight: '700', color: isTimeRequirementMet ? '#22543D' : '#2A4365' }}>
-                                                    {isTimeRequirementMet ? 'Study Complete' : `Study: ${formatTime(Math.max(0, selectedContent.minTime - timeSpent))} left`}
-                                                </span>
-                                                <span style={{ fontSize: '0.75rem', color: '#718096' }}>{Math.min(100, Math.round((timeSpent / selectedContent.minTime) * 100))}%</span>
-                                            </div>
-                                            <div style={{ height: '6px', background: 'rgba(0,0,0,0.1)', borderRadius: '3px', overflow: 'hidden' }}>
-                                                <div style={{ height: '100%', width: `${Math.min(100, (timeSpent / selectedContent.minTime) * 100)}%`, background: isTimeRequirementMet ? '#38A169' : '#3182CE', transition: 'width 0.3s' }}></div>
-                                            </div>
+                                                    return Math.min(100, Math.round((points / total) * 100));
+                                                })()}%`,
+                                                background: 'linear-gradient(90deg, #6C63FF, #3182CE)',
+                                                transition: 'width 0.5s ease-out'
+                                            }}></div>
                                         </div>
                                     </div>
-                                )}
-                            </div>
 
+<<<<<<< HEAD
                             {!isTabActive && !isTimeRequirementMet && (
                                 <div style={{
                                     padding: '8px',
@@ -777,87 +1027,980 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
                                     </a>
                                 )}
                             </div>
+=======
+>>>>>>> 6b33c61809f51da2d7d0fde10ddb174f2de0cbeb
 
-                            <div style={{ flex: 1, background: 'white', borderRadius: '10px', overflow: 'hidden', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
-                                {selectedContent.type === 'pdf' ? (
-                                    <iframe
-                                        src={`${getContentUrl(selectedContent.url)}`}
-                                        width="100%"
-                                        height="700px"
-                                        style={{ border: 'none' }}
-                                        title={selectedContent.title}
-                                    />
-                                ) : selectedContent.type === 'link' ? (
-                                    <div style={{ padding: '60px', textAlign: 'center', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                                        <div style={{ fontSize: '3rem', marginBottom: '20px' }}>🔗</div>
-                                        <h3>External Content</h3>
-                                        <p style={{ color: '#718096', marginBottom: '20px' }}>This content is hosted on an external website.</p>
-                                        <a
-                                            href={selectedContent.url}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            style={{ color: '#6C63FF', fontWeight: 'bold', fontSize: '1.1rem', wordBreak: 'break-all' }}
-                                        >
-                                            {selectedContent.url}
-                                        </a>
-                                    </div>
-                                ) : selectedContent.type === 'video' ? (
-                                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1, padding: '20px', background: '#000' }}>
-                                        <video
-                                            src={getContentUrl(selectedContent.url)}
-                                            controls
-                                            style={{ maxWidth: '100%', maxHeight: '100%' }}
-                                        />
-                                    </div>
-                                ) : selectedContent.type === 'image' ? (
-                                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1, padding: '20px', overflow: 'auto' }}>
-                                        <img
-                                            src={getContentUrl(selectedContent.url)}
-                                            alt={selectedContent.title}
-                                            style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                                        />
-                                    </div>
-                                ) : (
-                                    <div style={{ padding: '60px', textAlign: 'center', color: '#718096', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                                        <div style={{ fontSize: '3rem', marginBottom: '20px' }}>
-                                            {selectedContent.type === 'doc' ? '📄' : '📦'}
+
+                                    {/* Study Requirement Bar */}
+                                    {selectedContent.minTime > 0 && (
+                                        <div style={{ flex: 1, padding: '12px', background: isTimeRequirementMet ? '#C6F6D5' : '#EBF8FF', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                            <div style={{ fontSize: '1rem' }}>{isTimeRequirementMet ? '✅' : '⏳'}</div>
+                                            <div style={{ flex: 1 }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
+                                                    <span style={{ fontSize: '0.75rem', fontWeight: '700', color: isTimeRequirementMet ? '#22543D' : '#2A4365', display: 'flex', gap: '8px' }}>
+                                                        {isTimeRequirementMet ? '✅ Requirement Met' : (
+                                                            <>
+                                                                <span>⏱️ Spent: {formatTime(timeSpent)}</span>
+                                                                <span style={{ opacity: 0.6 }}>|</span>
+                                                                <span>⏳ Left: {formatTime(Math.max(0, selectedContent.minTime - timeSpent))}</span>
+                                                            </>
+                                                        )}
+                                                    </span>
+                                                    <span style={{ fontSize: '0.75rem', color: '#718096' }}>{Math.min(100, Math.round((timeSpent / selectedContent.minTime) * 100))}%</span>
+                                                </div>
+                                                <div style={{ height: '6px', background: 'rgba(0,0,0,0.1)', borderRadius: '3px', overflow: 'hidden' }}>
+                                                    <div style={{ height: '100%', width: `${Math.min(100, (timeSpent / selectedContent.minTime) * 100)}%`, background: isTimeRequirementMet ? '#38A169' : '#3182CE', transition: 'width 0.3s' }}></div>
+                                                </div>
+                                            </div>
                                         </div>
-                                        <h3>{selectedContent.type === 'doc' ? 'Document Content' : 'Preview not available'}</h3>
-                                        <p style={{ marginBottom: '24px' }}>
-                                            {selectedContent.type === 'doc'
-                                                ? 'This document can be downloaded for viewing.'
-                                                : `This file type (${selectedContent.type}) cannot be previewed directly.`}
-                                        </p>
+                                    )}
+                                </div>
+
+                                {!isTabActive && !isTimeRequirementMet && (
+                                    <div style={{
+                                        padding: '8px',
+                                        background: '#FFF5F5',
+                                        color: '#C53030',
+                                        borderRadius: '8px',
+                                        marginBottom: '10px',
+                                        textAlign: 'center',
+                                        fontSize: '0.8rem',
+                                        fontWeight: 'bold',
+                                        border: '1px solid #FC8181'
+                                    }}>
+                                        ⚠️ Timer Paused: Please stay on this tab to continue your study time.
+                                    </div>
+                                )}
+                                <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                                        <div>
+                                            <h2 style={{ margin: 0, fontSize: '1.25rem', color: '#2d3748' }}>{selectedContent.title}</h2>
+                                            <span style={{ fontSize: '0.8rem', color: '#718096' }}>Type: {selectedContent.type.toUpperCase()}</span>
+                                        </div>
+                                        <button
+                                            onClick={() => setActiveAIFeature(activeAIFeature === 'summary' ? null : 'summary')}
+                                            style={{
+                                                padding: '8px 12px',
+                                                background: activeAIFeature === 'summary' ? '#4C51BF' : '#6C63FF',
+                                                color: 'white',
+                                                border: 'none',
+                                                borderRadius: '8px',
+                                                fontSize: '0.8rem',
+                                                fontWeight: 'bold',
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '6px',
+                                                boxShadow: '0 2px 4px rgba(108, 99, 255, 0.3)'
+                                            }}
+                                        >
+                                            📝 Summary
+                                        </button>
+                                        <button
+                                            onClick={() => setActiveAIFeature(activeAIFeature === 'quiz' ? null : 'quiz')}
+                                            style={{
+                                                padding: '8px 12px',
+                                                background: activeAIFeature === 'quiz' ? '#2F855A' : '#38A169',
+                                                color: 'white',
+                                                border: 'none',
+                                                borderRadius: '8px',
+                                                fontSize: '0.8rem',
+                                                fontWeight: 'bold',
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '6px',
+                                                boxShadow: '0 2px 4px rgba(47, 133, 90, 0.3)'
+                                            }}
+                                        >
+                                            ✅ Quiz
+                                        </button>
+                                        <button
+                                            onClick={() => setActiveAIFeature(activeAIFeature === 'doubt' ? null : 'doubt')}
+                                            style={{
+                                                padding: '8px 12px',
+                                                background: activeAIFeature === 'doubt' ? '#C53030' : '#E53E3E',
+                                                color: 'white',
+                                                border: 'none',
+                                                borderRadius: '8px',
+                                                fontSize: '0.8rem',
+                                                fontWeight: 'bold',
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '6px',
+                                                boxShadow: '0 2px 4px rgba(197, 48, 48, 0.3)'
+                                            }}
+                                        >
+                                            🤔 Doubt
+                                        </button>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '10px' }}>
+                                        {selectedContent.type === 'doc' && (
+                                            <a
+                                                href={getContentUrl(selectedContent.url)}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                style={{
+                                                    padding: '8px 12px',
+                                                    background: '#4A5568',
+                                                    color: 'white',
+                                                    border: 'none',
+                                                    borderRadius: '8px',
+                                                    fontSize: '0.8rem',
+                                                    fontWeight: 'bold',
+                                                    textDecoration: 'none',
+                                                    cursor: 'pointer',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '6px'
+                                                }}
+                                            >
+                                                📥 Download
+                                            </a>
+                                        )}
                                         <a
                                             href={getContentUrl(selectedContent.url)}
                                             target="_blank"
                                             rel="noopener noreferrer"
                                             style={{
-                                                display: 'inline-block',
-                                                padding: '12px 24px',
-                                                background: '#6C63FF',
-                                                color: 'white',
-                                                borderRadius: '10px',
+                                                padding: '8px 12px',
+                                                background: '#edf2f7',
+                                                color: '#4a5568',
+                                                border: 'none',
+                                                borderRadius: '8px',
+                                                fontSize: '0.8rem',
+                                                fontWeight: 'bold',
                                                 textDecoration: 'none',
-                                                fontWeight: 'bold'
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '6px'
                                             }}
                                         >
-                                            {selectedContent.type === 'doc' ? 'Download Document' : 'Download / View File'}
+                                            🚀 Open in New Tab
                                         </a>
                                     </div>
-                                )}
+                                </div>
+
+                                <div style={{ flex: 1, background: 'white', borderRadius: '10px', border: '1px solid #e2e8f0', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                                    {selectedContent.type === 'pdf' || selectedContent.type === 'doc' ? (
+                                        <iframe
+                                            src={`${getContentUrl(selectedContent.url)}`}
+                                            width="100%"
+                                            height="700px"
+                                            style={{ border: 'none' }}
+                                            title={selectedContent.title}
+                                        />
+                                    ) : selectedContent.type === 'link' ? (
+                                        <div style={{ padding: '60px', textAlign: 'center', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                                            <div style={{ fontSize: '3rem', marginBottom: '20px' }}>🔗</div>
+                                            <h3>External Content</h3>
+                                            <p style={{ color: '#718096', marginBottom: '20px' }}>This content is hosted on an external website.</p>
+                                            <a
+                                                href={selectedContent.url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                style={{ color: '#6C63FF', fontWeight: 'bold', fontSize: '1.1rem', wordBreak: 'break-all' }}
+                                            >
+                                                {selectedContent.url}
+                                            </a>
+                                        </div>
+                                    ) : selectedContent.type === 'video' ? (
+                                        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1, padding: '20px', background: '#000' }}>
+                                            <video
+                                                src={getContentUrl(selectedContent.url)}
+                                                controls
+                                                style={{ maxWidth: '100%', maxHeight: '100%' }}
+                                            />
+                                        </div>
+                                    ) : selectedContent.type === 'image' ? (
+                                        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1, padding: '20px', overflow: 'auto' }}>
+                                            <img
+                                                src={getContentUrl(selectedContent.url)}
+                                                alt={selectedContent.title}
+                                                style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                                            />
+                                        </div>
+                                    ) : (
+                                        <div style={{ padding: '60px', textAlign: 'center', color: '#718096', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                                            <div style={{ fontSize: '3rem', marginBottom: '20px' }}>
+                                                {selectedContent.type === 'doc' ? '📄' : '📦'}
+                                            </div>
+                                            <h3>{selectedContent.type === 'doc' ? 'Document Content' : 'Preview not available'}</h3>
+                                            <p style={{ marginBottom: '24px' }}>
+                                                {selectedContent.type === 'doc'
+                                                    ? 'This document can be downloaded for viewing.'
+                                                    : `This file type (${selectedContent.type}) cannot be previewed directly.`}
+                                            </p>
+                                            <a
+                                                href={getContentUrl(selectedContent.url)}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                style={{
+                                                    display: 'inline-block',
+                                                    padding: '12px 24px',
+                                                    background: '#6C63FF',
+                                                    color: 'white',
+                                                    borderRadius: '10px',
+                                                    textDecoration: 'none',
+                                                    fontWeight: 'bold'
+                                                }}
+                                            >
+                                                {selectedContent.type === 'doc' ? 'Download Document' : 'Download / View File'}
+                                            </a>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
+                        ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#a0aec0' }}>
+                                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: '20px' }}>
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" />
+                                </svg>
+                                <p>Select a lesson from the sidebar to start learning</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {activeAIFeature && selectedContent && (
+                    <div style={{ flex: 0.3, background: 'white', borderRadius: '15px', border: '1px solid #edf2f7', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
+                        <AIAssistantSidebar
+                            content={selectedContent}
+                            activeFeature={activeAIFeature}
+                            aiSummary={aiSummary}
+                            setAiSummary={setAiSummary}
+                            isGeneratingSummary={isGeneratingSummary}
+                            setIsGeneratingSummary={setIsGeneratingSummary}
+                        />
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+// --- NEW SECTION: Assignments View ---
+const AssignmentsSection = ({ userId, courses }) => {
+    const [assignments, setAssignments] = useState([]);
+    const [selectedCourseId, setSelectedCourseId] = useState(''); // Default to all
+    const [submissions, setSubmissions] = useState({}); // Tracking student's own submissions
+    const [activeAssignment, setActiveAssignment] = useState(null);
+    const [loading, setLoading] = useState(true);
+
+    // Submission states
+    const [submitting, setSubmitting] = useState(false);
+    const [code, setCode] = useState('');
+    const [file, setFile] = useState(null);
+    const [stdin, setStdin] = useState('');
+    const [executionResult, setExecutionResult] = useState(null);
+    const [isExecuting, setIsExecuting] = useState(false);
+
+    // Test Case States
+    const [testResults, setTestResults] = useState(null);
+    const [isRunningTests, setIsRunningTests] = useState(false);
+
+    const handleRunCode = async () => {
+        setIsExecuting(true);
+        setExecutionResult(null);
+        try {
+            const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/assignments/execute`, {
+                code,
+                language: activeAssignment.codingDetails?.language || 'javascript',
+                stdin
+            });
+            setExecutionResult(res.data);
+        } catch (err) {
+            console.error(err);
+            setExecutionResult({ output: 'Error executing code: ' + (err.response?.data?.message || err.message) });
+        } finally {
+            setIsExecuting(false);
+        }
+    };
+
+    const handleRunTests = async () => {
+        setIsRunningTests(true);
+        setTestResults(null);
+        try {
+            const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/assignments/execute-tests`, {
+                code,
+                language: activeAssignment.codingDetails?.language || 'javascript',
+                testCases: activeAssignment.codingDetails?.testCases || []
+            });
+            setTestResults(res.data.results);
+        } catch (err) {
+            console.error(err);
+            alert('Error running tests: ' + (err.response?.data?.message || err.message));
+        } finally {
+            setIsRunningTests(false);
+        }
+    };
+
+    useEffect(() => {
+        // No longer auto-selecting first course
+    }, [courses]);
+
+    useEffect(() => {
+        fetchAssignmentsAndSubmissions();
+    }, [selectedCourseId, courses]);
+
+    const fetchAssignmentsAndSubmissions = async () => {
+        setLoading(true);
+        try {
+            // 1. Fetch assignments
+            let asgns = [];
+            if (selectedCourseId) {
+                // Fetch for specific course
+                const asgnRes = await axios.get(`${import.meta.env.VITE_API_URL}/api/assignments/course/${selectedCourseId}`);
+                asgns = asgnRes.data;
+            } else {
+                // Fetch ALL assignments (from all enrolled courses)
+                // We'll iterate through available courses to get their assignments
+                // Optimized: parallel fetch
+                const promises = courses.map(c => axios.get(`${import.meta.env.VITE_API_URL}/api/assignments/course/${c._id}`).catch(() => ({ data: [] })));
+                const results = await Promise.all(promises);
+                asgns = results.flatMap(r => r.data);
+            }
+            setAssignments(asgns);
+
+            // 2. Fetch submissions for each assignment
+            const subsMapped = {};
+            await Promise.all(asgns.map(async (asgn) => {
+                const subRes = await axios.get(`${import.meta.env.VITE_API_URL}/api/assignments/student/${userId}/assignment/${asgn._id}`);
+                if (subRes.data) subsMapped[asgn._id] = subRes.data;
+            }));
+            setSubmissions(subsMapped);
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setSubmitting(true);
+        try {
+            let fileUrl = submissions[activeAssignment._id]?.fileUrl || '';
+
+            // 1. If file assignment, upload file first
+            if (activeAssignment.type === 'file' && file) {
+                const formData = new FormData();
+                formData.append('file', file);
+                const uploadRes = await axios.post(`${import.meta.env.VITE_API_URL}/api/assignments/upload`, formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                });
+                fileUrl = uploadRes.data.url;
+            }
+
+            // 2. Submit the assignment data
+            await axios.post(`${import.meta.env.VITE_API_URL}/api/assignments/submit`, {
+                assignmentId: activeAssignment._id,
+                studentId: userId,
+                courseId: selectedCourseId || activeAssignment.course,
+                fileUrl,
+                code: activeAssignment.type === 'coding' ? code : '',
+                language: activeAssignment.codingDetails?.language || 'javascript'
+            });
+
+            alert('Assignment submitted successfully!');
+            setActiveAssignment(null);
+            fetchAssignmentsAndSubmissions();
+        } catch (err) {
+            alert('Error submitting assignment');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    return (
+        <div style={{ padding: '20px' }}>
+            <div style={{ marginBottom: '30px' }}>
+                <h2 style={{ fontSize: '1.75rem', color: '#2d3748', margin: 0 }}>My Assignments</h2>
+                <p style={{ color: '#718096' }}>Track and submit your course tasks.</p>
+            </div>
+
+            <div style={{ marginBottom: '30px' }}>
+                <label style={{ display: 'block', marginBottom: '10px', fontWeight: '600' }}>Select Course</label>
+                <select
+                    className="form-input"
+                    value={selectedCourseId}
+                    onChange={(e) => setSelectedCourseId(e.target.value)}
+                    style={{ width: '300px', color: 'black', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e0' }}
+                >
+                    <option value="" style={{ color: 'black' }}>All Courses</option>
+                    {courses.map(c => <option key={c._id} value={c._id} style={{ color: 'black' }}>{c.subject}</option>)}
+                </select>
+            </div>
+
+            {loading ? <p>Loading assignments...</p> : assignments.length === 0 ? <p>No assignments found for this course.</p> : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '20px' }}>
+                    {assignments.map(asgn => {
+                        const sub = submissions[asgn._id];
+                        const isGraded = sub?.status === 'Graded';
+                        const isSubmitted = !!sub;
+
+                        return (
+                            <div key={asgn._id} style={{ background: 'white', padding: '24px', borderRadius: '20px', border: '1px solid #edf2f7', position: 'relative' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
+                                    <span style={{
+                                        padding: '4px 10px',
+                                        borderRadius: '6px',
+                                        fontSize: '0.7rem',
+                                        fontWeight: '700',
+                                        background: isGraded ? '#d1fae5' : isSubmitted ? '#dbeafe' : 'rgba(0,0,0,0.05)',
+                                        color: isGraded ? '#065f46' : isSubmitted ? '#1e40af' : '#718096'
+                                    }}>
+                                        {isGraded ? 'GRADED' : isSubmitted ? 'SUBMITTED' : 'NOT STARTED'}
+                                    </span>
+                                    <span style={{ fontSize: '0.8rem', color: '#f87171', fontWeight: 'bold' }}>
+                                        Due: {new Date(asgn.dueDate).toLocaleDateString()}
+                                    </span>
+                                </div>
+                                <h3 style={{ margin: '0 0 10px 0' }}>{asgn.title}</h3>
+                                <p style={{ color: '#718096', fontSize: '0.9rem', marginBottom: '20px', minHeight: '40px' }}>{asgn.description}</p>
+
+                                {isGraded && (
+                                    <div style={{ background: '#f0fdf4', padding: '12px', borderRadius: '12px', marginBottom: '15px', border: '1px solid #dcfce7' }}>
+                                        <p style={{ margin: 0, fontWeight: 'bold', color: '#166534', fontSize: '0.9rem' }}>Score: {sub.score}/{asgn.maxPoints}</p>
+                                        <p style={{ margin: '5px 0 0 0', fontSize: '0.8rem', color: '#15803d' }}>Feedback: {sub.feedback}</p>
+                                    </div>
+                                )}
+
+                                <button
+                                    onClick={() => {
+                                        setActiveAssignment(asgn);
+                                        setCode(sub?.code || asgn.codingDetails?.starterCode || '');
+                                        setStdin(sub?.stdin || '');
+                                    }}
+                                    style={{
+                                        width: '100%',
+                                        padding: '12px',
+                                        background: isSubmitted ? '#f8fafc' : '#6366f1',
+                                        color: isSubmitted ? '#4a5568' : 'white',
+                                        border: isSubmitted ? '1px solid #e2e8f0' : 'none',
+                                        borderRadius: '12px',
+                                        fontWeight: 'bold',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    {isSubmitted ? 'View Submission' : 'Start Assignment'}
+                                </button>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+
+            {/* Submission Modal */}
+            {activeAssignment && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, padding: '20px' }}>
+                    <div style={{ background: 'white', padding: '32px', borderRadius: '24px', width: '100%', maxWidth: '800px', maxHeight: '90vh', overflowY: 'auto' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                            <h2 style={{ margin: 0 }}>{activeAssignment.title}</h2>
+                            <button onClick={() => setActiveAssignment(null)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }}>&times;</button>
                         </div>
-                    ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#a0aec0' }}>
-                            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: '20px' }}>
-                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" />
-                            </svg>
-                            <p>Select a lesson from the sidebar to start learning</p>
-                        </div>
-                    )}
+                        <p style={{ color: '#718096', marginBottom: '24px' }}>{activeAssignment.description}</p>
+
+                        {submissions[activeAssignment._id] ? (
+                            <div style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+                                {/* --- SUBMISSION PREVIEW --- */}
+                                <div style={{ marginBottom: '20px', padding: '15px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                                        <span style={{ fontWeight: 'bold', fontSize: '0.9rem', color: '#4a5568' }}>Submission Status</span>
+                                        <span style={{
+                                            padding: '4px 10px',
+                                            borderRadius: '6px',
+                                            fontSize: '0.8rem',
+                                            fontWeight: '700',
+                                            background: submissions[activeAssignment._id].status === 'Graded' ? '#d1fae5' : '#dbeafe',
+                                            color: submissions[activeAssignment._id].status === 'Graded' ? '#065f46' : '#1e40af'
+                                        }}>
+                                            {submissions[activeAssignment._id].status}
+                                        </span>
+                                    </div>
+
+                                    {activeAssignment.type === 'file' ? (
+                                        <div style={{ textAlign: 'center', padding: '20px' }}>
+                                            <div style={{ fontSize: '2rem', marginBottom: '10px' }}>📄</div>
+                                            <a
+                                                href={submissions[activeAssignment._id].fileUrl}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                style={{ color: '#6366f1', fontWeight: 'bold', textDecoration: 'underline' }}
+                                            >
+                                                View Submitted File
+                                            </a>
+                                        </div>
+                                    ) : (
+                                        <div>
+                                            <div style={{ background: '#1a202c', padding: '15px', borderRadius: '10px', marginBottom: '15px' }}>
+                                                <div style={{ color: '#a0aec0', fontSize: '0.8rem', marginBottom: '5px' }}>Submitted Code:</div>
+                                                <pre style={{ color: '#818cf8', margin: 0, fontFamily: 'monospace', fontSize: '0.9rem', whiteSpace: 'pre-wrap' }}>
+                                                    {submissions[activeAssignment._id].code}
+                                                </pre>
+                                            </div>
+
+                                            <div style={{ marginBottom: '15px' }}>
+                                                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', color: '#4a5568', marginBottom: '5px' }}>Test Input (stdin):</label>
+                                                <textarea
+                                                    value={stdin}
+                                                    onChange={(e) => setStdin(e.target.value)}
+                                                    placeholder="Enter inputs..."
+                                                    style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1px solid #cbd5e0', fontFamily: 'monospace' }}
+                                                />
+                                            </div>
+
+                                            <button
+                                                type="button"
+                                                onClick={handleRunCode}
+                                                disabled={isExecuting}
+                                                style={{ width: '100%', padding: '10px', background: isExecuting ? '#cbd5e0' : '#10b981', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: isExecuting ? 'not-allowed' : 'pointer' }}
+                                            >
+                                                {isExecuting ? 'Running...' : '▶ Run Code'}
+                                            </button>
+
+                                            {executionResult && (
+                                                <div style={{ marginTop: '15px', background: '#2d3748', padding: '15px', borderRadius: '10px', color: '#e2e8f0', fontFamily: 'monospace', fontSize: '0.9rem' }}>
+                                                    <div style={{ color: '#a0aec0', fontSize: '0.7rem', marginBottom: '5px' }}>Output:</div>
+                                                    <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{executionResult.output}</pre>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {submissions[activeAssignment._id].status === 'Graded' && (
+                                        <div style={{ marginTop: '20px', borderTop: '1px solid #e2e8f0', paddingTop: '15px' }}>
+                                            <div style={{ fontWeight: 'bold', color: '#2f855a', marginBottom: '5px' }}>Instructor Feedback:</div>
+                                            <p style={{ margin: '0 0 10px 0', fontSize: '0.9rem' }}>{submissions[activeAssignment._id].feedback}</p>
+                                            <div style={{ fontWeight: 'bold', color: '#2f855a' }}>Score: {submissions[activeAssignment._id].score}/{activeAssignment.maxPoints}</div>
+                                        </div>
+                                    )}
+                                </div>
+                                <button onClick={() => setActiveAssignment(null)} style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0', background: 'white', fontWeight: 'bold', cursor: 'pointer' }}>Close</button>
+                            </div>
+                        ) : (
+                            <form onSubmit={handleSubmit}>
+                                {activeAssignment.type === 'file' ? (
+                                    <div style={{ marginBottom: '24px' }}>
+                                        <label style={{ display: 'block', marginBottom: '10px', fontWeight: 'bold' }}>Upload your file (PDF/Image/Doc)</label>
+                                        <input
+                                            type="file"
+                                            disabled={!!submissions[activeAssignment._id]}
+                                            onChange={(e) => setFile(e.target.files[0])}
+                                            style={{ border: '2px dashed #e2e8f0', padding: '20px', width: '100%', borderRadius: '12px', cursor: !!submissions[activeAssignment._id] ? 'not-allowed' : 'pointer', opacity: !!submissions[activeAssignment._id] ? 0.6 : 1 }}
+                                        />
+                                        {submissions[activeAssignment._id]?.fileUrl && (
+                                            <p style={{ fontSize: '0.8rem', color: '#10b981', marginTop: '10px' }}>Current file: {submissions[activeAssignment._id].fileUrl}</p>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div style={{ marginBottom: '24px' }}>
+                                        <label style={{ display: 'block', marginBottom: '10px', fontWeight: 'bold' }}>Code Editor ({activeAssignment.codingDetails?.language})</label>
+                                        <div style={{ background: '#1a202c', padding: '15px', borderRadius: '15px' }}>
+                                            <textarea
+                                                value={code}
+                                                readOnly={!!submissions[activeAssignment._id]}
+                                                onChange={(e) => setCode(e.target.value)}
+                                                style={{
+                                                    width: '100%',
+                                                    minHeight: '300px',
+                                                    background: 'transparent',
+                                                    color: '#818cf8',
+                                                    border: 'none',
+                                                    outline: 'none',
+                                                    fontFamily: 'monospace',
+                                                    fontSize: '1rem',
+                                                    lineHeight: '1.5',
+                                                    resize: 'vertical',
+                                                    cursor: !!submissions[activeAssignment._id] ? 'default' : 'text'
+                                                }}
+                                                placeholder="Write your code here..."
+                                            />
+                                            <div style={{ marginBottom: '15px' }}>
+                                                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', color: '#4a5568', marginBottom: '8px' }}>Input (Standard Input):</label>
+                                                <textarea
+                                                    value={stdin}
+                                                    readOnly={!!submissions[activeAssignment._id]}
+                                                    onChange={(e) => setStdin(e.target.value)}
+                                                    placeholder="Enter inputs here (e.g. 29 for prime check)..."
+                                                    style={{
+                                                        width: '100%',
+                                                        height: '60px',
+                                                        background: '#f8fafc',
+                                                        border: '1px solid #e2e8f0',
+                                                        borderRadius: '8px',
+                                                        padding: '10px',
+                                                        fontSize: '0.9rem',
+                                                        fontFamily: 'monospace',
+                                                        resize: 'none',
+                                                        outline: 'none',
+                                                        cursor: !!submissions[activeAssignment._id] ? 'default' : 'text'
+                                                    }}
+                                                />
+                                            </div>
+
+                                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '10px', gap: '10px' }}>
+                                                {/* Test Case Run Button */}
+                                                {activeAssignment.codingDetails?.testCases?.length > 0 && (
+                                                    <button
+                                                        type="button"
+                                                        disabled={isRunningTests || isExecuting}
+                                                        onClick={handleRunTests}
+                                                        style={{ padding: '8px 16px', background: '#805AD5', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.8rem' }}
+                                                    >
+                                                        {isRunningTests ? 'Running Tests...' : '⚡ Run Test Cases'}
+                                                    </button>
+                                                )}
+
+                                                <button
+                                                    type="button"
+                                                    disabled={isExecuting || isRunningTests}
+                                                    onClick={handleRunCode}
+                                                    style={{ padding: '8px 16px', background: '#38B2AC', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.8rem' }}
+                                                >
+                                                    {isExecuting ? 'Running...' : '▶ Compile & Run'}
+                                                </button>
+                                            </div>
+
+                                            {executionResult && (
+                                                <div style={{ marginTop: '20px' }}>
+                                                    <p style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#4a5568', marginBottom: '8px' }}>Execution Output:</p>
+                                                    <div style={{
+                                                        background: '#1a202c',
+                                                        padding: '15px',
+                                                        borderRadius: '12px',
+                                                        color: '#e2e8f0',
+                                                        fontFamily: 'monospace',
+                                                        fontSize: '0.9rem',
+                                                        maxHeight: '200px',
+                                                        overflowY: 'auto',
+                                                        whiteSpace: 'pre-wrap',
+                                                        border: '1px solid #4a5568'
+                                                    }}>
+                                                        {executionResult.output}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {testResults && (
+                                                <div style={{ marginTop: '20px' }}>
+                                                    <p style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#4a5568', marginBottom: '8px' }}>Test Case Results:</p>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                                        {testResults.map((res, idx) => (
+                                                            <div key={idx} style={{
+                                                                background: '#1a202c',
+                                                                padding: '12px',
+                                                                borderRadius: '8px',
+                                                                borderLeft: `4px solid ${res.passed ? '#48BB78' : '#F56565'}`
+                                                            }}>
+                                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
+                                                                    <span style={{ fontWeight: 'bold', color: res.passed ? '#48BB78' : '#F56565', fontSize: '0.85rem' }}>
+                                                                        Test Case #{idx + 1}: {res.passed ? 'PASSED' : 'FAILED'}
+                                                                    </span>
+                                                                </div>
+                                                                {!res.passed && (
+                                                                    <div style={{ fontSize: '0.8rem', color: '#cbd5e0' }}>
+                                                                        <div><strong>Input:</strong> {res.input}</div>
+                                                                        <div><strong>Expected:</strong> {res.expectedOutput}</div>
+                                                                        <div><strong>Actual:</strong> {res.actualOutput || '(No Output)'}</div>
+                                                                        {res.error && <div style={{ color: '#fc8181', marginTop: '4px' }}><strong>Error:</strong> {res.error}</div>}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div style={{ display: 'flex', gap: '15px' }}>
+                                    <button type="button" onClick={() => setActiveAssignment(null)} style={{ flex: 1, padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0', background: 'white', fontWeight: 'bold' }}>Close</button>
+                                    {!submissions[activeAssignment._id] && (
+                                        <button
+                                            disabled={submitting}
+                                            type="submit"
+                                            style={{ flex: 1, padding: '14px', borderRadius: '12px', border: 'none', background: '#6366f1', color: 'white', fontWeight: 'bold' }}
+                                        >
+                                            {submitting ? 'Submitting...' : 'Submit Assignment'}
+                                        </button>
+                                    )}
+                                </div>
+                            </form>
+                        )}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// --- NEW SECTION: Profile View ---
+const ProfileSection = ({ userId }) => {
+    const sessionUser = JSON.parse(localStorage.getItem('user') || '{}');
+    const [profile, setProfile] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    useEffect(() => {
+        const fetchProfile = async () => {
+            if (!userId || userId === 'undefined') {
+                console.warn('[PROFILE] No valid userId provided for student. Falling back to session data.');
+                setProfile(sessionUser);
+                setLoading(false);
+                return;
+            }
+
+            try {
+                console.log(`[PROFILE] Fetching student profile for: ${userId}`);
+                const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+                const res = await axios.get(`${apiUrl}/api/auth/profile/${userId}`);
+                console.log('[PROFILE] Data received from API:', res.data);
+                setProfile(res.data);
+            } catch (err) {
+                console.error('[PROFILE] Error fetching student profile:', err);
+                console.error('[PROFILE] Error response:', err.response?.data);
+                setError(err.message);
+                // Fallback to session user
+                setProfile(sessionUser);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchProfile();
+    }, [userId]);
+
+    if (loading) return <div style={{ textAlign: 'center', padding: '50px' }}>Loading profile...</div>;
+
+    if (!profile || !profile.name) {
+        return (
+            <div style={{ textAlign: 'center', padding: '50px' }}>
+                <h3>Profile not found</h3>
+                <p style={{ color: '#718096' }}>Please try logging out and logging in again.</p>
+                {error && <p style={{ fontSize: '0.8rem', color: '#e53e3e' }}>Error: {error}</p>}
+            </div>
+        );
+    }
+
+    return (
+        <div style={{ maxWidth: '800px', margin: '0 auto', background: 'white', padding: '40px', borderRadius: '25px', boxShadow: '0 10px 25px rgba(0,0,0,0.05)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '30px', marginBottom: '40px', borderBottom: '1px solid #edf2f7', paddingBottom: '30px' }}>
+                <div style={{ width: '100px', height: '100px', borderRadius: '30px', background: 'linear-gradient(135deg, #6C63FF 0%, #4338CA 100%)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.5rem', fontWeight: 'bold', boxShadow: '0 10px 20px rgba(108, 99, 255, 0.2)' }}>
+                    {profile.name ? profile.name.charAt(0).toUpperCase() : '?'}
+                </div>
+                <div>
+                    <h2 style={{ fontSize: '2rem', margin: '0 0 5px 0', color: '#2d3748' }}>{profile.name}</h2>
+                    <p style={{ margin: 0, color: '#6C63FF', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '1px', fontSize: '0.9rem' }}>{profile.role}</p>
                 </div>
             </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px' }}>
+                <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '15px', border: '1px solid #edf2f7' }}>
+                    <label style={{ display: 'block', fontSize: '0.8rem', color: '#718096', marginBottom: '5px', fontWeight: '600' }}>Email Address</label>
+                    <div style={{ fontSize: '1.1rem', color: '#2d3748', fontWeight: '500' }}>{profile.email}</div>
+                </div>
+                <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '15px', border: '1px solid #edf2f7' }}>
+                    <label style={{ display: 'block', fontSize: '0.8rem', color: '#718096', marginBottom: '5px', fontWeight: '600' }}>Joined Date</label>
+                    <div style={{ fontSize: '1.1rem', color: '#2d3748', fontWeight: '500' }}>
+                        {profile.createdAt ? new Date(profile.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : 'Recently Joined'}
+                    </div>
+                </div>
+                <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '15px', border: '1px solid #edf2f7' }}>
+                    <label style={{ display: 'block', fontSize: '0.8rem', color: '#718096', marginBottom: '5px', fontWeight: '600' }}>Account Activity</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981' }}></div>
+                        <div style={{ fontSize: '1rem', color: '#10b981', fontWeight: '700' }}>Active</div>
+                    </div>
+                </div>
+                <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '15px', border: '1px solid #edf2f7' }}>
+                    <label style={{ display: 'block', fontSize: '0.8rem', color: '#718096', marginBottom: '5px', fontWeight: '600' }}>Enrollment Number</label>
+                    <div style={{ fontSize: '1.1rem', color: '#2d3748', fontWeight: '500' }}>{profile.enrollment || 'Not Assigned'}</div>
+                </div>
+                <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '15px', border: '1px solid #edf2f7' }}>
+                    <label style={{ display: 'block', fontSize: '0.8rem', color: '#718096', marginBottom: '5px', fontWeight: '600' }}>Branch</label>
+                    <div style={{ fontSize: '1.1rem', color: '#2d3748', fontWeight: '500' }}>{profile.branch || 'Not Assigned'}</div>
+                </div>
+            </div>
+
+            <div style={{ marginTop: '40px', padding: '20px', background: 'rgba(108, 99, 255, 0.05)', borderRadius: '15px', border: '1px dashed #6C63FF' }}>
+                <p style={{ margin: 0, color: '#4a5568', fontSize: '0.9rem', textAlign: 'center' }}>
+                    Continue your learning adventure with LMS Student. Your path to excellence starts here!
+                </p>
+            </div>
+            {error && (
+                <div style={{ marginTop: '20px', padding: '10px', background: '#fff5f5', color: '#c53030', fontSize: '0.75rem', borderRadius: '8px', textAlign: 'center' }}>
+                    Note: Using offline session data. (Original error: {error})
+                </div>
+            )}
+        </div>
+    );
+};
+
+export default StudentDashboard;
+
+const generateCertificate = (studentName, courseName) => {
+    const doc = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4'
+    });
+
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+
+    // --- Border & Background ---
+    doc.setDrawColor(74, 85, 104); // Dark border
+    doc.setLineWidth(5);
+    doc.rect(5, 5, pageWidth - 10, pageHeight - 10);
+
+    doc.setDrawColor(108, 99, 255); // Inner purple border
+    doc.setLineWidth(1);
+    doc.rect(10, 10, pageWidth - 20, pageHeight - 20);
+
+    // --- Header ---
+    doc.setTextColor(108, 99, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(40);
+    doc.text('CERTIFICATE OF COMPLETION', pageWidth / 2, 45, { align: 'center' });
+
+    doc.setTextColor(74, 85, 104);
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'normal');
+    doc.text('This is to certify that', pageWidth / 2, 70, { align: 'center' });
+
+    // --- Student Name ---
+    doc.setTextColor(0, 0, 0);
+    doc.setFont('helvetica', 'bolditalic');
+    doc.setFontSize(35);
+    doc.text(studentName.toUpperCase(), pageWidth / 2, 95, { align: 'center' });
+
+    // --- Body ---
+    doc.setTextColor(74, 85, 104);
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'normal');
+    doc.text('has successfully completed the course', pageWidth / 2, 115, { align: 'center' });
+
+    // --- Course Name ---
+    doc.setTextColor(108, 99, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(26);
+    doc.text(courseName, pageWidth / 2, 135, { align: 'center' });
+
+    // --- Footer & Date ---
+    doc.setTextColor(113, 128, 150);
+    doc.setFontSize(12);
+    const date = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+    doc.text(`Issued on: ${date}`, pageWidth / 2, 160, { align: 'center' });
+
+    // --- Signature ---
+    doc.setDrawColor(203, 213, 224);
+    doc.line(pageWidth / 2 - 30, 185, pageWidth / 2 + 30, 185);
+    doc.setFontSize(10);
+    doc.text('Authorized Signature', pageWidth / 2, 192, { align: 'center' });
+
+    // --- ID Placeholder ---
+    const certId = 'CERT-' + Math.random().toString(36).substr(2, 9).toUpperCase();
+    doc.setFontSize(8);
+    doc.text(`Verify at: lms.example.com/verify | ID: ${certId}`, 15, pageHeight - 15);
+
+    doc.save(`${studentName}_${courseName}_Certificate.pdf`);
+};
+
+const CertificatesSection = ({ courses, allProgress, user }) => {
+    const checkCompletion = (course) => {
+        const progress = allProgress.find(p => p.course.toString() === course._id.toString());
+        if (!progress) return 0;
+
+        const allContents = course.chapters.flatMap(c => c.modules.flatMap(m => m.contents)) || [];
+        const allQuizzes = course.chapters.flatMap(c => c.modules || []).filter(m => m.quiz?.questions?.length > 0) || [];
+        const totalItems = allContents.length + allQuizzes.length;
+
+        if (totalItems === 0) return 0;
+
+        let completedItems = 0;
+        allContents.forEach(content => {
+            if (progress.contentProgress?.some(cp => cp.contentId.toString() === content._id.toString() && cp.isCompleted)) {
+                completedItems++;
+            }
+        });
+
+        allQuizzes.forEach(module => {
+            if (progress.completedModules?.some(cm => cm.moduleId.toString() === module._id.toString())) {
+                completedItems++;
+            }
+        });
+
+        return Math.floor((completedItems / totalItems) * 100);
+    };
+
+    const completedCourses = courses.filter(course => {
+        const percent = checkCompletion(course);
+        return percent === 100 && course.chapters.flatMap(c => c.modules).length > 0;
+    });
+
+    return (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '25px' }}>
+            {completedCourses.length > 0 ? (
+                completedCourses.map(course => (
+                    <div
+                        key={course._id}
+                        style={{
+                            background: 'white',
+                            padding: '25px',
+                            borderRadius: '15px',
+                            boxShadow: '0 4px 6px rgba(0,0,0,0.05)',
+                            border: '1px solid #edf2f7',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            textAlign: 'center'
+                        }}
+                    >
+                        <div style={{ fontSize: '3rem', marginBottom: '15px' }}>🏆</div>
+                        <h3 style={{ margin: '0 0 10px 0', fontSize: '1.2rem', color: '#2d3748' }}>{course.subject}</h3>
+                        <p style={{ fontSize: '0.85rem', color: '#718096', marginBottom: '20px' }}>
+                            Congratulations! You have successfully mastered this course.
+                        </p>
+                        <button
+                            onClick={() => generateCertificate(user.name, course.subject)}
+                            style={{
+                                background: '#6C63FF',
+                                color: 'white',
+                                border: 'none',
+                                padding: '10px 20px',
+                                borderRadius: '8px',
+                                cursor: 'pointer',
+                                fontWeight: 'bold',
+                                width: '100%',
+                                transition: 'background 0.2s'
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.background = '#5A52E5'}
+                            onMouseLeave={e => e.currentTarget.style.background = '#6C63FF'}
+                        >
+                            Download Certificate (PDF)
+                        </button>
+                    </div>
+                ))
+            ) : (
+                <div style={{
+                    gridColumn: '1 / -1',
+                    padding: '60px',
+                    textAlign: 'center',
+                    background: '#fff',
+                    borderRadius: '15px',
+                    border: '2px dashed #edf2f7'
+                }}>
+                    <div style={{ fontSize: '3rem', marginBottom: '20px' }}>🎓</div>
+                    <h3 style={{ color: '#2d3748', marginBottom: '10px' }}>No Certificates Yet</h3>
+                    <p style={{ color: '#a0aec0', margin: 0 }}>
+                        Complete all modules and quizzes in a course to unlock your official certificate.
+                    </p>
+                </div>
+            )}
         </div>
     );
 };
@@ -865,137 +2008,328 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
 const MyCoursesSection = ({ courses, allProgress, onSelectCourse }) => {
     const calculateProgress = (course) => {
         const progress = allProgress.find(p => p.course.toString() === course._id.toString());
-        if (!progress) return { percent: 0, hasActivity: false };
+        if (!progress) return 0;
 
-        const allContents = course.chapters?.flatMap(c => c.modules?.flatMap(m => m.contents) || []) || [];
-        const allQuizzes = course.chapters?.flatMap(c => c.modules || []).filter(m => m.quiz?.questions?.length > 0) || [];
-
+        const allContents = course.chapters.flatMap(c => c.modules.flatMap(m => m.contents)) || [];
+        const allQuizzes = course.chapters.flatMap(c => c.modules || []).filter(m => m.quiz?.questions?.length > 0) || [];
         const totalItems = allContents.length + allQuizzes.length;
-        if (totalItems === 0) return { percent: 0, hasActivity: false };
 
-        let totalPoints = 0;
+        if (totalItems === 0) return 0;
+
+        let completedItems = 0;
         allContents.forEach(content => {
-            const cp = progress.contentProgress?.find(p => p.contentId?.toString() === content._id?.toString());
-            if (cp) {
-                if (cp.isCompleted) totalPoints += 1;
-                else if (content.minTime > 0) totalPoints += Math.min(0.9, cp.timeSpent / content.minTime);
-                else if (cp.timeSpent > 0) totalPoints += 0.1;
+            if (progress.contentProgress?.some(cp => cp.contentId.toString() === content._id.toString() && cp.isCompleted)) {
+                completedItems++;
             }
         });
 
-        const passedQuizzes = allQuizzes.filter(module =>
-            progress.completedModules?.some(cm => cm.moduleId?.toString() === module._id?.toString())
-        ).length;
-        totalPoints += passedQuizzes;
+        allQuizzes.forEach(module => {
+            if (progress.completedModules?.some(cm => cm.moduleId.toString() === module._id.toString())) {
+                completedItems++;
+            }
+        });
 
-        const hasAnyTimeSpent = progress.contentProgress?.some(cp => cp.timeSpent > 0);
-        const hasAnyQuizAttempt = progress.completedModules?.length > 0;
-        const percent = Math.min(100, Math.round((totalPoints / totalItems) * 100));
-
-        return { percent, hasActivity: hasAnyTimeSpent || hasAnyQuizAttempt || percent > 0 };
+        return Math.min(100, Math.round((completedItems / totalItems) * 100));
     };
 
-    const categorizedCourses = courses.reduce((acc, course) => {
-        const { percent, hasActivity } = calculateProgress(course);
-        const isCompleted = percent === 100 && course.chapters.flatMap(c => c.modules).length > 0;
-
-        if (hasActivity) {
-            if (isCompleted) {
-                acc.completed.push({ ...course, progressPercent: percent });
-            } else {
-                acc.inProgress.push({ ...course, progressPercent: percent });
-            }
-        }
-        return acc;
-    }, { inProgress: [], completed: [] });
-
-    const renderCourseCard = (course) => (
-        <div
-            key={course._id}
-            onClick={() => onSelectCourse(course)}
-            style={{
-                background: 'white',
-                padding: '20px',
-                borderRadius: '15px',
-                boxShadow: '0 4px 6px rgba(0,0,0,0.05)',
-                cursor: 'pointer',
-                border: '1px solid #edf2f7',
-                transition: 'transform 0.2s'
-            }}
-            onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-5px)'}
-            onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
-        >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '15px' }}>
-                <h3 style={{ margin: 0, fontSize: '1.1rem', color: '#2d3748' }}>{course.subject}</h3>
-                <span style={{
-                    fontSize: '0.75rem',
-                    padding: '4px 8px',
-                    background: course.progressPercent === 100 ? '#C6F6D5' : '#EBF8FF',
-                    color: course.progressPercent === 100 ? '#22543D' : '#2A4365',
-                    borderRadius: '12px',
-                    fontWeight: 'bold'
-                }}>
-                    {course.progressPercent}%
-                </span>
-            </div>
-
-            <div style={{ height: '8px', background: '#edf2f7', borderRadius: '4px', overflow: 'hidden', marginBottom: '15px' }}>
-                <div style={{
-                    height: '100%',
-                    width: `${course.progressPercent}%`,
-                    background: course.progressPercent === 100 ? '#38A169' : '#6C63FF',
-                    transition: 'width 0.5s ease-out'
-                }}></div>
-            </div>
-
-            <div style={{ fontSize: '0.8rem', color: '#718096' }}>
-                Teacher: {course.teacher?.name || 'Unknown'}
-            </div>
-        </div>
-    );
+    const sortedCourses = [...courses].sort((a, b) => {
+        const progressA = calculateProgress(a);
+        const progressB = calculateProgress(b);
+        if (progressA === 100 && progressB < 100) return 1;
+        if (progressA < 100 && progressB === 100) return -1;
+        return 0;
+    });
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '40px' }}>
-            {/* In Progress Section */}
-            <section>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
-                    <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#6C63FF' }}></div>
-                    <h2 style={{ fontSize: '1.25rem', color: '#2d3748', margin: 0 }}>In Progress</h2>
-                    <span style={{ color: '#a0aec0', fontSize: '0.9rem' }}>({categorizedCourses.inProgress.length})</span>
-                </div>
-                {categorizedCourses.inProgress.length > 0 ? (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '25px' }}>
-                        {categorizedCourses.inProgress.map(renderCourseCard)}
-                    </div>
-                ) : (
-                    <div style={{ padding: '40px', textAlign: 'center', background: '#fff', borderRadius: '15px', border: '2px dashed #edf2f7' }}>
-                        <p style={{ color: '#a0aec0', margin: 0 }}>No courses in progress. Start learning from the Dashboard!</p>
-                    </div>
-                )}
-            </section>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '25px' }}>
+            {sortedCourses.length > 0 ? (
+                sortedCourses.map(course => {
+                    const progressPercent = calculateProgress(course);
+                    return (
+                        <div
+                            key={course._id}
+                            style={{
+                                background: 'white',
+                                padding: '25px',
+                                borderRadius: '15px',
+                                boxShadow: '0 4px 6px rgba(0,0,0,0.05)',
+                                border: '1px solid #edf2f7',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                transition: 'transform 0.2s, box-shadow 0.2s',
+                                cursor: 'pointer'
+                            }}
+                            onClick={() => onSelectCourse(course)}
+                            onMouseEnter={e => {
+                                e.currentTarget.style.transform = 'translateY(-5px)';
+                                e.currentTarget.style.boxShadow = '0 10px 15px rgba(0,0,0,0.1)';
+                            }}
+                            onMouseLeave={e => {
+                                e.currentTarget.style.transform = 'translateY(0)';
+                                e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.05)';
+                            }}
+                        >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '15px' }}>
+                                <h3 style={{ margin: 0, fontSize: '1.2rem', color: '#2d3748', fontWeight: '700' }}>{course.subject}</h3>
+                                <span style={{ padding: '4px 10px', background: progressPercent === 100 ? '#C6F6D5' : '#EBF8FF', color: progressPercent === 100 ? '#22543D' : '#2B6CB0', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 'bold' }}>
+                                    {progressPercent === 100 ? 'Completed' : 'In Progress'}
+                                </span>
+                            </div>
 
-            {/* Completed Section */}
-            <section>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
-                    <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#38A169' }}></div>
-                    <h2 style={{ fontSize: '1.25rem', color: '#2d3748', margin: 0 }}>Completed</h2>
-                    <span style={{ color: '#a0aec0', fontSize: '0.9rem' }}>({categorizedCourses.completed.length})</span>
+                            <p style={{ fontSize: '0.85rem', color: '#718096', marginBottom: '20px', flex: 1 }}>
+                                Teacher: {course.teacher?.name || 'Assigned Instructor'}
+                            </p>
+
+                            <div style={{ marginBottom: '10px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                    <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#4a5568' }}>Progress</span>
+                                    <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#6C63FF' }}>{progressPercent}%</span>
+                                </div>
+                                <div style={{ height: '8px', background: '#edf2f7', borderRadius: '4px', overflow: 'hidden' }}>
+                                    <div style={{
+                                        height: '100%',
+                                        width: `${progressPercent}%`,
+                                        background: 'linear-gradient(90deg, #6C63FF, #4834d4)',
+                                        borderRadius: '4px',
+                                        transition: 'width 0.5s ease'
+                                    }}></div>
+                                </div>
+                            </div>
+
+                            <button
+                                style={{
+                                    marginTop: '10px',
+                                    padding: '12px',
+                                    background: '#f8fafc',
+                                    color: '#6C63FF',
+                                    border: '1px solid #6C63FF',
+                                    borderRadius: '10px',
+                                    fontWeight: 'bold',
+                                    cursor: 'pointer',
+                                    fontSize: '0.9rem',
+                                    transition: 'all 0.2s'
+                                }}
+                                onMouseEnter={e => {
+                                    e.currentTarget.style.background = '#6C63FF';
+                                    e.currentTarget.style.color = 'white';
+                                }}
+                                onMouseLeave={e => {
+                                    e.currentTarget.style.background = '#f8fafc';
+                                    e.currentTarget.style.color = '#6C63FF';
+                                }}
+                            >
+                                Continue Learning
+                            </button>
+                        </div>
+                    );
+                })
+            ) : (
+                <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '100px 20px' }}>
+                    <div style={{ fontSize: '4rem', marginBottom: '20px' }}>📚</div>
+                    <h2 style={{ color: '#2d3748' }}>No Courses Enrolled</h2>
+                    <p style={{ color: '#718096' }}>You haven't enrolled in any courses yet. Visit the Dashboard to find and start a course!</p>
                 </div>
-                {categorizedCourses.completed.length > 0 ? (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '25px' }}>
-                        {categorizedCourses.completed.map(renderCourseCard)}
-                    </div>
-                ) : (
-                    <div style={{ padding: '40px', textAlign: 'center', background: '#fff', borderRadius: '15px', border: '2px dashed #edf2f7' }}>
-                        <p style={{ color: '#a0aec0', margin: 0 }}>No courses completed yet. Keep going! 🚀</p>
-                    </div>
-                )}
-            </section>
+            )}
         </div>
     );
 };
 
-const QuizViewer = ({ quiz, isFastTrack, alreadyPassed, onSubmit, onClose }) => {
+const GradesSection = ({ courses, allProgress }) => {
+    // Build a comprehensive grade report
+    const gradeData = courses.map(course => {
+        const progress = allProgress.find(p => p.course.toString() === course._id.toString());
+
+        // Get all modules with quizzes
+        const moduleGrades = [];
+        course.chapters.forEach(chapter => {
+            chapter.modules.forEach(module => {
+                // Only include modules that have quizzes added by teacher
+                if (module.quiz && module.quiz.questions && module.quiz.questions.length > 0) {
+                    // Check if student has completed this quiz
+                    const completedModule = progress?.completedModules?.find(
+                        cm => cm.moduleId.toString() === module._id.toString()
+                    );
+
+                    moduleGrades.push({
+                        chapterTitle: chapter.title,
+                        moduleTitle: module.title,
+                        quizExists: true,
+                        score: completedModule?.score || null,
+                        isFastTracked: completedModule?.isFastTracked || false,
+                        completedAt: completedModule?.completedAt || null
+                    });
+                }
+            });
+        });
+
+        return {
+            courseName: course.subject,
+            teacher: course.teacher?.name || 'Unknown',
+            moduleGrades
+        };
+    }).filter(course => course.moduleGrades.length > 0); // Only show courses with quizzes
+
+    return (
+        <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+            <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+                <div style={{ fontSize: '3rem', marginBottom: '15px' }}>📊</div>
+                <h2 style={{ fontSize: '1.8rem', color: '#2D3748', marginBottom: '10px' }}>My Grades</h2>
+                <p style={{ color: '#718096' }}>View your quiz scores across all courses</p>
+            </div>
+
+            {gradeData.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+                    {gradeData.map((courseData, idx) => (
+                        <div
+                            key={idx}
+                            style={{
+                                background: 'white',
+                                padding: '30px',
+                                borderRadius: '15px',
+                                boxShadow: '0 4px 6px rgba(0,0,0,0.05)',
+                                border: '1px solid #edf2f7'
+                            }}
+                        >
+                            {/* Course Header */}
+                            <div style={{ marginBottom: '25px', paddingBottom: '15px', borderBottom: '2px solid #edf2f7' }}>
+                                <h3 style={{ margin: '0 0 8px 0', fontSize: '1.4rem', color: '#2d3748', fontWeight: '700' }}>
+                                    {courseData.courseName}
+                                </h3>
+                                <p style={{ margin: 0, fontSize: '0.9rem', color: '#718096' }}>
+                                    Teacher: {courseData.teacher}
+                                </p>
+                            </div>
+
+                            {/* Grades Table */}
+                            <div style={{ overflowX: 'auto' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                    <thead>
+                                        <tr style={{ background: '#f8fafc', borderBottom: '2px solid #edf2f7' }}>
+                                            <th style={{ padding: '12px', textAlign: 'left', fontSize: '0.85rem', fontWeight: '700', color: '#4a5568' }}>Chapter</th>
+                                            <th style={{ padding: '12px', textAlign: 'left', fontSize: '0.85rem', fontWeight: '700', color: '#4a5568' }}>Module</th>
+                                            <th style={{ padding: '12px', textAlign: 'center', fontSize: '0.85rem', fontWeight: '700', color: '#4a5568' }}>Quiz Score</th>
+                                            <th style={{ padding: '12px', textAlign: 'center', fontSize: '0.85rem', fontWeight: '700', color: '#4a5568' }}>Status</th>
+                                            <th style={{ padding: '12px', textAlign: 'center', fontSize: '0.85rem', fontWeight: '700', color: '#4a5568' }}>Completed</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {courseData.moduleGrades.map((module, mIdx) => (
+                                            <tr
+                                                key={mIdx}
+                                                style={{
+                                                    borderBottom: '1px solid #edf2f7',
+                                                    transition: 'background 0.2s'
+                                                }}
+                                                onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
+                                                onMouseLeave={e => e.currentTarget.style.background = 'white'}
+                                            >
+                                                <td style={{ padding: '15px', fontSize: '0.9rem', color: '#4a5568' }}>
+                                                    {module.chapterTitle}
+                                                </td>
+                                                <td style={{ padding: '15px', fontSize: '0.9rem', color: '#2d3748', fontWeight: '600' }}>
+                                                    {module.moduleTitle}
+                                                </td>
+                                                <td style={{ padding: '15px', textAlign: 'center' }}>
+                                                    {module.score !== null ? (
+                                                        <span style={{
+                                                            fontSize: '1.1rem',
+                                                            fontWeight: 'bold',
+                                                            color: module.score >= 70 ? '#38A169' : '#E53E3E'
+                                                        }}>
+                                                            {module.score}%
+                                                        </span>
+                                                    ) : (
+                                                        <span style={{ fontSize: '0.85rem', color: '#a0aec0', fontStyle: 'italic' }}>
+                                                            Not Attempted
+                                                        </span>
+                                                    )}
+                                                </td>
+                                                <td style={{ padding: '15px', textAlign: 'center' }}>
+                                                    {module.score !== null ? (
+                                                        <span style={{
+                                                            padding: '4px 12px',
+                                                            borderRadius: '20px',
+                                                            fontSize: '0.75rem',
+                                                            fontWeight: 'bold',
+                                                            background: module.score >= 70 ? '#C6F6D5' : '#FED7D7',
+                                                            color: module.score >= 70 ? '#22543D' : '#742A2A'
+                                                        }}>
+                                                            {module.score >= 70 ? (module.isFastTracked ? '⚡ Fast Track' : '✓ Passed') : '✗ Failed'}
+                                                        </span>
+                                                    ) : (
+                                                        <span style={{
+                                                            padding: '4px 12px',
+                                                            borderRadius: '20px',
+                                                            fontSize: '0.75rem',
+                                                            fontWeight: 'bold',
+                                                            background: '#EDF2FF',
+                                                            color: '#4338CA'
+                                                        }}>
+                                                            Pending
+                                                        </span>
+                                                    )}
+                                                </td>
+                                                <td style={{ padding: '15px', textAlign: 'center', fontSize: '0.85rem', color: '#718096' }}>
+                                                    {module.completedAt
+                                                        ? new Date(module.completedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+                                                        : '—'}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Course Summary */}
+                            <div style={{ marginTop: '20px', padding: '15px', background: '#f8fafc', borderRadius: '10px', display: 'flex', gap: '30px', justifyContent: 'center' }}>
+                                <div style={{ textAlign: 'center' }}>
+                                    <div style={{ fontSize: '0.75rem', color: '#718096', marginBottom: '5px', fontWeight: '600' }}>Total Quizzes</div>
+                                    <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#2d3748' }}>{courseData.moduleGrades.length}</div>
+                                </div>
+                                <div style={{ textAlign: 'center' }}>
+                                    <div style={{ fontSize: '0.75rem', color: '#718096', marginBottom: '5px', fontWeight: '600' }}>Completed</div>
+                                    <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#38A169' }}>
+                                        {courseData.moduleGrades.filter(m => m.score !== null).length}
+                                    </div>
+                                </div>
+                                <div style={{ textAlign: 'center' }}>
+                                    <div style={{ fontSize: '0.75rem', color: '#718096', marginBottom: '5px', fontWeight: '600' }}>Average Score</div>
+                                    <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#6C63FF' }}>
+                                        {courseData.moduleGrades.filter(m => m.score !== null).length > 0
+                                            ? Math.round(
+                                                courseData.moduleGrades
+                                                    .filter(m => m.score !== null)
+                                                    .reduce((sum, m) => sum + m.score, 0) /
+                                                courseData.moduleGrades.filter(m => m.score !== null).length
+                                            ) + '%'
+                                            : '—'}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                <div style={{
+                    gridColumn: '1 / -1',
+                    padding: '60px',
+                    textAlign: 'center',
+                    background: '#fff',
+                    borderRadius: '15px',
+                    border: '2px dashed #edf2f7'
+                }}>
+                    <div style={{ fontSize: '3rem', marginBottom: '20px' }}>📝</div>
+                    <h3 style={{ color: '#2d3748', marginBottom: '10px' }}>No Quizzes Yet</h3>
+                    <p style={{ color: '#a0aec0', margin: 0 }}>
+                        Your teachers haven't added any quizzes yet, or you haven't enrolled in courses with quizzes.
+                    </p>
+                </div>
+            )}
+        </div>
+    );
+};
+
+const QuizViewer = ({ quiz, isFastTrack, alreadyPassed, savedScore, onSubmit, onClose }) => {
     const [answers, setAnswers] = useState({});
     const [submitted, setSubmitted] = useState(false);
     const [currentScore, setCurrentScore] = useState(0);
@@ -1003,11 +2337,13 @@ const QuizViewer = ({ quiz, isFastTrack, alreadyPassed, onSubmit, onClose }) => 
     useEffect(() => {
         console.log('Quiz Data received in Viewer:', quiz);
         console.log('Already Passed Status:', alreadyPassed);
+        console.log('Saved Score from DB:', savedScore);
+
         // Reset state when new questions are loaded
         setAnswers({});
-        setSubmitted(false);
-        setCurrentScore(0);
-    }, [quiz, alreadyPassed]);
+        setSubmitted(alreadyPassed); // Mark as submitted if already passed
+        setCurrentScore(savedScore || 0); // Use saved score if available, otherwise 0
+    }, [quiz, alreadyPassed, savedScore]);
 
     const requiredScore = isFastTrack ? (quiz.fastTrackScore || 85) : (quiz.passingScore || 70);
     const isPassed = alreadyPassed || (submitted && currentScore >= requiredScore);
@@ -1144,153 +2480,343 @@ const QuizViewer = ({ quiz, isFastTrack, alreadyPassed, onSubmit, onClose }) => 
     );
 };
 
-export default StudentDashboard;
+const RoadmapSection = ({
+    courses = [],
+    allProgress = [],
+    dailyHours,
+    setDailyHours,
+    weekendHours,
+    setWeekendHours
+}) => {
+    const [goal, setGoal] = useState('');
+    const [selectedCourseIds, setSelectedCourseIds] = useState([]);
+    const [roadmap, setRoadmap] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [revisionMode, setRevisionMode] = useState(false);
+    const [showGapModal, setShowGapModal] = useState(false);
+    const [missedDaysCount, setMissedDaysCount] = useState(0);
 
-const generateCertificate = (studentName, courseName) => {
-    const doc = new jsPDF({
-        orientation: 'landscape',
-        unit: 'mm',
-        format: 'a4'
-    });
+    const checkStudyGap = () => {
+        if (allProgress.length === 0 || selectedCourseIds.length === 0) return;
 
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
+        // Check activity for "Yesterday"
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        const dateStr = yesterday.toISOString().split('T')[0];
+        const dayOfWeek = yesterday.getDay(); // 0 is Sunday, 6 is Saturday
+        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
-    // --- Border & Background ---
-    doc.setDrawColor(74, 85, 104); // Dark border
-    doc.setLineWidth(5);
-    doc.rect(5, 5, pageWidth - 10, pageHeight - 10);
+        const targetHours = isWeekend ? weekendHours : dailyHours;
+        const thresholdMinutes = targetHours * 60 * 0.5;
 
-    doc.setDrawColor(108, 99, 255); // Inner purple border
-    doc.setLineWidth(1);
-    doc.rect(10, 10, pageWidth - 20, pageHeight - 20);
+        // Sum minutes from all selected courses for yesterday
+        let totalMinutesYesterday = 0;
+        selectedCourseIds.forEach(courseId => {
+            const progress = allProgress.find(p => p.course.toString() === courseId.toString());
+            const yesterdayActivity = progress?.dailyActivity?.find(a => a.date === dateStr);
+            if (yesterdayActivity) {
+                totalMinutesYesterday += yesterdayActivity.minutes;
+            }
+        });
 
-    // --- Header ---
-    doc.setTextColor(108, 99, 255);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(40);
-    doc.text('CERTIFICATE OF COMPLETION', pageWidth / 2, 45, { align: 'center' });
-
-    doc.setTextColor(74, 85, 104);
-    doc.setFontSize(18);
-    doc.setFont('helvetica', 'normal');
-    doc.text('This is to certify that', pageWidth / 2, 70, { align: 'center' });
-
-    // --- Student Name ---
-    doc.setTextColor(0, 0, 0);
-    doc.setFont('helvetica', 'bolditalic');
-    doc.setFontSize(35);
-    doc.text(studentName.toUpperCase(), pageWidth / 2, 95, { align: 'center' });
-
-    // --- Body ---
-    doc.setTextColor(74, 85, 104);
-    doc.setFontSize(18);
-    doc.setFont('helvetica', 'normal');
-    doc.text('has successfully completed the course', pageWidth / 2, 115, { align: 'center' });
-
-    // --- Course Name ---
-    doc.setTextColor(108, 99, 255);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(26);
-    doc.text(courseName, pageWidth / 2, 135, { align: 'center' });
-
-    // --- Footer & Date ---
-    doc.setTextColor(113, 128, 150);
-    doc.setFontSize(12);
-    const date = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
-    doc.text(`Issued on: ${date}`, pageWidth / 2, 160, { align: 'center' });
-
-    // --- Signature ---
-    doc.setDrawColor(203, 213, 224);
-    doc.line(pageWidth / 2 - 30, 185, pageWidth / 2 + 30, 185);
-    doc.setFontSize(10);
-    doc.text('Authorized Signature', pageWidth / 2, 192, { align: 'center' });
-
-    // --- ID Placeholder ---
-    const certId = 'CERT-' + Math.random().toString(36).substr(2, 9).toUpperCase();
-    doc.setFontSize(8);
-    doc.text(`Verify at: lms.example.com/verify | ID: ${certId}`, 15, pageHeight - 15);
-
-    doc.save(`${studentName}_${courseName}_Certificate.pdf`);
-};
-
-const CertificatesSection = ({ courses, allProgress, user }) => {
-    const checkCompletion = (course) => {
-        const progress = allProgress.find(p => p.course.toString() === course._id.toString());
-        if (!progress) return 0;
-
-        const allContents = course.chapters.flatMap(c => c.modules.flatMap(m => m.contents));
-        if (allContents.length === 0) return 0;
-
-        const completedContentsCount = allContents.filter(content =>
-            progress.contentProgress?.some(cp => cp.contentId.toString() === content._id.toString() && cp.isCompleted)
-        ).length;
-
-        return Math.round((completedContentsCount / allContents.length) * 100);
+        if (totalMinutesYesterday < thresholdMinutes) {
+            setMissedDaysCount(1); // For now, we just track yesterday. Could be expanded.
+            setShowGapModal(true);
+        } else {
+            generateRoadmapInternal(0);
+        }
     };
 
-    const completedCourses = courses.filter(course => {
-        const percent = checkCompletion(course);
-        return percent === 100 && course.chapters.flatMap(c => c.modules).length > 0;
-    });
+    const generateRoadmap = async () => {
+        console.log('[Roadmap] Generate button clicked');
+        console.log('[Roadmap] Goal:', goal);
+        console.log('[Roadmap] Selected Courses:', selectedCourseIds);
+
+        if (!goal.trim()) {
+            alert('Please enter a career goal or topic!');
+            return;
+        }
+        if (selectedCourseIds.length === 0) {
+            alert('Please select at least one course!');
+            return;
+        }
+
+        console.log('[Roadmap] Validation passed, checking study gap...');
+        // Trigger Gap Check first
+        checkStudyGap();
+    };
+
+    const generateRoadmapInternal = async (missed = 0) => {
+        console.log('[Roadmap] Starting internal generation with missed days:', missed);
+        setLoading(true);
+        try {
+            const token = localStorage.getItem('token');
+            console.log('[Roadmap] Token found:', token ? 'Yes' : 'No');
+
+            if (!token) {
+                alert('Session expired. Please log in again.');
+                setLoading(false);
+                return;
+            }
+
+            // Extract progress for all selected courses
+            const courseProgressData = selectedCourseIds.map(courseId => {
+                const progress = allProgress.find(p => p.course.toString() === courseId.toString());
+                return {
+                    courseId,
+                    completedModules: progress?.completedModules?.map(m => m.moduleId.toString()) || []
+                };
+            });
+
+            console.log('[Roadmap] Sending request to API...');
+            const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/ai/generate-roadmap`,
+                {
+                    goal,
+                    courseIds: selectedCourseIds,
+                    revisionMode,
+                    dailyHours,
+                    weekendHours,
+                    courseProgressData,
+                    missedDays: missed
+                },
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            console.log('[Roadmap] Received response:', res.data);
+            setRoadmap(res.data.data);
+        } catch (err) {
+            console.error('[Roadmap] Error details:', err);
+            console.error('[Roadmap] Error response:', err.response);
+
+            if (err.response?.status === 401) {
+                alert('Your session has expired. Please log out and log in again.');
+            } else {
+                alert(`Failed to generate roadmap: ${err.response?.data?.message || err.message}`);
+            }
+        } finally {
+            setLoading(false);
+        }
+    };
 
     return (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '25px' }}>
-            {completedCourses.length > 0 ? (
-                completedCourses.map(course => (
-                    <div
-                        key={course._id}
-                        style={{
-                            background: 'white',
-                            padding: '25px',
-                            borderRadius: '15px',
-                            boxShadow: '0 4px 6px rgba(0,0,0,0.05)',
-                            border: '1px solid #edf2f7',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            textAlign: 'center'
-                        }}
-                    >
-                        <div style={{ fontSize: '3rem', marginBottom: '15px' }}>🏆</div>
-                        <h3 style={{ margin: '0 0 10px 0', fontSize: '1.2rem', color: '#2d3748' }}>{course.subject}</h3>
-                        <p style={{ fontSize: '0.85rem', color: '#718096', marginBottom: '20px' }}>
-                            Congratulations! You have successfully mastered this course.
+        <div style={{ background: 'white', padding: '30px', borderRadius: '15px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
+            <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+                <div style={{ fontSize: '3rem', marginBottom: '15px' }}>🚀</div>
+                <h2 style={{ fontSize: '1.8rem', color: '#2D3748', marginBottom: '10px' }}>AI Career Roadmap Generator</h2>
+                <p style={{ color: '#718096' }}>Tell AI your dream job or topic, and we'll build your learning path.</p>
+            </div>
+
+            <div style={{ maxWidth: '800px', margin: '0 auto', display: 'flex', gap: '20px', marginBottom: '40px', flexDirection: 'column' }}>
+                <div style={{ background: '#f8fafc', padding: '25px', borderRadius: '15px', border: '1px solid #edf2f7' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                        <h3 style={{ fontSize: '1.2rem', margin: 0, color: '#2d3748' }}>📚 Select Subjects to Include</h3>
+                        <div style={{ display: 'flex', gap: '10px' }}>
+                            <button
+                                onClick={() => setSelectedCourseIds(courses.map(c => c._id))}
+                                style={{ background: 'white', border: '1px solid #6C63FF', color: '#6C63FF', padding: '5px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}
+                            >
+                                Select All
+                            </button>
+                            <button
+                                onClick={() => setSelectedCourseIds([])}
+                                style={{ background: 'white', border: '1px solid #e53e3e', color: '#e53e3e', padding: '5px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}
+                            >
+                                Clear All
+                            </button>
+                        </div>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '12px' }}>
+                        {courses.map(course => (
+                            <label key={course._id} style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '10px',
+                                padding: '10px 15px',
+                                background: selectedCourseIds.includes(course._id) ? '#EEF2FF' : 'white',
+                                border: `1px solid ${selectedCourseIds.includes(course._id) ? '#6C63FF' : '#edf2f7'}`,
+                                borderRadius: '10px',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s'
+                            }}>
+                                <input
+                                    type="checkbox"
+                                    checked={selectedCourseIds.includes(course._id)}
+                                    onChange={(e) => {
+                                        if (e.target.checked) {
+                                            setSelectedCourseIds([...selectedCourseIds, course._id]);
+                                        } else {
+                                            setSelectedCourseIds(selectedCourseIds.filter(id => id !== course._id));
+                                        }
+                                    }}
+                                    style={{ width: '18px', height: '18px' }}
+                                />
+                                <span style={{ fontSize: '0.9rem', fontWeight: '600', color: selectedCourseIds.includes(course._id) ? '#4338CA' : '#4A5568' }}>
+                                    {course.subject}
+                                </span>
+                            </label>
+                        ))}
+                    </div>
+                    {courses.length === 0 && <p style={{ color: '#a0aec0', fontSize: '0.9rem' }}>No courses available to select.</p>}
+                </div>
+
+                <div style={{ width: '100%' }}>
+                    <label style={{ fontSize: '0.9rem', fontWeight: 'bold', display: 'block', marginBottom: '8px', color: '#4a5568' }}>🚀 Your Career Goal or Target</label>
+                    <input
+                        type="text"
+                        placeholder="e.g. Master these subjects for upcoming finals in 2 weeks"
+                        value={goal}
+                        onChange={(e) => setGoal(e.target.value)}
+                        style={{ width: '100%', padding: '15px', borderRadius: '12px', border: '2px solid #edf2f7', fontSize: '1rem', outline: 'none' }}
+                    />
+                </div>
+
+                <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '15px', border: '1px solid #edf2f7', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                    {/* Time Inputs Row - Always Visible */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                        <div>
+                            <label style={{ fontSize: '0.85rem', fontWeight: '700', display: 'block', marginBottom: '8px', color: '#4a5568' }}>📅 Weekday Study (Hours)</label>
+                            <input
+                                type="number"
+                                min="1"
+                                max="24"
+                                value={dailyHours}
+                                onChange={(e) => setDailyHours(Number(e.target.value))}
+                                style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '2px solid #edf2f7', outline: 'none', transition: 'border-color 0.2s' }}
+                            />
+                        </div>
+                        <div>
+                            <label style={{ fontSize: '0.85rem', fontWeight: '700', display: 'block', marginBottom: '8px', color: '#4a5568' }}>🎉 Weekend Study (Hours)</label>
+                            <input
+                                type="number"
+                                min="1"
+                                max="24"
+                                value={weekendHours}
+                                onChange={(e) => setWeekendHours(Number(e.target.value))}
+                                style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '2px solid #edf2f7', outline: 'none', transition: 'border-color 0.2s' }}
+                            />
+                        </div>
+                    </div>
+
+                    {/* Revision Toggle Row - Only if Courses Selected */}
+                    {selectedCourseIds.length > 0 && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: '#f0f4ff', padding: '12px 15px', borderRadius: '10px', border: '1px solid #d1d9ff' }}>
+                            <input
+                                type="checkbox"
+                                id="revisionToggle"
+                                checked={revisionMode}
+                                onChange={(e) => setRevisionMode(e.target.checked)}
+                                style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                            />
+                            <label htmlFor="revisionToggle" style={{ cursor: 'pointer', fontWeight: '600', color: '#4c51bf', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem' }}>
+                                🎓 Revision Mode (Includes completed modules for exam prep)
+                            </label>
+                        </div>
+                    )}
+                </div>
+                <button
+                    onClick={generateRoadmap}
+                    disabled={loading}
+                    style={{ padding: '15px 25px', background: '#6C63FF', color: 'white', border: 'none', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s' }}
+                >
+                    {loading ? 'Generating...' : 'Build Path'}
+                </button>
+            </div>
+
+            {/* Gap Detection Modal */}
+            {showGapModal && (
+                <div style={{
+                    position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+                    background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center',
+                    justifyContent: 'center', zIndex: 9999, backdropFilter: 'blur(5px)'
+                }}>
+                    <div style={{
+                        background: 'white', padding: '40px', borderRadius: '20px',
+                        maxWidth: '500px', width: '90%', textAlign: 'center',
+                        boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)'
+                    }}>
+                        <div style={{ fontSize: '3rem', marginBottom: '20px' }}>🕒</div>
+                        <h2 style={{ color: '#2d3748', marginBottom: '15px' }}>Study Gap Detected</h2>
+                        <p style={{ color: '#718096', marginBottom: '30px', lineHeight: '1.6' }}>
+                            We noticed your activity yesterday was below your 50% study target.
+                            Did you miss your scheduled study time, or did you study offline using your notes?
                         </p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                            <button
+                                onClick={() => {
+                                    setShowGapModal(false);
+                                    generateRoadmapInternal(missedDaysCount);
+                                }}
+                                style={{
+                                    background: '#6C63FF', color: 'white', padding: '15px',
+                                    borderRadius: '10px', border: 'none', fontWeight: 'bold', cursor: 'pointer'
+                                }}
+                            >
+                                ❗ Yes, I missed it (Readjust Plan)
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setShowGapModal(false);
+                                    generateRoadmapInternal(0);
+                                }}
+                                style={{
+                                    background: '#EDF2FF', color: '#4338CA', padding: '15px',
+                                    borderRadius: '10px', border: 'none', fontWeight: 'bold', cursor: 'pointer'
+                                }}
+                            >
+                                📝 No, I studied offline
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {roadmap && (
+                <div style={{ marginTop: '40px', background: 'white', borderRadius: '20px', border: '1px solid #edf2f7', overflow: 'hidden', boxShadow: '0 10px 25px rgba(0,0,0,0.05)' }}>
+                    <div style={{ padding: '25px 35px', background: 'linear-gradient(135deg, #6C63FF, #4834d4)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'white' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                            <span style={{ fontSize: '1.8rem' }}>🗺️</span>
+                            <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: '800' }}>Your Personalized Learning Path</h3>
+                        </div>
                         <button
-                            onClick={() => generateCertificate(user.name, course.subject)}
+                            onClick={() => window.print()}
                             style={{
-                                background: '#6C63FF',
+                                background: 'rgba(255,255,255,0.2)',
+                                border: '1px solid rgba(255,255,255,0.4)',
                                 color: 'white',
-                                border: 'none',
-                                padding: '10px 20px',
-                                borderRadius: '8px',
+                                padding: '8px 18px',
+                                borderRadius: '10px',
                                 cursor: 'pointer',
                                 fontWeight: 'bold',
-                                width: '100%',
-                                transition: 'background 0.2s'
+                                fontSize: '0.9rem',
+                                transition: 'all 0.2s',
+                                backdropFilter: 'blur(5px)'
                             }}
-                            onMouseEnter={e => e.currentTarget.style.background = '#5A52E5'}
-                            onMouseLeave={e => e.currentTarget.style.background = '#6C63FF'}
+                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.3)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
                         >
-                            Download Certificate (PDF)
+                            ⎙ Print Roadmap
                         </button>
                     </div>
-                ))
-            ) : (
-                <div style={{
-                    gridColumn: '1 / -1',
-                    padding: '60px',
-                    textAlign: 'center',
-                    background: '#fff',
-                    borderRadius: '15px',
-                    border: '2px dashed #edf2f7'
-                }}>
-                    <div style={{ fontSize: '3rem', marginBottom: '20px' }}>🎓</div>
-                    <h3 style={{ color: '#2d3748', marginBottom: '10px' }}>No Certificates Yet</h3>
-                    <p style={{ color: '#a0aec0', margin: 0 }}>
-                        Complete all modules and quizzes in a course to unlock your official certificate.
-                    </p>
+
+                    <div className="markdown-container" style={{ padding: '40px', color: '#2d3748', fontSize: '1.05rem', lineHeight: '1.7' }}>
+                        <ReactMarkdown
+                            components={{
+                                h1: ({ node, ...props }) => <h1 style={{ color: '#2d3748', borderBottom: '2px solid #edf2f7', paddingBottom: '10px', marginTop: '30px' }} {...props} />,
+                                h2: ({ node, ...props }) => <h2 style={{ color: '#4a5568', marginTop: '25px' }} {...props} />,
+                                h3: ({ node, ...props }) => <h3 style={{ color: '#6C63FF', marginTop: '20px' }} {...props} />,
+                                strong: ({ node, ...props }) => <strong style={{ color: '#2d3748', fontWeight: '800' }} {...props} />,
+                                ul: ({ node, ...props }) => <ul style={{ paddingLeft: '20px', listStyleType: 'none' }} {...props} />,
+                                li: ({ node, ...props }) => (
+                                    <li style={{ marginBottom: '10px', position: 'relative', paddingLeft: '25px' }} {...props}>
+                                        <span style={{ position: 'absolute', left: 0, color: '#6C63FF' }}>•</span>
+                                        {props.children}
+                                    </li>
+                                ),
+                                p: ({ node, ...props }) => <p style={{ marginBottom: '15px' }} {...props} />
+                            }}
+                        >
+                            {roadmap}
+                        </ReactMarkdown>
+                    </div>
                 </div>
             )}
         </div>

@@ -21,11 +21,15 @@ mongoose.connect(MONGO_URI)
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/courses', require('./routes/course'));
+<<<<<<< HEAD
 app.use('/api/ai', require('./routes/ai')); // [NEW] AI Routes
+=======
+app.use('/api/assignments', require('./routes/assignment'));
+>>>>>>> 6b33c61809f51da2d7d0fde10ddb174f2de0cbeb
 app.use('/uploads', express.static('uploads'));
 
 app.get('/ping', (req, res) => {
-    res.send('pong v2');
+    res.send('pong v3-schema-test');
 });
 
 app.get('/', (req, res) => {
