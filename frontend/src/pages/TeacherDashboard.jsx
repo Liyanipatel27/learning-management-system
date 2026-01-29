@@ -98,7 +98,8 @@ function TeacherDashboard() {
                             { id: 'create-course', label: 'Create Course', icon: '➕' },
                             { id: 'students', label: 'Students List', icon: '👥' },
                             { id: 'assignments', label: 'Assignments', icon: '📝' },
-                            { id: 'student-grades', label: 'Student Grades', icon: '📊' },
+                            { id: 'student-grades', label: 'Academic Performance', icon: '📊' },
+                            { id: 'student-reports', label: 'Student Reports', icon: '📋' },
                             { id: 'profile', label: 'My Profile', icon: '👤' }
                         ].map(item => (
                             <li
@@ -151,7 +152,8 @@ function TeacherDashboard() {
                                 activeTab === 'my-courses' ? 'My Courses' :
                                     activeTab === 'students' ? 'Students Directory' :
                                         activeTab === 'student-grades' ? 'Academic Performance' :
-                                            activeTab === 'profile' ? 'My Profile' : 'Course Builder'}
+                                            activeTab === 'student-reports' ? 'Course Completion Reports' :
+                                                activeTab === 'profile' ? 'My Profile' : 'Course Builder'}
                         </h1>
                         <p style={{ color: '#718096', margin: 0 }}>Welcome back, <span style={{ color: '#4a5568', fontWeight: '600' }}>{user.name}</span>! Ready to inspire today?</p>
                     </div>
@@ -180,6 +182,8 @@ function TeacherDashboard() {
                     <StudentsSection />
                 ) : activeTab === 'student-grades' ? (
                     <StudentGradesSection teacherId={user.id || user._id} allPublishedCourses={publishedCourses} />
+                ) : activeTab === 'student-reports' ? (
+                    <StudentProgressSection />
                 ) : activeTab === 'profile' ? (
                     <ProfileSection userId={user.id || user._id} />
                 ) : activeTab === 'assignments' ? (
@@ -496,6 +500,91 @@ const StudentGradesSection = ({ teacherId, allPublishedCourses }) => {
         </div>
     );
 };
+
+const StudentProgressSection = () => {
+    const [report, setReport] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        fetchReport();
+    }, []);
+
+    const fetchReport = async () => {
+        try {
+            const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+            const res = await axios.get(`${apiUrl}/api/courses/reports/student-progress`);
+            setReport(res.data);
+        } catch (err) {
+            console.error('Error fetching report:', err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleExport = (data, filename) => {
+        if (!data || data.length === 0) return;
+        const header = Object.keys(data[0]).join(',');
+        const rows = data.map(obj => Object.values(obj).join(',')).join('\n');
+        const blob = new Blob([header + '\n' + rows], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
+    };
+
+    if (loading) return <div>Loading reports...</div>;
+
+    return (
+        <div style={{ background: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 25px rgba(0,0,0,0.05)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+                <div>
+                    <h2 style={{ fontSize: '1.75rem', fontWeight: '800', color: '#1a202c', margin: 0 }}>Student Progress Report</h2>
+                    <p style={{ color: '#718096', margin: '5px 0 0 0' }}>Overall course completion tracking for all students</p>
+                </div>
+                <button
+                    onClick={() => handleExport(report, 'student_progress_report.csv')}
+                    style={{ padding: '10px 20px', background: '#6366f1', color: 'white', border: 'none', borderRadius: '12px', fontWeight: '700', cursor: 'pointer' }}
+                >
+                    📥 Export CSV
+                </button>
+            </div>
+
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                    <tr style={{ background: '#f7fafc', textAlign: 'left', borderBottom: '2px solid #edf2f7' }}>
+                        <th style={{ padding: '15px' }}>Enrollment ID</th>
+                        <th style={{ padding: '15px' }}>Name</th>
+                        <th style={{ padding: '15px' }}>Course Completion</th>
+                        <th style={{ padding: '15px' }}>Progress %</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {report.map(s => (
+                        <tr key={s.id} style={{ borderBottom: '1px solid #edf2f7' }}>
+                            <td style={{ padding: '15px', fontWeight: '600' }}>{s.enrollment}</td>
+                            <td style={{ padding: '15px' }}>{s.name}</td>
+                            <td style={{ padding: '15px' }}>
+                                <span style={{ padding: '4px 12px', background: '#ebf4ff', color: '#3182ce', borderRadius: '20px', fontWeight: 'bold', fontSize: '0.9rem' }}>
+                                    {s.completedCourses} / {s.totalCourses} Courses
+                                </span>
+                            </td>
+                            <td style={{ padding: '15px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                                    <div style={{ flex: 1, background: '#e2e8f0', height: '10px', borderRadius: '5px', minWidth: '150px' }}>
+                                        <div style={{ width: `${s.percentage}%`, background: '#48bb78', height: '100%', borderRadius: '5px', transition: 'width 0.5s ease-in-out' }}></div>
+                                    </div>
+                                    <span style={{ fontWeight: 'bold', color: '#2d3748', minWidth: '40px' }}>{s.percentage}%</span>
+                                </div>
+                            </td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+    );
+};
+
 
 // --- NEW SECTION: Students Directory ---
 const StudentsSection = () => {

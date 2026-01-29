@@ -488,74 +488,81 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
         };
     }, [selectedContent, user]); // Include dependencies for saveProgress
 
+    // Track initialized content to prevent overwriting timeSpent on re-renders
+    const initializedContentRef = useRef(null);
+
+    // 1. Initialization Effect (Runs when content changes or progress loads)
     useEffect(() => {
         if (selectedContent && studentProgress) {
-            const contentKey = `timer_${user.id || user._id}_${selectedContent._id}`;
+            // Only initialize if we haven't done so for this content ID yet
+            if (initializedContentRef.current !== selectedContent._id) {
+                const contentKey = `timer_${user.id || user._id}_${selectedContent._id}`;
+                const existingProgress = studentProgress.contentProgress?.find(
+                    cp => cp.contentId.toString() === selectedContent._id.toString()
+                );
 
-            // 1. Initialize time spent
-            // Priority: localStorage (for refresh/instant) > progress from server
-            const existingProgress = studentProgress.contentProgress?.find(
-                cp => cp.contentId.toString() === selectedContent._id.toString()
-            );
+                const serverTime = existingProgress ? existingProgress.timeSpent : 0;
+                const locallySavedTime = parseInt(localStorage.getItem(contentKey) || '0', 10);
+                const initialTime = Math.max(serverTime, locallySavedTime);
+                const alreadyCompleted = existingProgress ? existingProgress.isCompleted : false;
 
-            const serverTime = existingProgress ? existingProgress.timeSpent : 0;
-            const locallySavedTime = parseInt(localStorage.getItem(contentKey) || '0', 10);
+                setTimeSpent(initialTime);
+                timeSpentRef.current = initialTime;
 
-            // If local storage has a higher value, it means the user refreshed before an auto-save
-            const initialTime = Math.max(serverTime, locallySavedTime);
-            const alreadyCompleted = existingProgress ? existingProgress.isCompleted : false;
+                // Set completion status based on initial data
+                if (alreadyCompleted || initialTime >= selectedContent.minTime) {
+                    setIsTimeRequirementMet(true);
+                } else {
+                    setIsTimeRequirementMet(false);
+                }
 
-            setTimeSpent(initialTime);
-            timeSpentRef.current = initialTime;
-
-            if (alreadyCompleted) {
-                setIsTimeRequirementMet(true);
-            } else if (initialTime >= selectedContent.minTime) {
-                setIsTimeRequirementMet(true);
-            } else {
-                setIsTimeRequirementMet(false);
+                initializedContentRef.current = selectedContent._id;
             }
+        }
+    }, [selectedContent, studentProgress, user]);
 
+    // 2. Timer & Auto-Save Effect (Runs ONLY when selectedContent changes)
+    useEffect(() => {
+        if (selectedContent) {
             let timer = null;
             let autoSaveTimer = null;
 
-            if (!alreadyCompleted) {
-                // 2. Start Timer
-                timer = setInterval(() => {
-                    if (document.hidden || !document.hasFocus()) return;
+            // Start Timer (only if not already completed? No, keep tracking for total time)
+            // Note: We don't check 'isTimeRequirementMet' here to stop timer, we track everything.
+            timer = setInterval(() => {
+                if (document.hidden || !document.hasFocus()) return;
 
-                    setTimeSpent(prev => {
-                        if (document.hasFocus() && !document.hidden) {
-                            if (prev >= selectedContent.minTime) {
-                                setIsTimeRequirementMet(true);
-                                // Continue counting even after requirement met if they stay on page
-                                // but the user requested it to stop at requirement? 
-                                // Actually, typical LMS keeps counting total study time.
-                            }
-
-                            const next = prev + 1;
-                            timeSpentRef.current = next;
-                            // Sync with localStorage for refresh persistence
-                            localStorage.setItem(contentKey, next.toString());
-                            return next;
+                setTimeSpent(prev => {
+                    if (document.hasFocus() && !document.hidden) {
+                        const next = prev + 1;
+                        // Check requirement in real-time
+                        if (next >= selectedContent.minTime) {
+                            setIsTimeRequirementMet(true);
                         }
-                        return prev;
-                    });
-                }, 1000);
-            }
 
-            // 3. Periodic Auto-save (Every 10 seconds)
+                        timeSpentRef.current = next;
+                        // Sync with localStorage
+                        const contentKey = `timer_${user.id || user._id}_${selectedContent._id}`;
+                        localStorage.setItem(contentKey, next.toString());
+                        return next;
+                    }
+                    return prev;
+                });
+            }, 1000);
+
+            // Periodic Auto-save (Every 10 seconds)
             autoSaveTimer = setInterval(() => {
-                saveProgress(false);
+                saveProgress(false); // Using Ref for time, so safe to call
             }, 10000);
 
             return () => {
                 if (timer) clearInterval(timer);
                 if (autoSaveTimer) clearInterval(autoSaveTimer);
+                // Save on unmount/change
                 saveProgress(false);
             };
         }
-    }, [selectedContent, studentProgress, user]);
+    }, [selectedContent]); // REMOVED studentProgress to prevent loop
 
     // Separate effect for completion save
     useEffect(() => {
@@ -1104,25 +1111,32 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
                                             </a>
                                         )}
                                         <a
-                                            href={getContentUrl(selectedContent.url)}
-                                            target="_blank"
+                                            href={isTimeRequirementMet ? getContentUrl(selectedContent.url) : '#'}
+                                            target={isTimeRequirementMet ? "_blank" : "_self"}
                                             rel="noopener noreferrer"
+                                            onClick={(e) => {
+                                                if (!isTimeRequirementMet) {
+                                                    e.preventDefault();
+                                                    alert('Please complete the minimum time requirement before opening this link!');
+                                                }
+                                            }}
                                             style={{
                                                 padding: '8px 12px',
-                                                background: '#edf2f7',
-                                                color: '#4a5568',
+                                                background: isTimeRequirementMet ? '#edf2f7' : '#e2e8f0',
+                                                color: isTimeRequirementMet ? '#4a5568' : '#a0aec0',
                                                 border: 'none',
                                                 borderRadius: '8px',
                                                 fontSize: '0.8rem',
                                                 fontWeight: 'bold',
                                                 textDecoration: 'none',
-                                                cursor: 'pointer',
+                                                cursor: isTimeRequirementMet ? 'pointer' : 'not-allowed',
                                                 display: 'flex',
                                                 alignItems: 'center',
-                                                gap: '6px'
+                                                gap: '6px',
+                                                opacity: isTimeRequirementMet ? 1 : 0.7
                                             }}
                                         >
-                                            🚀 Open in New Tab
+                                            {isTimeRequirementMet ? '🚀' : '🔒'} Open in New Tab
                                         </a>
                                     </div>
                                 </div>

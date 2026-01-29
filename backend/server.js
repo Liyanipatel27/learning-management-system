@@ -34,6 +34,9 @@ app.use('/api/courses', require('./routes/course'));
 console.log('Mounting /api/assignments routes...');
 app.use('/api/assignments', require('./routes/assignment'));
 
+console.log('Mounting /api/admin routes...');
+app.use('/api/admin', require('./routes/admin'));
+
 app.use('/uploads', express.static('uploads'));
 
 app.get('/ping', (req, res) => {
