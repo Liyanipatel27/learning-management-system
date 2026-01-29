@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
+import SummaryWidget from '../components/AI/SummaryWidget';
 
 function StudentDashboard() {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -60,6 +61,7 @@ function StudentDashboard() {
                         <div className={`nav-item ${activeTab === 'my-courses' ? 'active' : ''}`} onClick={() => { setActiveTab('my-courses'); setSelectedCourse(null); }}>My Courses</div>
                         <div className={`nav-item ${activeTab === 'certificates' ? 'active' : ''}`} onClick={() => { setActiveTab('certificates'); setSelectedCourse(null); }}>Certificates</div>
                         <div className="nav-item" onClick={() => alert('Assignments Module Coming Soon!')}>Assignments</div>
+                        <div className="nav-item" onClick={() => navigate('/ai-hub', { state: { student: user } })}>🤖 AI Learning Hub</div>
                         <div className="nav-item" onClick={() => alert('Grades Module Coming Soon!')}>Grades</div>
                         <div className="nav-item" onClick={() => alert('Profile Module Coming Soon!')}>Profile</div>
                         <div
@@ -752,6 +754,7 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
                                 <div>
                                     <h2 style={{ margin: 0, fontSize: '1.25rem', color: '#2d3748' }}>{selectedContent.title}</h2>
                                     <span style={{ fontSize: '0.8rem', color: '#718096' }}>Type: {selectedContent.type.toUpperCase()}</span>
+                                    <SummaryWidget content={selectedContent.description || selectedContent.title} title={selectedContent.title} />
                                 </div>
                                 {selectedContent.type === 'link' && isTimeRequirementMet && (
                                     <a

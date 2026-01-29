@@ -5,6 +5,7 @@ import StudentDashboard from './pages/StudentDashboard';
 import TeacherDashboard from './pages/TeacherDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import ProtectedRoute from './components/ProtectedRoute';
+import StudentAIHub from './pages/StudentAIHub';
 
 function App() {
   return (
@@ -18,6 +19,14 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={['student']}>
               <StudentDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/ai-hub"
+          element={
+            <ProtectedRoute allowedRoles={['student']}>
+              <StudentAIHub />
             </ProtectedRoute>
           }
         />
