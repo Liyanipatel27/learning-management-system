@@ -27,21 +27,25 @@ function StudentDashboard() {
     const [dailyHours, setDailyHours] = useState(2);
     const [weekendHours, setWeekendHours] = useState(4);
     const [pendingAssignmentsCount, setPendingAssignmentsCount] = useState(0);
+    const [announcements, setAnnouncements] = useState([]);
 
 
     useEffect(() => {
         fetchCourses();
+        fetchAnnouncements();
     }, []);
 
     useEffect(() => {
-        if (['dashboard', 'my-courses', 'ai-roadmap', 'certificates', 'grades'].includes(activeTab)) {
+        if (['dashboard', 'my-courses', 'ai-roadmap', 'certificates', 'grades', 'announcements'].includes(activeTab)) {
             fetchCourses();
             fetchAllProgress();
+            fetchAnnouncements();
 
             // Periodically refresh every 60 seconds
             const interval = setInterval(() => {
                 fetchCourses();
                 fetchAllProgress();
+                fetchAnnouncements();
             }, 60000);
             return () => clearInterval(interval);
         }
@@ -140,6 +144,18 @@ function StudentDashboard() {
     };
 
 
+    const fetchAnnouncements = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/announcements`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setAnnouncements(res.data);
+        } catch (err) {
+            console.error('Error fetching announcements:', err);
+        }
+    };
+
     const handleLogout = () => {
         localStorage.removeItem('user');
         localStorage.removeItem('token');
@@ -158,6 +174,7 @@ function StudentDashboard() {
                         <div className={`nav-item ${activeTab === 'ai-roadmap' ? 'active' : ''}`} onClick={() => { setActiveTab('ai-roadmap'); setSelectedCourse(null); }}>AI Career Roadmap</div>
                         <div className={`nav-item ${activeTab === 'assignments' ? 'active' : ''}`} onClick={() => { setActiveTab('assignments'); setSelectedCourse(null); }}>Assignments</div>
                         <div className={`nav-item ${activeTab === 'grades' ? 'active' : ''}`} onClick={() => { setActiveTab('grades'); setSelectedCourse(null); }}>Grades</div>
+                        <div className={`nav-item ${activeTab === 'announcements' ? 'active' : ''}`} onClick={() => { setActiveTab('announcements'); setSelectedCourse(null); }}>Announcements</div>
                         <div className={`nav-item ${activeTab === 'profile' ? 'active' : ''}`} onClick={() => { setActiveTab('profile'); setSelectedCourse(null); }}>Profile</div>
                         <div
                             className="nav-item"
@@ -205,15 +222,17 @@ function StudentDashboard() {
                                             activeTab === 'my-courses' ? 'My Courses' :
                                                 activeTab === 'ai-roadmap' ? 'AI Roadmap' :
                                                     activeTab === 'assignments' ? 'Assignments' :
-                                                        activeTab === 'grades' ? 'My Grades' :
-                                                            activeTab === 'profile' ? 'My Profile' : 'My Certificates'}
+                                                        activeTab === 'announcements' ? 'Announcements' :
+                                                            activeTab === 'grades' ? 'My Grades' :
+                                                                activeTab === 'profile' ? 'My Profile' : 'My Certificates'}
                                     </h1>
                                     <p style={{ color: '#718096', margin: 0 }}>
                                         {activeTab === 'dashboard' ? `Welcome back, ${user.name}!` :
                                             activeTab === 'my-courses' ? 'Track your learning progress' :
                                                 activeTab === 'assignments' ? 'Complete and submit your tasks' :
-                                                    activeTab === 'grades' ? 'View your quiz and assignment scores' :
-                                                        'Download your earned certifications'}
+                                                    activeTab === 'announcements' ? 'Stay updated with latest news' :
+                                                        activeTab === 'grades' ? 'View your quiz and assignment scores' :
+                                                            'Download your earned certifications'}
                                     </p>
                                 </div>
                             )}
@@ -320,6 +339,46 @@ function StudentDashboard() {
 
                         </section>
 
+                        {announcements.length > 0 && (
+                            <section style={{ marginTop: '40px' }}>
+                                <h2 style={{ fontSize: '1.25rem', marginBottom: '20px', color: '#2D3748', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <span>📢</span> Latest Announcements
+                                </h2>
+                                <div style={{ display: 'grid', gap: '15px' }}>
+                                    {announcements.map((ann, idx) => (
+                                        <div
+                                            key={ann._id}
+                                            style={{
+                                                background: 'linear-gradient(135deg, #ffffff 0%, #f9faff 100%)',
+                                                padding: '20px',
+                                                borderRadius: '16px',
+                                                boxShadow: '0 4px 6px rgba(0,0,0,0.02)',
+                                                border: '1px solid #eef2ff',
+                                                borderLeft: '5px solid #6366f1',
+                                                position: 'relative',
+                                                overflow: 'hidden'
+                                            }}
+                                        >
+                                            <div style={{ position: 'absolute', top: '-10px', right: '-10px', width: '60px', height: '60px', background: 'rgba(99, 102, 241, 0.03)', borderRadius: '50%' }}></div>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                                                <h4 style={{ margin: 0, color: '#1e293b', fontSize: '1.1rem', fontWeight: '700' }}>{ann.title}</h4>
+                                                <span style={{ fontSize: '0.75rem', color: '#94a3b8', background: '#f1f5f9', padding: '4px 8px', borderRadius: '6px' }}>
+                                                    {new Date(ann.createdAt).toLocaleDateString('en-GB')}
+                                                </span>
+                                            </div>
+                                            <p style={{ margin: 0, color: '#475569', fontSize: '0.95rem', lineHeight: '1.5' }}>{ann.content}</p>
+                                            <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: '#6c63ff', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem' }}>
+                                                    {ann.author?.name?.charAt(0) || 'A'}
+                                                </div>
+                                                <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: '500' }}>{ann.author?.name || 'Admin'}</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </section>
+                        )}
+
                         <section style={{ marginTop: '40px' }}>
                             <h2 style={{ fontSize: '1.2rem', marginBottom: '20px', color: '#2D3748' }}>Explore Courses</h2>
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
@@ -359,6 +418,8 @@ function StudentDashboard() {
                     <AssignmentsSection userId={user.id || user._id} courses={courses} />
                 ) : activeTab === 'profile' ? (
                     <ProfileSection userId={user.id || user._id} />
+                ) : activeTab === 'announcements' ? (
+                    <AnnouncementsSection announcements={announcements} />
                 ) : (
                     <CertificatesSection
                         courses={courses}
@@ -1792,6 +1853,87 @@ const ProfileSection = ({ userId }) => {
             {error && (
                 <div style={{ marginTop: '20px', padding: '10px', background: '#fff5f5', color: '#c53030', fontSize: '0.75rem', borderRadius: '8px', textAlign: 'center' }}>
                     Note: Using offline session data. (Original error: {error})
+                </div>
+            )}
+        </div>
+    );
+};
+
+
+const AnnouncementsSection = ({ announcements }) => {
+    return (
+        <div style={{ padding: '20px' }}>
+            {announcements.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '50px', background: 'white', borderRadius: '15px' }}>
+                    <div style={{ fontSize: '3rem', marginBottom: '15px' }}>📢</div>
+                    <h3 style={{ color: '#2d3748' }}>No announcements yet</h3>
+                    <p style={{ color: '#718096' }}>Check back later for updates from the administration.</p>
+                </div>
+            ) : (
+                <div style={{ display: 'grid', gap: '20px' }}>
+                    {announcements.map((ann) => (
+                        <div
+                            key={ann._id}
+                            style={{
+                                background: 'white',
+                                padding: '30px',
+                                borderRadius: '16px',
+                                boxShadow: '0 4px 6px rgba(0,0,0,0.02)',
+                                border: '1px solid #edf2f7',
+                                borderLeft: '6px solid #6366f1'
+                            }}
+                        >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '15px' }}>
+                                <h3 style={{ margin: 0, color: '#1e293b', fontSize: '1.25rem', fontWeight: '700' }}>{ann.title}</h3>
+                                <div style={{ textAlign: 'right' }}>
+                                    <div style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: '600' }}>
+                                        {new Date(ann.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+                                    </div>
+                                    <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
+                                        {new Date(ann.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </div>
+                                </div>
+                            </div>
+                            <p style={{
+                                margin: 0,
+                                color: '#475569',
+                                fontSize: '1.05rem',
+                                lineHeight: '1.6',
+                                whiteSpace: 'pre-wrap'
+                            }}>
+                                {ann.content}
+                            </p>
+                            <div style={{
+                                marginTop: '20px',
+                                paddingTop: '15px',
+                                borderTop: '1px solid #f1f5f9',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '10px'
+                            }}>
+                                <div style={{
+                                    width: '32px',
+                                    height: '32px',
+                                    borderRadius: '50%',
+                                    background: '#6366f1',
+                                    color: 'white',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    fontSize: '0.85rem',
+                                    fontWeight: 'bold'
+                                }}>
+                                    {ann.author?.name?.charAt(0) || 'A'}
+                                </div>
+                                <div>
+                                    <div style={{ fontSize: '0.85rem', fontWeight: '600', color: '#1e293b' }}>
+                                        {ann.author?.name || 'Administrator'}
+                                    </div>
+                                    <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Authorized User</div>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
                 </div>
             )}
         </div>

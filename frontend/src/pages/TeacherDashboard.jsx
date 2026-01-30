@@ -12,6 +12,7 @@ function TeacherDashboard() {
     const [activeTab, setActiveTab] = useState(localStorage.getItem(`teacherTab_${user.id || user._id}`) || 'dashboard');
     const [courses, setCourses] = useState([]);
     const [pendingGradingCount, setPendingGradingCount] = useState(0);
+    const [announcements, setAnnouncements] = useState([]);
 
     useEffect(() => {
         if (user.id || user._id) {
@@ -23,6 +24,7 @@ function TeacherDashboard() {
         const userId = user.id || user._id;
         if (userId) {
             fetchCourses(userId);
+            fetchAnnouncements();
         }
     }, [user.id, user._id]);
 
@@ -45,6 +47,18 @@ function TeacherDashboard() {
             setPendingGradingCount(totalPending);
         } catch (err) {
             console.error(err);
+        }
+    };
+
+    const fetchAnnouncements = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/announcements`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setAnnouncements(res.data);
+        } catch (err) {
+            console.error('Error fetching announcements:', err);
         }
     };
 
@@ -100,6 +114,7 @@ function TeacherDashboard() {
                             { id: 'assignments', label: 'Assignments', icon: '📝' },
                             { id: 'student-grades', label: 'Academic Performance', icon: '📊' },
                             { id: 'student-reports', label: 'Student Reports', icon: '📋' },
+                            { id: 'announcements', label: 'Announcements', icon: '📢' },
                             { id: 'profile', label: 'My Profile', icon: '👤' }
                         ].map(item => (
                             <li
@@ -153,7 +168,8 @@ function TeacherDashboard() {
                                     activeTab === 'students' ? 'Students Directory' :
                                         activeTab === 'student-grades' ? 'Academic Performance' :
                                             activeTab === 'student-reports' ? 'Course Completion Reports' :
-                                                activeTab === 'profile' ? 'My Profile' : 'Course Builder'}
+                                                activeTab === 'announcements' ? 'Administrative Announcements' :
+                                                    activeTab === 'profile' ? 'My Profile' : 'Course Builder'}
                         </h1>
                         <p style={{ color: '#718096', margin: 0 }}>Welcome back, <span style={{ color: '#4a5568', fontWeight: '600' }}>{user.name}</span>! Ready to inspire today?</p>
                     </div>
@@ -186,6 +202,8 @@ function TeacherDashboard() {
                     <StudentProgressSection />
                 ) : activeTab === 'profile' ? (
                     <ProfileSection userId={user.id || user._id} />
+                ) : activeTab === 'announcements' ? (
+                    <AnnouncementsSection announcements={announcements} />
                 ) : activeTab === 'assignments' ? (
                     <AssignmentsSection teacherId={user.id || user._id} courses={publishedCourses} />
                 ) : activeTab === 'my-courses' ? (
@@ -249,6 +267,43 @@ function TeacherDashboard() {
                                 <p style={{ fontSize: '2rem', fontWeight: 'bold', color: '#FF6584' }}>{pendingGradingCount}</p>
                             </div>
                         </section>
+
+                        {announcements.length > 0 && (
+                            <section style={{ marginBottom: '40px' }}>
+                                <h2 style={{ fontSize: '1.25rem', fontWeight: '700', color: '#2d3748', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <span>📢</span> Admin Announcements
+                                </h2>
+                                <div style={{ display: 'grid', gap: '16px' }}>
+                                    {announcements.map((ann) => (
+                                        <div
+                                            key={ann._id}
+                                            style={{
+                                                background: 'white',
+                                                padding: '24px',
+                                                borderRadius: '16px',
+                                                boxShadow: '0 4px 6px rgba(0,0,0,0.02)',
+                                                border: '1px solid #edf2f7',
+                                                borderLeft: '4px solid #6366f1'
+                                            }}
+                                        >
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+                                                <h4 style={{ margin: 0, color: '#1a202c', fontSize: '1.1rem', fontWeight: '700' }}>{ann.title}</h4>
+                                                <span style={{ fontSize: '0.75rem', color: '#718096', fontWeight: '500' }}>
+                                                    {new Date(ann.createdAt).toLocaleDateString()}
+                                                </span>
+                                            </div>
+                                            <p style={{ margin: 0, color: '#4a5568', fontSize: '0.95rem', lineHeight: '1.6' }}>{ann.content}</p>
+                                            <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                <div style={{ width: '24px', height: '24px', borderRadius: '6px', background: '#f0f4ff', color: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 'bold' }}>
+                                                    A
+                                                </div>
+                                                <span style={{ fontSize: '0.8rem', color: '#718096' }}>Posted by Admin</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </section>
+                        )}
 
                         <div style={{ background: '#f8fafc', padding: '30px', borderRadius: '20px', textAlign: 'center' }}>
                             <h2 style={{ fontSize: '1.5rem', color: '#2d3748', marginBottom: '15px' }}>Quick Start</h2>
@@ -1386,6 +1441,81 @@ const ProfileSection = ({ userId }) => {
             {error && (
                 <div style={{ marginTop: '20px', padding: '10px', background: '#fff5f5', color: '#c53030', fontSize: '0.75rem', borderRadius: '8px', textAlign: 'center' }}>
                     Note: Using offline session data. (Original error: {error})
+                </div>
+            )}
+        </div>
+    );
+};
+
+
+const AnnouncementsSection = ({ announcements }) => {
+    return (
+        <div style={{ padding: '0 10px' }}>
+            <div style={{ background: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', border: '1px solid #edf2f7', marginBottom: '30px' }}>
+                <h3 style={{ margin: '0 0 10px 0', color: '#1a202c', fontSize: '1.25rem' }}>Notice Board</h3>
+                <p style={{ margin: 0, color: '#718096' }}>All administrative updates and official communications are archived here.</p>
+            </div>
+
+            {announcements.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '100px 20px', background: 'white', borderRadius: '20px', border: '2px dashed #edf2f7' }}>
+                    <div style={{ fontSize: '3.5rem', marginBottom: '20px' }}>📁</div>
+                    <h3 style={{ color: '#2d3748', margin: '0 0 10px 0' }}>No Announcements</h3>
+                    <p style={{ color: '#718096', margin: 0 }}>There are no administrative messages to display at this time.</p>
+                </div>
+            ) : (
+                <div style={{ display: 'grid', gap: '20px' }}>
+                    {announcements.map((ann) => (
+                        <div
+                            key={ann._id}
+                            style={{
+                                background: 'white',
+                                padding: '30px',
+                                borderRadius: '20px',
+                                boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                                border: '1px solid #edf2f7',
+                                borderLeft: '5px solid #6366f1'
+                            }}
+                        >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                                    <div style={{ width: '45px', height: '45px', borderRadius: '12px', background: 'rgba(99, 102, 241, 0.1)', color: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.2rem' }}>
+                                        📢
+                                    </div>
+                                    <h4 style={{ margin: 0, color: '#1a202c', fontSize: '1.2rem', fontWeight: '700' }}>{ann.title}</h4>
+                                </div>
+                                <div style={{ textAlign: 'right', background: '#f8fafc', padding: '8px 15px', borderRadius: '10px' }}>
+                                    <span style={{ fontSize: '0.85rem', color: '#4a5568', fontWeight: '600', display: 'block' }}>
+                                        {new Date(ann.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                    </span>
+                                </div>
+                            </div>
+                            <p style={{
+                                margin: 0,
+                                color: '#4a5568',
+                                fontSize: '1.05rem',
+                                lineHeight: '1.7',
+                                whiteSpace: 'pre-wrap'
+                            }}>
+                                {ann.content}
+                            </p>
+                            <div style={{
+                                marginTop: '25px',
+                                paddingTop: '20px',
+                                borderTop: '1px solid #f8fafc',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between'
+                            }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: '#6366f1', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 'bold' }}>
+                                        A
+                                    </div>
+                                    <span style={{ fontSize: '0.9rem', color: '#1a202c', fontWeight: '600' }}>Admin Office</span>
+                                </div>
+                                <span style={{ fontSize: '0.8rem', color: '#a0aec0' }}>Posted at {new Date(ann.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                            </div>
+                        </div>
+                    ))}
                 </div>
             )}
         </div>

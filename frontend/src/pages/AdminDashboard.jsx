@@ -23,7 +23,14 @@ function AdminDashboard() {
     // Modal States
     const [showUserModal, setShowUserModal] = useState(false);
     const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
-    const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'student' });
+    const [showImportModal, setShowImportModal] = useState(false);
+    const [importRole, setImportRole] = useState('student');
+    const [importFile, setImportFile] = useState(null);
+    const [importPassword, setImportPassword] = useState('Welcome@123');
+    const [newUser, setNewUser] = useState({
+        name: '', email: '', password: '', role: 'student',
+        enrollment: '', branch: '', employeeId: ''
+    });
     const [newAnnouncement, setNewAnnouncement] = useState({ title: '', content: '', target: 'all' });
 
     useEffect(() => {
@@ -135,6 +142,50 @@ function AdminDashboard() {
         a.click();
     };
 
+    const handleImportExcel = async (e) => {
+        e.preventDefault();
+        if (!importFile) return alert("Please select a file");
+
+        const formData = new FormData();
+        formData.append('file', importFile);
+        formData.append('role', importRole);
+        formData.append('commonPassword', importPassword);
+
+        setLoading(true);
+        try {
+            const res = await axios.post(`${API_URL}/api/auth/bulk-import`, formData, {
+                headers: {
+                    ...getAuthHeader().headers,
+                    'Content-Type': 'multipart/form-data'
+                }
+            });
+            alert(res.data.message);
+            setShowImportModal(false);
+            setImportFile(null);
+            fetchUsers();
+            fetchStats();
+        } catch (err) {
+            alert(err.response?.data?.message || "Import failed");
+        }
+        setLoading(false);
+    };
+
+    const handleDownloadSample = async (role) => {
+        try {
+            const response = await axios.get(`${API_URL}/api/auth/sample-excel/${role}`, {
+                responseType: 'blob'
+            });
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', `sample_${role}.xlsx`);
+            document.body.appendChild(link);
+            link.click();
+        } catch (err) {
+            alert("Failed to download sample file");
+        }
+    };
+
     return (
         <div className="dashboard-container" style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#f7fafc' }}>
             {/* SIDEBAR */}
@@ -188,9 +239,11 @@ function AdminDashboard() {
                         </div>
                         <div style={{ background: 'white', padding: '30px', borderRadius: '15px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', marginBottom: '30px' }}>
                             <h3 style={{ marginBottom: '20px', color: '#2d3748' }}>Quick Actions</h3>
-                            <div style={{ display: 'flex', gap: '15px' }}>
+                            <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap' }}>
                                 <button onClick={() => setShowAnnouncementModal(true)} style={btnStyle}>📢 Post Announcement</button>
                                 <button onClick={() => setShowUserModal(true)} style={btnStyle}>➕ Add User (Manual)</button>
+                                <button onClick={() => { setImportRole('student'); setShowImportModal(true); }} style={{ ...btnStyle, background: '#48bb78' }}>📥 Import Students (Excel)</button>
+                                <button onClick={() => { setImportRole('teacher'); setShowImportModal(true); }} style={{ ...btnStyle, background: '#ed8936' }}>📥 Import Teachers (Excel)</button>
                             </div>
                         </div>
 
@@ -224,7 +277,8 @@ function AdminDashboard() {
                                     <th style={{ padding: '15px' }}>Name</th>
                                     <th style={{ padding: '15px' }}>Email</th>
                                     <th style={{ padding: '15px' }}>Role</th>
-                                    <th style={{ padding: '15px' }}>ID</th>
+                                    <th style={{ padding: '15px' }}>{activeTab === 'students' ? 'Enrollment' : 'Employee ID'}</th>
+                                    <th style={{ padding: '15px' }}>Branch</th>
                                     <th style={{ padding: '15px' }}>Actions</th>
                                 </tr>
                             </thead>
@@ -238,7 +292,12 @@ function AdminDashboard() {
                                                 {u.role.toUpperCase()}
                                             </span>
                                         </td>
-                                        <td style={{ padding: '15px' }}>{u.enrollment || u.employeeId || '-'}</td>
+                                        <td style={{ padding: '15px' }}>
+                                            {u.role === 'student' ? u.enrollment : (u.employeeId || '-')}
+                                        </td>
+                                        <td style={{ padding: '15px' }}>
+                                            {u.branch || '-'}
+                                        </td>
                                         <td style={{ padding: '15px' }}>
                                             <button onClick={() => handleDeleteUser(u._id)} style={{ color: 'red', border: 'none', background: 'none', cursor: 'pointer' }}>Delete</button>
                                         </td>
@@ -246,7 +305,7 @@ function AdminDashboard() {
                                 ))}
                                 {users.filter(u => u.role === activeTab.slice(0, -1)).length === 0 && (
                                     <tr>
-                                        <td colSpan="5" style={{ padding: '20px', textAlign: 'center', color: '#a0aec0' }}>No {activeTab} found.</td>
+                                        <td colSpan="6" style={{ padding: '20px', textAlign: 'center', color: '#a0aec0' }}>No {activeTab} found.</td>
                                     </tr>
                                 )}
                             </tbody>
@@ -262,7 +321,6 @@ function AdminDashboard() {
                                     <th style={{ padding: '15px' }}>Title</th>
                                     <th style={{ padding: '15px' }}>Instructor</th>
                                     <th style={{ padding: '15px' }}>Content</th>
-                                    <th style={{ padding: '15px' }}>Category</th>
                                     <th style={{ padding: '15px' }}>Actions</th>
                                 </tr>
                             </thead>
@@ -276,7 +334,6 @@ function AdminDashboard() {
                                                 {c.chapters?.length || 0} Chapters, {c.chapters ? c.chapters.reduce((acc, ch) => acc + (ch.modules?.length || 0), 0) : 0} Modules
                                             </span>
                                         </td>
-                                        <td style={{ padding: '15px' }}>{c.category}</td>
                                         <td style={{ padding: '15px' }}>
                                             <button onClick={() => setSelectedCourseContent(c)} style={{ marginRight: '10px', padding: '5px 10px', cursor: 'pointer', backgroundColor: '#4299e1', color: 'white', border: 'none', borderRadius: '4px' }}>View Content</button>
                                             <button onClick={() => handleTogglePublish(c._id)} style={{ padding: '5px 10px', cursor: 'pointer', backgroundColor: '#f56565', color: 'white', border: 'none', borderRadius: '4px' }}>Unpublish</button>
@@ -429,6 +486,15 @@ function AdminDashboard() {
                         { label: 'Teacher', value: 'teacher' },
                         { label: 'Admin', value: 'admin' }
                     ]} />
+                    {newUser.role === 'student' && (
+                        <>
+                            <InputGroup label="Enrollment Number" type="number" value={newUser.enrollment} onChange={e => setNewUser({ ...newUser, enrollment: e.target.value })} placeholder="123456" />
+                            <InputGroup label="Branch" value={newUser.branch} onChange={e => setNewUser({ ...newUser, branch: e.target.value })} placeholder="Computer Engineering" />
+                        </>
+                    )}
+                    {(newUser.role === 'teacher' || newUser.role === 'admin') && (
+                        <InputGroup label="Employee ID" type="number" value={newUser.employeeId} onChange={e => setNewUser({ ...newUser, employeeId: e.target.value })} placeholder="101" />
+                    )}
                 </Modal>
             )}
 
@@ -441,6 +507,39 @@ function AdminDashboard() {
                         { label: 'Students Only', value: 'students' },
                         { label: 'Teachers Only', value: 'teachers' }
                     ]} />
+                </Modal>
+            )}
+
+            {showImportModal && (
+                <Modal title={`Import ${importRole === 'student' ? 'Students' : 'Teachers'} via Excel`} onClose={() => setShowImportModal(false)} onSubmit={handleImportExcel}>
+                    <div style={{ marginBottom: '20px', padding: '15px', background: '#ebf8ff', borderRadius: '8px', border: '1px solid #bee3f8' }}>
+                        <p style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: '#2b6cb0' }}>
+                            1. Download the sample file to see the required format.
+                        </p>
+                        <button type="button" onClick={() => handleDownloadSample(importRole)} style={{ background: '#3182ce', color: 'white', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem' }}>
+                            📥 Download Sample Excel
+                        </button>
+                    </div>
+
+                    <div style={{ marginBottom: '15px' }}>
+                        <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.9rem', color: '#4a5568' }}>Common Password for All Users</label>
+                        <input
+                            type="text"
+                            value={importPassword}
+                            onChange={e => setImportPassword(e.target.value)}
+                            style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0' }}
+                        />
+                    </div>
+
+                    <div style={{ marginBottom: '15px' }}>
+                        <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.9rem', color: '#4a5568' }}>Select Excel File</label>
+                        <input
+                            type="file"
+                            accept=".xlsx, .xls"
+                            onChange={e => setImportFile(e.target.files[0])}
+                            style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0' }}
+                        />
+                    </div>
                 </Modal>
             )}
         </div>
