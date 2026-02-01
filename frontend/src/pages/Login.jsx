@@ -75,7 +75,7 @@ function Login() {
                         <div className="form-group">
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <label className="form-label">Password</label>
-                                <Link to="#" style={{ fontSize: '0.8rem', color: '#818cf8', textDecoration: 'none', marginBottom: '8px' }}>
+                                <Link to="/forgot-password" style={{ fontSize: '0.8rem', color: '#818cf8', textDecoration: 'none', marginBottom: '8px' }}>
                                     Forgot password?
                                 </Link>
                             </div>

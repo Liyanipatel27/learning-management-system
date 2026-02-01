@@ -5,6 +5,12 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const multer = require('multer');
 const xlsx = require('xlsx');
+const nodemailer = require('nodemailer');
+const {
+    forgotPassword,
+    verifyOTP,
+    resetPassword,
+} = require("../controllers/authController");
 
 // Multer setup
 const storage = multer.memoryStorage();
@@ -261,5 +267,10 @@ router.get('/sample-excel/:role', (req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename=sample_${role}.xlsx`);
     res.send(buffer);
 });
+
+// --- FORGOT PASSWORD ROUTES ---
+router.post('/forgot-password', forgotPassword);
+router.post('/verify-otp', verifyOTP);
+router.post('/reset-password', resetPassword);
 
 module.exports = router;

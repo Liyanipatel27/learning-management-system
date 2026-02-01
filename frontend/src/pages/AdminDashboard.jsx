@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/api$/, '');
 
 function AdminDashboard() {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -85,6 +85,10 @@ function AdminDashboard() {
             // For now, let's assume admin/users supports POST for direct creation
             await axios.post(`${API_URL}/api/auth/register`, newUser);
             alert("User created successfully");
+            setNewUser({
+                name: '', email: '', password: '', role: 'student',
+                enrollment: '', branch: '', employeeId: ''
+            });
             setShowUserModal(false);
             fetchUsers();
             fetchStats();
@@ -96,6 +100,7 @@ function AdminDashboard() {
         try {
             await axios.post(`${API_URL}/api/admin/announcements`, newAnnouncement, getAuthHeader());
             alert("Announcement posted");
+            setNewAnnouncement({ title: '', content: '', target: 'all' });
             setShowAnnouncementModal(false);
             fetchAnnouncements();
         } catch (err) { alert("Failed to post announcement"); }
@@ -131,6 +136,10 @@ function AdminDashboard() {
     };
 
     const handleExport = (data, filename) => {
+        if (!data || data.length === 0) {
+            alert("No data available to export");
+            return;
+        }
         // Simple CSV Export
         const header = Object.keys(data[0]).join(',');
         const rows = data.map(obj => Object.values(obj).join(',')).join('\n');
