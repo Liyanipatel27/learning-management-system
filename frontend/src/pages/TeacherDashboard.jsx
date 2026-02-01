@@ -112,6 +112,7 @@ function TeacherDashboard() {
                             { id: 'create-course', label: 'Create Course', icon: '➕' },
                             { id: 'students', label: 'Students List', icon: '👥' },
                             { id: 'assignments', label: 'Assignments', icon: '📝' },
+                            { id: 'live-class', label: 'Live Classes', icon: '📽️' },
                             { id: 'student-grades', label: 'Academic Performance', icon: '📊' },
                             { id: 'student-reports', label: 'Student Reports', icon: '📋' },
                             { id: 'announcements', label: 'Announcements', icon: '📢' },
@@ -169,7 +170,8 @@ function TeacherDashboard() {
                                         activeTab === 'student-grades' ? 'Academic Performance' :
                                             activeTab === 'student-reports' ? 'Course Completion Reports' :
                                                 activeTab === 'announcements' ? 'Administrative Announcements' :
-                                                    activeTab === 'profile' ? 'My Profile' : 'Course Builder'}
+                                                    activeTab === 'live-class' ? 'Live Classrooms' :
+                                                        activeTab === 'profile' ? 'My Profile' : 'Course Builder'}
                         </h1>
                         <p style={{ color: '#718096', margin: 0 }}>Welcome back, <span style={{ color: '#4a5568', fontWeight: '600' }}>{user.name}</span>! Ready to inspire today?</p>
                     </div>
@@ -206,6 +208,8 @@ function TeacherDashboard() {
                     <AnnouncementsSection announcements={announcements} />
                 ) : activeTab === 'assignments' ? (
                     <AssignmentsSection teacherId={user.id || user._id} courses={publishedCourses} />
+                ) : activeTab === 'live-class' ? (
+                    <LiveClassSection teacherId={user.id || user._id} teacherName={user.name} />
                 ) : activeTab === 'my-courses' ? (
                     <div>
                         {/* Published Section */}
@@ -388,6 +392,80 @@ const CourseCard = ({ course, onEdit, onDelete }) => (
         </div>
     </div>
 );
+
+const LiveClassSection = ({ teacherId, teacherName }) => {
+    const navigate = useNavigate();
+    const [title, setTitle] = useState('');
+    const [activeClasses, setActiveClasses] = useState([]);
+
+    useEffect(() => {
+        fetchActiveClasses();
+    }, []);
+
+    const fetchActiveClasses = async () => {
+        try {
+            const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/live-class/active`);
+            setActiveClasses(res.data.filter(c => c.teacher._id === teacherId || c.teacher === teacherId));
+        } catch (err) { console.error(err); }
+    };
+
+    const handleStartClass = async (e) => {
+        e.preventDefault();
+        if (!title.trim()) return alert('Please enter class title');
+
+        const roomId = `LMS_${Date.now()}`;
+        try {
+            await axios.post(`${import.meta.env.VITE_API_URL}/api/live-class/create`, {
+                title, roomId, teacherId, teacherName
+            });
+            navigate(`/live-class/${roomId}`);
+        } catch (err) {
+            alert("Failed to start class");
+        }
+    };
+
+    return (
+        <div style={{ background: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: '800', marginBottom: '30px' }}>📽️ Live Class Management</h2>
+
+            <form onSubmit={handleStartClass} style={{ background: '#f8fafc', padding: '24px', borderRadius: '16px', marginBottom: '40px', border: '1px solid #e2e8f0' }}>
+                <h3 style={{ fontSize: '1.1rem', marginBottom: '20px' }}>Start New Live Session</h3>
+                <div style={{ display: 'flex', gap: '15px' }}>
+                    <input
+                        type="text"
+                        placeholder="Enter Class Title (e.g. Intro to React)"
+                        value={title}
+                        onChange={(e) => setTitle(e.target.value)}
+                        style={{ flex: 1, padding: '12px 16px', borderRadius: '10px', border: '1px solid #cbd5e0', fontSize: '1rem', outline: 'none' }}
+                    />
+                    <button type="submit" style={{ padding: '0 30px', background: '#6366f1', color: 'white', border: 'none', borderRadius: '10px', fontWeight: '700', cursor: 'pointer' }}>
+                        Go Live Now 🚀
+                    </button>
+                </div>
+            </form>
+
+            <h3 style={{ fontSize: '1.1rem', marginBottom: '20px' }}>Your Session History</h3>
+            <div style={{ display: 'grid', gap: '15px' }}>
+                {activeClasses.length === 0 ? (
+                    <p style={{ color: '#718096', fontStyle: 'italic' }}>No active classes found.</p>
+                ) : (
+                    activeClasses.map(c => (
+                        <div key={c._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 20px', background: '#f0f4ff', borderRadius: '12px', borderLeft: '4px solid #6366f1' }}>
+                            <div>
+                                <h4 style={{ margin: 0, fontSize: '1.05rem', color: '#1a202c' }}>{c.title}</h4>
+                                <small style={{ color: '#718096' }}>Room ID: {c.roomId}</small>
+                            </div>
+                            <button onClick={() => navigate(`/live-class/${c.roomId}`)} style={{ padding: '8px 20px', background: '#6366f1', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>
+                                Resume Class
+                            </button>
+                        </div>
+                    ))
+                )}
+            </div>
+        </div>
+    );
+};
+
 
 const StudentGradesSection = ({ teacherId, allPublishedCourses }) => {
     const [gradesData, setGradesData] = useState([]);

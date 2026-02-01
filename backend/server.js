@@ -40,6 +40,9 @@ app.use('/api/admin', require('./routes/admin'));
 console.log('Mounting /api/announcements routes...');
 app.use('/api/announcements', require('./routes/announcement'));
 
+console.log('Mounting /api/live-class routes...');
+app.use('/api/live-class', require('./routes/liveClass'));
+
 app.use('/uploads', express.static('uploads'));
 
 app.get('/ping', (req, res) => {

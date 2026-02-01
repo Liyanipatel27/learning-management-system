@@ -6,6 +6,7 @@ import AdminDashboard from './pages/AdminDashboard';
 import ForgotPassword from './pages/ForgotPassword';
 import VerifyOTP from './pages/VerifyOTP';
 import ResetPassword from './pages/ResetPassword';
+import LiveClassroom from './pages/LiveClassroom';
 import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
@@ -38,6 +39,14 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={['admin']}>
               <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/live-class/:roomId"
+          element={
+            <ProtectedRoute allowedRoles={['student', 'teacher']}>
+              <LiveClassroom />
             </ProtectedRoute>
           }
         />
