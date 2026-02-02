@@ -375,12 +375,15 @@ const LiveClassroom = () => {
                     joinedConferenceRef.current = true;
                 },
                 videoConferenceLeft: () => {
-                    console.log("[LIVE CLASS DEBUG] Video conference left - Triggering FORCE EXIT");
-                    // Force exit for teacher regardless of join state
-                    if (user.role === 'teacher') {
-                        endClass(true);
-                    } else {
-                        window.location.href = '/student-dashboard';
+                    console.log("[LIVE CLASS DEBUG] Video conference left");
+                    // Only redirect if the user had ACTUALLY joined the conference.
+                    // This ignores the 'Log-in' button click which triggers a 'left' event before joining.
+                    if (joinedConferenceRef.current) {
+                        if (user.role === 'teacher') {
+                            endClass(true);
+                        } else {
+                            window.location.href = '/student-dashboard';
+                        }
                     }
                 },
                 readyToClose: () => {
