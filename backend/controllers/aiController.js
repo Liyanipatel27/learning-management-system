@@ -35,28 +35,88 @@ exports.createRoadmap = async (req, res) => {
     }
 };
 
-// 3. Performance Analysis
+// 3. Performance Analysis - Detailed with Grades
 exports.getPerformanceAnalysis = async (req, res) => {
     try {
         const { studentId } = req.params;
 
         const progressData = await Progress.find({ student: studentId }).populate('course');
 
-        // Transform for AI consumption
+        // Transform for AI consumption - detailed grades data
         const analysisData = progressData.map(p => ({
             course: p.course.title,
+            subject: p.course.subject,
             completedModules: p.completedModules.length,
-            scores: p.completedModules.map(m => m.score)
+            scores: p.completedModules.map(m => ({
+                moduleId: m.moduleId,
+                score: m.score,
+                isFastTracked: m.isFastTracked,
+                completedAt: m.completedAt
+            })),
+            averageScore: p.completedModules.length > 0
+                ? (p.completedModules.reduce((sum, m) => sum + m.score, 0) / p.completedModules.length).toFixed(2)
+                : 0
         }));
 
         const analysis = await aiService.analyzePerformance(analysisData);
-        res.json(analysis);
+        res.json({
+            grades: analysisData,
+            analysis: analysis
+        });
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
 };
 
-// 4. Chat
+// 3b. Get Grades Only (for graphs)
+exports.getGrades = async (req, res) => {
+    try {
+        const { studentId } = req.params;
+
+        const progressData = await Progress.find({ student: studentId }).populate('course');
+
+        // Transform for graphs - detailed grades data
+        const gradesData = progressData.map(p => {
+            const scores = p.completedModules.map(m => m.score);
+            const averageScore = scores.length > 0
+                ? (scores.reduce((sum, s) => sum + s, 0) / scores.length).toFixed(2)
+                : 0;
+
+            return {
+                courseId: p.course._id,
+                course: p.course.title,
+                subject: p.course.subject,
+                totalModules: p.completedModules.length,
+                scores: p.completedModules.map(m => ({
+                    moduleId: m.moduleId,
+                    score: m.score,
+                    isFastTracked: m.isFastTracked,
+                    completedAt: m.completedAt
+                })),
+                averageScore: parseFloat(averageScore),
+                highestScore: scores.length > 0 ? Math.max(...scores) : 0,
+                lowestScore: scores.length > 0 ? Math.min(...scores) : 0
+            };
+        });
+
+        res.json({ grades: gradesData });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+};
+
+// 3c. Analyze Performance (new format for My Grades data)
+exports.analyzePerformanceNew = async (req, res) => {
+    try {
+        const { studentId, performanceData } = req.body;
+        
+        // Analyze the performance data with AI
+        const analysis = await aiService.analyzePerformance(performanceData);
+        res.json(analysis);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+};
 exports.chatWithAI = async (req, res) => {
     try {
         const { message, history, studentLevel } = req.body;

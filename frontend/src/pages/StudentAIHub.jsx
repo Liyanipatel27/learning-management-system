@@ -1,23 +1,57 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import AIChatbot from '../components/AI/AIChatbot';
 import StudyRoadmap from '../components/AI/StudyRoadmap';
 import PerformanceAnalyzer from '../components/AI/PerformanceAnalyzer';
-import QuizGenerator from '../components/AI/QuizGenerator';
+
 
 const StudentAIHub = () => {
     const location = useLocation();
     const navigate = useNavigate();
-    const student = location.state?.student || JSON.parse(localStorage.getItem('user'));
 
+    // Safe user retrieval with error handling
+    let studentData = null;
+    try {
+        studentData = location.state?.student || JSON.parse(localStorage.getItem('user') || 'null');
+    } catch (e) {
+        console.error('Error parsing user data:', e);
+        studentData = null;
+    }
+
+    const student = studentData;
     const [activeTab, setActiveTab] = useState('roadmap');
+    const [courses, setCourses] = useState([]);
+    const [allProgress, setAllProgress] = useState([]);
+
+    // Fetch courses and progress data
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                const coursesRes = await axios.get(`${import.meta.env.VITE_API_URL}/api/courses`);
+                setCourses(coursesRes.data);
+
+                const studentId = student?._id || student?.id;
+                if (studentId) {
+                    const progressRes = await axios.get(`${import.meta.env.VITE_API_URL}/api/courses/progress/student/${studentId}`);
+                    setAllProgress(progressRes.data);
+                }
+            } catch (err) {
+                console.error('Error fetching data:', err);
+            }
+        };
+
+        if (student) {
+            fetchData();
+        }
+    }, [student]);
 
     if (!student) return <div style={{ padding: '20px', textAlign: 'center' }}>Please log in first.</div>;
 
     const tabs = [
         { id: 'roadmap', label: '🗺️ Study Roadmap', component: <StudyRoadmap studentId={student._id} subjects={[]} /> },
-        { id: 'performance', label: '📊 Performance', component: <PerformanceAnalyzer studentId={student._id} /> },
-        { id: 'quiz', label: '🎯 Quiz Generator', component: <QuizGenerator /> }
+        { id: 'performance', label: '📊 Performance', component: <PerformanceAnalyzer studentId={student._id} courses={courses} allProgress={allProgress} /> },
+        { id: 'aitutor', label: '🤖 AI Tutor', component: <AIChatbot studentName={student.name} embedded={true} /> }
     ];
 
     return (
@@ -124,12 +158,40 @@ const StudentAIHub = () => {
                         }
                     `}
                 </style>
-                {tabs.find(t => t.id === activeTab)?.component}
+                <ErrorBoundary key={activeTab}>
+                    {tabs.find(t => t.id === activeTab)?.component}
+                </ErrorBoundary>
             </div>
-
-            <AIChatbot studentName={student.name} />
         </div>
     );
 };
+
+class ErrorBoundary extends React.Component {
+    constructor(props) {
+        super(props);
+        this.state = { hasError: false, error: null };
+    }
+
+    static getDerivedStateFromError(error) {
+        return { hasError: true, error };
+    }
+
+    componentDidCatch(error, info) {
+        console.error("ErrorBoundary caught an error", error, info);
+    }
+
+    render() {
+        if (this.state.hasError) {
+            return (
+                <div style={{ padding: '20px', color: 'red', textAlign: 'center', background: '#fff0f0', borderRadius: '8px' }}>
+                    <h3>Something went wrong.</h3>
+                    <p>{this.state.error?.toString()}</p>
+                    <button onClick={() => window.location.reload()} style={{ padding: '8px 16px', cursor: 'pointer' }}>Reload Page</button>
+                </div>
+            );
+        }
+        return this.props.children;
+    }
+}
 
 export default StudentAIHub;

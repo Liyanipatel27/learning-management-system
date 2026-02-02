@@ -13,11 +13,10 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-<<<<<<< HEAD
+
     "@google/generative-ai": "^0.24.1",
-=======
     "axios": "^1.13.3",
->>>>>>> 6b33c61809f51da2d7d0fde10ddb174f2de0cbeb
+
     "bcryptjs": "^3.0.3",
     "cloudinary": "^1.41.3",
     "cors": "^2.8.5",

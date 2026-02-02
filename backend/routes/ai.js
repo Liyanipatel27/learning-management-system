@@ -11,6 +11,12 @@ router.post('/roadmap', aiController.createRoadmap);
 // 3. Performance Analysis
 router.get('/performance/:studentId', aiController.getPerformanceAnalysis);
 
+// 3b. Get Grades for Graphs
+router.get('/grades/:studentId', aiController.getGrades);
+
+// 3c. Analyze Performance (new format)
+router.post('/analyze-performance', aiController.analyzePerformanceNew);
+
 // 4. AI Tutor Chat
 router.post('/chat', aiController.chatWithAI);
 

@@ -3,9 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
-<<<<<<< HEAD
+
 import SummaryWidget from '../components/AI/SummaryWidget';
-=======
+
 import ReactMarkdown from 'react-markdown';
 
 //import AIAssistantSidebar from '../components/AIAssistantSidebar'; // Import the new component
@@ -17,7 +17,7 @@ const formatTime = (seconds) => {
     if (m === 0) return `${s}s`;
     return `${m}m ${s}s`;
 };
->>>>>>> 6b33c61809f51da2d7d0fde10ddb174f2de0cbeb
+
 
 function StudentDashboard() {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -159,17 +159,14 @@ function StudentDashboard() {
                         <div className={`nav-item ${activeTab === 'dashboard' && !selectedCourse ? 'active' : ''}`} onClick={() => { setActiveTab('dashboard'); setSelectedCourse(null); }}>Dashboard</div>
                         <div className={`nav-item ${activeTab === 'my-courses' ? 'active' : ''}`} onClick={() => { setActiveTab('my-courses'); setSelectedCourse(null); }}>My Courses</div>
                         <div className={`nav-item ${activeTab === 'certificates' ? 'active' : ''}`} onClick={() => { setActiveTab('certificates'); setSelectedCourse(null); }}>Certificates</div>
-<<<<<<< HEAD
-                        <div className="nav-item" onClick={() => alert('Assignments Module Coming Soon!')}>Assignments</div>
+
                         <div className="nav-item" onClick={() => navigate('/ai-hub', { state: { student: user } })}>🤖 AI Learning Hub</div>
-                        <div className="nav-item" onClick={() => alert('Grades Module Coming Soon!')}>Grades</div>
-                        <div className="nav-item" onClick={() => alert('Profile Module Coming Soon!')}>Profile</div>
-=======
+
                         <div className={`nav-item ${activeTab === 'ai-roadmap' ? 'active' : ''}`} onClick={() => { setActiveTab('ai-roadmap'); setSelectedCourse(null); }}>AI Career Roadmap</div>
                         <div className={`nav-item ${activeTab === 'assignments' ? 'active' : ''}`} onClick={() => { setActiveTab('assignments'); setSelectedCourse(null); }}>Assignments</div>
                         <div className={`nav-item ${activeTab === 'grades' ? 'active' : ''}`} onClick={() => { setActiveTab('grades'); setSelectedCourse(null); }}>Grades</div>
                         <div className={`nav-item ${activeTab === 'profile' ? 'active' : ''}`} onClick={() => { setActiveTab('profile'); setSelectedCourse(null); }}>Profile</div>
->>>>>>> 6b33c61809f51da2d7d0fde10ddb174f2de0cbeb
+
                         <div
                             className="nav-item"
                             onClick={handleLogout}
@@ -177,9 +174,10 @@ function StudentDashboard() {
                         >
                             Logout
                         </div>
-                    </nav>
-                </aside>
-            )}
+                    </nav >
+                </aside >
+            )
+            }
 
             <main className="main-content" style={{ flex: 1, padding: '40px' }}>
                 {!isCinemaMode && (
@@ -380,59 +378,61 @@ function StudentDashboard() {
             </main>
 
             {/* Premium Study Reminder Toast */}
-            {showStudyReminder && (
-                <div style={{
-                    position: 'fixed',
-                    bottom: '30px',
-                    right: '30px',
-                    background: 'white',
-                    padding: '20px',
-                    borderRadius: '16px',
-                    boxShadow: '0 15px 35px rgba(0,0,0,0.15)',
-                    border: '1px solid #edf2f7',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '12px',
-                    minWidth: '320px',
-                    zIndex: 9999,
-                    animation: 'slideInRight 0.5s ease-out'
-                }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <span style={{ fontSize: '1.5rem' }}>🎯</span>
-                            <h4 style={{ margin: 0, color: '#2d3748', fontSize: '1rem' }}>Study Goal Reminder</h4>
+            {
+                showStudyReminder && (
+                    <div style={{
+                        position: 'fixed',
+                        bottom: '30px',
+                        right: '30px',
+                        background: 'white',
+                        padding: '20px',
+                        borderRadius: '16px',
+                        boxShadow: '0 15px 35px rgba(0,0,0,0.15)',
+                        border: '1px solid #edf2f7',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '12px',
+                        minWidth: '320px',
+                        zIndex: 9999,
+                        animation: 'slideInRight 0.5s ease-out'
+                    }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <span style={{ fontSize: '1.5rem' }}>🎯</span>
+                                <h4 style={{ margin: 0, color: '#2d3748', fontSize: '1rem' }}>Study Goal Reminder</h4>
+                            </div>
+                            <button onClick={() => setShowStudyReminder(null)} style={{ border: 'none', background: 'none', color: '#a0aec0', cursor: 'pointer', fontSize: '1.2rem' }}>&times;</button>
                         </div>
-                        <button onClick={() => setShowStudyReminder(null)} style={{ border: 'none', background: 'none', color: '#a0aec0', cursor: 'pointer', fontSize: '1.2rem' }}>&times;</button>
-                    </div>
-                    <div>
-                        <p style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: '#718096', lineHeight: '1.4' }}>
-                            You're doing great! You still need **{showStudyReminder.remaining} mins** more to reach your daily activity target.
-                        </p>
-                        <div style={{ height: '8px', background: '#edf2f7', borderRadius: '4px', overflow: 'hidden' }}>
-                            <div style={{
-                                height: '100%',
-                                width: `${Math.round(((showStudyReminder.goal - showStudyReminder.remaining) / showStudyReminder.goal) * 100)}%`,
-                                background: 'linear-gradient(90deg, #F6AD55, #ED8936)',
-                                borderRadius: '4px'
-                            }}></div>
+                        <div>
+                            <p style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: '#718096', lineHeight: '1.4' }}>
+                                You're doing great! You still need **{showStudyReminder.remaining} mins** more to reach your daily activity target.
+                            </p>
+                            <div style={{ height: '8px', background: '#edf2f7', borderRadius: '4px', overflow: 'hidden' }}>
+                                <div style={{
+                                    height: '100%',
+                                    width: `${Math.round(((showStudyReminder.goal - showStudyReminder.remaining) / showStudyReminder.goal) * 100)}%`,
+                                    background: 'linear-gradient(90deg, #F6AD55, #ED8936)',
+                                    borderRadius: '4px'
+                                }}></div>
+                            </div>
                         </div>
-                    </div>
-                    <button
-                        onClick={() => setShowStudyReminder(null)}
-                        style={{ background: '#6C63FF', color: 'white', border: 'none', padding: '8px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem' }}
-                    >
-                        Keep Studying (Got it!)
-                    </button>
+                        <button
+                            onClick={() => setShowStudyReminder(null)}
+                            style={{ background: '#6C63FF', color: 'white', border: 'none', padding: '8px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem' }}
+                        >
+                            Keep Studying (Got it!)
+                        </button>
 
-                    <style>{`
+                        <style>{`
                         @keyframes slideInRight {
                             from { transform: translateX(100%); opacity: 0; }
                             to { transform: translateX(0); opacity: 1; }
                         }
                     `}</style>
-                </div>
-            )}
-        </div>
+                    </div>
+                )
+            }
+        </div >
     );
 }
 
@@ -984,77 +984,79 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
                                         </div>
                                     </div>
 
-<<<<<<< HEAD
-                            {!isTabActive && !isTimeRequirementMet && (
-                                <div style={{
-                                    padding: '8px',
-                                    background: '#FFF5F5',
-                                    color: '#C53030',
-                                    borderRadius: '8px',
-                                    marginBottom: '10px',
-                                    textAlign: 'center',
-                                    fontSize: '0.8rem',
-                                    fontWeight: 'bold',
-                                    border: '1px solid #FC8181'
-                                }}>
-                                    ⚠️ Timer Paused: Please stay on this tab to continue your study time.
-                                </div>
-                            )}
-                            <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <div>
-                                    <h2 style={{ margin: 0, fontSize: '1.25rem', color: '#2d3748' }}>{selectedContent.title}</h2>
-                                    <span style={{ fontSize: '0.8rem', color: '#718096' }}>Type: {selectedContent.type.toUpperCase()}</span>
-                                    <SummaryWidget content={selectedContent.description || selectedContent.title} title={selectedContent.title} />
-                                </div>
-                                {selectedContent.type === 'link' && isTimeRequirementMet && (
-                                    <a
-                                        href={selectedContent.url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        style={{ padding: '8px 16px', background: '#6C63FF', color: 'white', borderRadius: '8px', textDecoration: 'none', fontSize: '0.85rem', fontWeight: 'bold' }}
-                                    >
-                                        Open Link
-                                    </a>
-                                )}
-                                {selectedContent.type !== 'link' && isTimeRequirementMet && (
-                                    <a
-                                        href={getContentUrl(selectedContent.url)}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        style={{ padding: '8px 16px', background: '#6C63FF', color: 'white', borderRadius: '8px', textDecoration: 'none', fontSize: '0.85rem', fontWeight: 'bold' }}
-                                    >
-                                        Open In New Tab
-                                    </a>
-                                )}
-                            </div>
-=======
->>>>>>> 6b33c61809f51da2d7d0fde10ddb174f2de0cbeb
+
+                                    {
+                                        !isTabActive && !isTimeRequirementMet && (
+                                            <div style={{
+                                                padding: '8px',
+                                                background: '#FFF5F5',
+                                                color: '#C53030',
+                                                borderRadius: '8px',
+                                                marginBottom: '10px',
+                                                textAlign: 'center',
+                                                fontSize: '0.8rem',
+                                                fontWeight: 'bold',
+                                                border: '1px solid #FC8181'
+                                            }}>
+                                                ⚠️ Timer Paused: Please stay on this tab to continue your study time.
+                                            </div>
+                                        )
+                                    }
+                                    <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <div>
+                                            <h2 style={{ margin: 0, fontSize: '1.25rem', color: '#2d3748' }}>{selectedContent.title}</h2>
+                                            <span style={{ fontSize: '0.8rem', color: '#718096' }}>Type: {selectedContent.type.toUpperCase()}</span>
+                                            <SummaryWidget content={selectedContent.description || selectedContent.title} title={selectedContent.title} />
+                                        </div>
+                                        {selectedContent.type === 'link' && isTimeRequirementMet && (
+                                            <a
+                                                href={selectedContent.url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                style={{ padding: '8px 16px', background: '#6C63FF', color: 'white', borderRadius: '8px', textDecoration: 'none', fontSize: '0.85rem', fontWeight: 'bold' }}
+                                            >
+                                                Open Link
+                                            </a>
+                                        )}
+                                        {selectedContent.type !== 'link' && isTimeRequirementMet && (
+                                            <a
+                                                href={getContentUrl(selectedContent.url)}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                style={{ padding: '8px 16px', background: '#6C63FF', color: 'white', borderRadius: '8px', textDecoration: 'none', fontSize: '0.85rem', fontWeight: 'bold' }}
+                                            >
+                                                Open In New Tab
+                                            </a>
+                                        )}
+                                    </div>
 
 
                                     {/* Study Requirement Bar */}
-                                    {selectedContent.minTime > 0 && (
-                                        <div style={{ flex: 1, padding: '12px', background: isTimeRequirementMet ? '#C6F6D5' : '#EBF8FF', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                            <div style={{ fontSize: '1rem' }}>{isTimeRequirementMet ? '✅' : '⏳'}</div>
-                                            <div style={{ flex: 1 }}>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
-                                                    <span style={{ fontSize: '0.75rem', fontWeight: '700', color: isTimeRequirementMet ? '#22543D' : '#2A4365', display: 'flex', gap: '8px' }}>
-                                                        {isTimeRequirementMet ? '✅ Requirement Met' : (
-                                                            <>
-                                                                <span>⏱️ Spent: {formatTime(timeSpent)}</span>
-                                                                <span style={{ opacity: 0.6 }}>|</span>
-                                                                <span>⏳ Left: {formatTime(Math.max(0, selectedContent.minTime - timeSpent))}</span>
-                                                            </>
-                                                        )}
-                                                    </span>
-                                                    <span style={{ fontSize: '0.75rem', color: '#718096' }}>{Math.min(100, Math.round((timeSpent / selectedContent.minTime) * 100))}%</span>
-                                                </div>
-                                                <div style={{ height: '6px', background: 'rgba(0,0,0,0.1)', borderRadius: '3px', overflow: 'hidden' }}>
-                                                    <div style={{ height: '100%', width: `${Math.min(100, (timeSpent / selectedContent.minTime) * 100)}%`, background: isTimeRequirementMet ? '#38A169' : '#3182CE', transition: 'width 0.3s' }}></div>
+                                    {
+                                        selectedContent.minTime > 0 && (
+                                            <div style={{ flex: 1, padding: '12px', background: isTimeRequirementMet ? '#C6F6D5' : '#EBF8FF', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                <div style={{ fontSize: '1rem' }}>{isTimeRequirementMet ? '✅' : '⏳'}</div>
+                                                <div style={{ flex: 1 }}>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
+                                                        <span style={{ fontSize: '0.75rem', fontWeight: '700', color: isTimeRequirementMet ? '#22543D' : '#2A4365', display: 'flex', gap: '8px' }}>
+                                                            {isTimeRequirementMet ? '✅ Requirement Met' : (
+                                                                <>
+                                                                    <span>⏱️ Spent: {formatTime(timeSpent)}</span>
+                                                                    <span style={{ opacity: 0.6 }}>|</span>
+                                                                    <span>⏳ Left: {formatTime(Math.max(0, selectedContent.minTime - timeSpent))}</span>
+                                                                </>
+                                                            )}
+                                                        </span>
+                                                        <span style={{ fontSize: '0.75rem', color: '#718096' }}>{Math.min(100, Math.round((timeSpent / selectedContent.minTime) * 100))}%</span>
+                                                    </div>
+                                                    <div style={{ height: '6px', background: 'rgba(0,0,0,0.1)', borderRadius: '3px', overflow: 'hidden' }}>
+                                                        <div style={{ height: '100%', width: `${Math.min(100, (timeSpent / selectedContent.minTime) * 100)}%`, background: isTimeRequirementMet ? '#38A169' : '#3182CE', transition: 'width 0.3s' }}></div>
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    )}
-                                </div>
+                                        )
+                                    }
+                                </div >
 
                                 {!isTabActive && !isTimeRequirementMet && (
                                     <div style={{
@@ -1252,7 +1254,7 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
                                         </div>
                                     )}
                                 </div>
-                            </div>
+                            </div >
                         ) : (
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#a0aec0' }}>
                                 <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: '20px' }}>
@@ -1261,8 +1263,8 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
                                 <p>Select a lesson from the sidebar to start learning</p>
                             </div>
                         )}
-                    </div>
-                </div>
+                    </div >
+                </div >
 
                 {activeAIFeature && selectedContent && (
                     <div style={{ flex: 0.3, background: 'white', borderRadius: '15px', border: '1px solid #edf2f7', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
@@ -1276,8 +1278,8 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
                         />
                     </div>
                 )}
-            </div>
-        </div>
+            </div >
+        </div >
     );
 };
 

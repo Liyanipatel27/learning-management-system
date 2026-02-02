@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 
-const AIChatbot = ({ studentName, performanceLevel }) => {
-    const [isOpen, setIsOpen] = useState(false);
+const AIChatbot = ({ studentName, performanceLevel, embedded = false }) => {
+    const [isOpen, setIsOpen] = useState(embedded); // Default to open if embedded
     const [messages, setMessages] = useState([
         { role: 'assistant', content: `Hi ${studentName || 'Student'}! I'm your AI Tutor. How can I help you today?` }
     ]);
@@ -12,8 +12,16 @@ const AIChatbot = ({ studentName, performanceLevel }) => {
     const messagesEndRef = useRef(null);
 
     // Speech Recognition Setup
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const recognition = SpeechRecognition ? new SpeechRecognition() : null;
+    const recognitionRef = useRef(null);
+
+    useEffect(() => {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (SpeechRecognition) {
+            recognitionRef.current = new SpeechRecognition();
+            recognitionRef.current.continuous = false;
+            recognitionRef.current.lang = 'en-US';
+        }
+    }, []);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -23,11 +31,17 @@ const AIChatbot = ({ studentName, performanceLevel }) => {
         scrollToBottom();
     }, [messages, isOpen]);
 
+    // Force open if embedded
+    useEffect(() => {
+        if (embedded) setIsOpen(true);
+    }, [embedded]);
+
     // Text-to-Speech Function
     const speak = (text) => {
         if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel();
             const utterance = new SpeechSynthesisUtterance(text);
-            utterance.rate = 1; // Normal speed
+            utterance.rate = 1;
             utterance.pitch = 1;
             window.speechSynthesis.speak(utterance);
         }
@@ -35,6 +49,7 @@ const AIChatbot = ({ studentName, performanceLevel }) => {
 
     // Voice Input Handler
     const handleVoiceInput = () => {
+        const recognition = recognitionRef.current;
         if (!recognition) {
             alert("Your browser does not support voice input.");
             return;
@@ -45,12 +60,16 @@ const AIChatbot = ({ studentName, performanceLevel }) => {
             setIsListening(false);
         } else {
             setIsListening(true);
-            recognition.start();
+            try {
+                recognition.start();
+            } catch (e) {
+                console.error("Speech recognition already started", e);
+            }
 
             recognition.onresult = (event) => {
                 const transcript = event.results[0][0].transcript;
                 setInput(transcript);
-                handleSend(transcript); // Auto-send after speaking
+                handleSend(transcript);
             };
 
             recognition.onend = () => {
@@ -63,6 +82,13 @@ const AIChatbot = ({ studentName, performanceLevel }) => {
             };
         }
     };
+
+    const suggestedActions = [
+        "Explain Quantum Physics",
+        "Create a study schedule",
+        "Quiz me on History",
+        "Summarize the last lesson"
+    ];
 
     const handleSend = async (messageOverride = null) => {
         const messageText = messageOverride || input;
@@ -77,7 +103,9 @@ const AIChatbot = ({ studentName, performanceLevel }) => {
             // Include recent history (last 10 messages) for context
             const history = messages.slice(-10);
 
-            const response = await axios.post('http://localhost:5000/api/ai/chat', {
+            // Use environment variable for API URL
+            const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+            const response = await axios.post(`${apiUrl}/api/ai/chat`, {
                 message: userMsg.content,
                 history: history,
                 studentLevel: performanceLevel || 'Average'
@@ -97,28 +125,48 @@ const AIChatbot = ({ studentName, performanceLevel }) => {
         }
     };
 
+    // Styles for embedded vs fixed
+    const containerStyle = embedded ? {
+        width: '100%',
+        height: '600px', // Fixed height for embedded mode to scroll
+        backgroundColor: 'white',
+        borderRadius: '15px',
+        boxShadow: '0 4px 6px rgba(0,0,0,0.05)',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+        border: '1px solid #e2e8f0'
+    } : {
+        position: 'fixed',
+        bottom: '20px',
+        right: '20px',
+        zIndex: 1000,
+        fontFamily: 'Segoe UI, sans-serif'
+    };
+
+    const windowStyle = embedded ? {
+        width: '100%',
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+    } : {
+        width: '350px',
+        height: '500px',
+        backgroundColor: 'white',
+        borderRadius: '15px',
+        boxShadow: '0 5px 25px rgba(0,0,0,0.2)',
+        display: 'flex',
+        flexDirection: 'column',
+        marginBottom: '10px',
+        overflow: 'hidden',
+        border: '1px solid #e0e0e0'
+    };
+
     return (
-        <div style={{
-            position: 'fixed',
-            bottom: '20px',
-            right: '20px',
-            zIndex: 1000,
-            fontFamily: 'Segoe UI, sans-serif'
-        }}>
+        <div style={containerStyle}>
             {/* Chat Window */}
             {isOpen && (
-                <div style={{
-                    width: '350px',
-                    height: '500px',
-                    backgroundColor: 'white',
-                    borderRadius: '15px',
-                    boxShadow: '0 5px 25px rgba(0,0,0,0.2)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    marginBottom: '10px',
-                    overflow: 'hidden',
-                    border: '1px solid #e0e0e0'
-                }}>
+                <div style={windowStyle}>
                     {/* Header */}
                     <div style={{
                         padding: '15px',
@@ -140,12 +188,14 @@ const AIChatbot = ({ studentName, performanceLevel }) => {
                             >
                                 🔇
                             </button>
-                            <button
-                                onClick={() => setIsOpen(false)}
-                                style={{ background: 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '18px' }}
-                            >
-                                ✕
-                            </button>
+                            {!embedded && (
+                                <button
+                                    onClick={() => setIsOpen(false)}
+                                    style={{ background: 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '18px' }}
+                                >
+                                    ✕
+                                </button>
+                            )}
                         </div>
                     </div>
 
@@ -179,6 +229,38 @@ const AIChatbot = ({ studentName, performanceLevel }) => {
                                 </div>
                             </div>
                         ))}
+                        {/* Suggested Actions */}
+                        {messages.length === 1 && (
+                            <div style={{ padding: '0 10px 10px', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                {suggestedActions.map((action, idx) => (
+                                    <button
+                                        key={idx}
+                                        onClick={() => handleSend(action)}
+                                        style={{
+                                            padding: '8px 12px',
+                                            borderRadius: '20px',
+                                            border: '1px solid #667eea',
+                                            background: 'white',
+                                            color: '#667eea',
+                                            fontSize: '12px',
+                                            cursor: 'pointer',
+                                            transition: 'all 0.2s'
+                                        }}
+                                        onMouseOver={(e) => {
+                                            e.currentTarget.style.background = '#667eea';
+                                            e.currentTarget.style.color = 'white';
+                                        }}
+                                        onMouseOut={(e) => {
+                                            e.currentTarget.style.background = 'white';
+                                            e.currentTarget.style.color = '#667eea';
+                                        }}
+                                    >
+                                        {action}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+
                         {loading && (
                             <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
                                 <div style={{ background: 'white', padding: '10px', borderRadius: '15px', color: '#888', fontSize: '12px' }}>
@@ -257,8 +339,8 @@ const AIChatbot = ({ studentName, performanceLevel }) => {
                 </div>
             )}
 
-            {/* Toggle Button */}
-            {!isOpen && (
+            {/* Toggle Button (Hidden if embedded) */}
+            {!embedded && !isOpen && (
                 <button
                     onClick={() => setIsOpen(true)}
                     style={{
