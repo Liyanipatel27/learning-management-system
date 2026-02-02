@@ -1,5 +1,5 @@
 services:
-  # Backend Service
+  # Backend Service (Node.js)
   - type: web
     name: lms-backend
     runtime: node
@@ -27,11 +27,9 @@ services:
       - key: EMAIL_PASS
         sync: false
 
-  # Frontend Service
-  - type: web
+  # Frontend Service (Static Site)
+  - type: static
     name: lms-frontend
-    runtime: static
-    plan: free
     rootDir: frontend
     buildCommand: npm install && npm run build
     staticPublishPath: dist
