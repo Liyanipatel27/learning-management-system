@@ -133,60 +133,51 @@ const LiveClassroom = () => {
 
     const startMeeting = () => {
         if (!jitsiContainerRef.current || jitsiApiRef.current) return;
-        、
-try {
-    const domain = 'meet.jit.si';
-    const options = {
-        roomName: roomId,
-        width: '100%',
-        height: '100%',
-        parentNode: jitsiContainerRef.current,
-        userInfo: {
-            displayName: user?.name || 'User'
-        },
+        displayName: user?.name || 'User'
+    },
         configOverwrite: {
             startWithAudioMuted: user.role === 'student',
-            startWithVideoMuted: false,
-            disableThirdPartyRequests: true,
-            prejoinPageEnabled: false,
-            enableWelcomePage: false,
-            enableNoAudioDetection: true,
-            enableNoVideoDetection: true,
-            toolbarButtons: [
-                'microphone', 'camera', 'closedcaptions', 'desktop', 'fullscreen',
-                'fodeviceselection', 'hangup', 'profile', 'chat', 'recording',
-                'livestreaming', 'etherpad', 'sharedvideo', 'settings', 'raisehand',
-                'videoquality', 'filmstrip', 'invite', 'feedback', 'stats', 'shortcuts',
-                'tileview', 'videobackgroundblur', 'download', 'help', 'mute-everyone',
-                'security'
-            ],
-            disableFocusOnSendMessage: true,
+                startWithVideoMuted: false,
+                    disableThirdPartyRequests: true,
+                        prejoinPageEnabled: false,
+                            enableWelcomePage: false,
+                                enableNoAudioDetection: true,
+                                    enableNoVideoDetection: true,
+                                        toolbarButtons: [
+                                            'microphone', 'camera', 'closedcaptions', 'desktop', 'fullscreen',
+                                            'fodeviceselection', 'hangup', 'profile', 'chat', 'recording',
+                                            'livestreaming', 'etherpad', 'sharedvideo', 'settings', 'raisehand',
+                                            'videoquality', 'filmstrip', 'invite', 'feedback', 'stats', 'shortcuts',
+                                            'tileview', 'videobackgroundblur', 'download', 'help', 'mute-everyone',
+                                            'security'
+                                        ],
+                                            disableFocusOnSendMessage: true,
         },
-        interfaceConfigOverwrite: {
-            SHOW_JITSI_WATERMARK: false,
-            SHOW_WATERMARK_FOR_GUESTS: false,
-            DEFAULT_REMOTE_DISPLAY_NAME: 'Student',
-            TOOLBAR_BUTTONS: [
-                'microphone', 'camera', 'desktop', 'chat', 'raisehand', 'tileview', 'fullscreen', 'hangup'
-            ],
-            SETTINGS_SECTIONS: ['devices', 'language', 'profile', 'calendar'],
-            SHOW_PROMOTIONAL_CLOSE_PAGE: false,
-            VERTICAL_FILMSTRIP: true,
-            MOBILE_APP_PROMO: false,
-        }
+    interfaceConfigOverwrite: {
+        SHOW_JITSI_WATERMARK: false,
+        SHOW_WATERMARK_FOR_GUESTS: false,
+        DEFAULT_REMOTE_DISPLAY_NAME: 'Student',
+        TOOLBAR_BUTTONS: [
+            'microphone', 'camera', 'desktop', 'chat', 'raisehand', 'tileview', 'fullscreen', 'hangup'
+        ],
+        SETTINGS_SECTIONS: ['devices', 'language', 'profile', 'calendar'],
+        SHOW_PROMOTIONAL_CLOSE_PAGE: false,
+        VERTICAL_FILMSTRIP: true,
+        MOBILE_APP_PROMO: false,
+    }
     };
-    const api = new window.JitsiMeetExternalAPI(domain, options);
-    jitsiApiRef.current = api;
+const api = new window.JitsiMeetExternalAPI(domain, options);
+jitsiApiRef.current = api;
 
-    api.addEventListener('screenSharingStatusChanged', (event) => {
-        if (event.on) {
-            api.executeCommand('setTileView', false);
-        }
-    });
+api.addEventListener('screenSharingStatusChanged', (event) => {
+    if (event.on) {
+        api.executeCommand('setTileView', false);
+    }
+});
 
-    api.addEventListener('readyToClose', () => {
-        endClass(true);
-    });
+api.addEventListener('readyToClose', () => {
+    endClass(true);
+});
 } catch (err) {
     console.error("Failed to start Jitsi meeting:", err);
 }
