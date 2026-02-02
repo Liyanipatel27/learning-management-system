@@ -40,7 +40,7 @@ const LiveClassroom = () => {
     const recordedChunks = useRef([]);
     const streamRef = useRef(null);
 
-    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+    const API_URL = import.meta.env.VITE_API_URL || '${API_URL}';
 
     useEffect(() => {
         // --- Socket Initialization ---

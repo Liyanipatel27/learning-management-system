@@ -4,6 +4,8 @@ import axios from 'axios';
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
 import ReactMarkdown from 'react-markdown';
+const API_URL = import.meta.env.VITE_API_URL || '${API_URL}';
+
 
 //import AIAssistantSidebar from '../components/AIAssistantSidebar'; // Import the new component
 
@@ -1833,7 +1835,7 @@ const ProfileSection = ({ userId }) => {
 
             try {
                 console.log(`[PROFILE] Fetching student profile for: ${userId}`);
-                const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+                const apiUrl = import.meta.env.VITE_API_URL || '${API_URL}';
                 const res = await axios.get(`${apiUrl}/api/auth/profile/${userId}`);
                 console.log('[PROFILE] Data received from API:', res.data);
                 setProfile(res.data);

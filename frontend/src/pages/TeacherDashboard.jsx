@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import * as XLSX from 'xlsx';
 import CourseBuilder from './CourseBuilder';
+const API_URL = import.meta.env.VITE_API_URL || '${API_URL}';
+
 
 
 function TeacherDashboard() {
@@ -516,7 +518,7 @@ const StudentGradesSection = ({ teacherId, allPublishedCourses }) => {
 
         console.log('Fetching student grades for teacherId:', teacherId);
         try {
-            const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+            const apiUrl = import.meta.env.VITE_API_URL || '${API_URL}';
             const res = await axios.get(`${apiUrl}/api/courses/grades/teacher/${teacherId}`);
             console.log('Received grades data:', res.data);
             setGradesData(res.data);
@@ -675,7 +677,7 @@ const StudentProgressSection = () => {
 
     const fetchReport = async () => {
         try {
-            const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+            const apiUrl = import.meta.env.VITE_API_URL || '${API_URL}';
             const res = await axios.get(`${apiUrl}/api/courses/reports/student-progress`);
             setReport(res.data);
         } catch (err) {
@@ -1510,7 +1512,7 @@ const ProfileSection = ({ userId }) => {
 
             try {
                 console.log(`[PROFILE] Fetching profile for: ${userId}`);
-                const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+                const apiUrl = import.meta.env.VITE_API_URL || '${API_URL}';
                 const res = await axios.get(`${apiUrl}/api/auth/profile/${userId}`);
                 setProfile(res.data);
             } catch (err) {
