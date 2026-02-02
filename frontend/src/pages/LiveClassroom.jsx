@@ -988,6 +988,10 @@ const LiveClassroom = () => {
                         zIndex: 10
                     }}>
                         <div style={{ display: 'flex', gap: '5px' }}>
+                            <button onClick={undo} disabled={history.length === 0} style={{ background: history.length === 0 ? '#1E293B' : '#334155', color: history.length === 0 ? '#64748B' : 'white', border: '1px solid #475569', padding: '10px', borderRadius: '8px', cursor: history.length === 0 ? 'not-allowed' : 'pointer', fontSize: '16px' }} title="Undo">↩️</button>
+                            <button onClick={redo} disabled={redoStack.length === 0} style={{ background: redoStack.length === 0 ? '#1E293B' : '#334155', color: redoStack.length === 0 ? '#64748B' : 'white', border: '1px solid #475569', padding: '10px', borderRadius: '8px', cursor: redoStack.length === 0 ? 'not-allowed' : 'pointer', fontSize: '16px' }} title="Redo">↪️</button>
+                            <button onClick={clearCanvas} style={{ background: '#334155', color: 'white', border: 'none', padding: '10px', borderRadius: '8px', cursor: 'pointer' }} title="Clear Canvas">🗑️</button>
+                            <div style={{ width: '1px', height: '20px', background: '#334155', margin: 'auto 5px' }}></div>
                             <button onClick={() => toggleEraser()} style={{ background: isEraser ? '#EF4444' : '#334155', color: 'white', border: 'none', padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}>
                                 {isEraser ? '🧽 Erasing' : '✏️ Pen'}
                             </button>
