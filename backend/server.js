@@ -1,10 +1,20 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const http = require('http');
+const { Server } = require('socket.io');
 require('dotenv').config();
 const authRoutes = require('./routes/auth');
 
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+    cors: {
+        origin: "*", // Adjust this for production
+        methods: ["GET", "POST"]
+    }
+});
+
 const PORT = process.env.PORT || 5000;
 
 // Middleware
@@ -54,6 +64,36 @@ app.get('/', (req, res) => {
     res.send('LMS Backend is Running');
 });
 
+// --- Socket.io Logic ---
+io.on('connection', (socket) => {
+    console.log('New client connected:', socket.id);
+
+    socket.on('join-room', (roomId) => {
+        socket.join(roomId);
+        console.log(`User ${socket.id} joined room ${roomId}`);
+    });
+
+    socket.on('draw-event', ({ roomId, ...drawData }) => {
+        socket.to(roomId).emit('incoming-draw', drawData);
+    });
+
+    socket.on('clear-canvas', (roomId) => {
+        socket.to(roomId).emit('canvas-cleared');
+    });
+
+    socket.on('code-update', ({ roomId, code }) => {
+        socket.to(roomId).emit('incoming-code', code);
+    });
+
+    socket.on('permission-update', ({ roomId, ...permData }) => {
+        socket.to(roomId).emit('incoming-permission', permData);
+    });
+
+    socket.on('disconnect', () => {
+        console.log('Client disconnected:', socket.id);
+    });
+});
+
 // Global Error Handler
 app.use((err, req, res, next) => {
     console.error(err.stack);
@@ -64,7 +104,7 @@ app.use((err, req, res, next) => {
 });
 
 // Start Server
-app.listen(PORT, () => {
+server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
-    console.log('Routes mounted.');
+    console.log('Routes mounted with Socket.io support.');
 });

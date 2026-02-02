@@ -32,6 +32,8 @@ function AdminDashboard() {
         enrollment: '', branch: '', employeeId: ''
     });
     const [newAnnouncement, setNewAnnouncement] = useState({ title: '', content: '', target: 'all' });
+    const [isEditing, setIsEditing] = useState(false);
+    const [editingUserId, setEditingUserId] = useState(null);
 
     useEffect(() => {
         if (!token) navigate('/login');
@@ -76,29 +78,49 @@ function AdminDashboard() {
 
     const fetchStudentReports = async () => axios.get(`${API_URL}/api/admin/reports/student-progress`, getAuthHeader()).then(res => setStudentReports(res.data));
     const fetchTeacherReports = async () => axios.get(`${API_URL}/api/admin/reports/teachers`, getAuthHeader()).then(res => setTeacherReports(res.data));
-    const fetchAnnouncements = async () => axios.get(`${API_URL}/api/admin/announcements`, getAuthHeader()).then(res => setAnnouncements(res.data));
+    const fetchAnnouncements = async () => axios.get(`${API_URL}/api/announcements`, getAuthHeader()).then(res => setAnnouncements(res.data));
 
     const handleAddUser = async (e) => {
         e.preventDefault();
         try {
-            // Reusing auth/register or adding specific admin/users route
-            // For now, let's assume admin/users supports POST for direct creation
-            await axios.post(`${API_URL}/api/auth/register`, newUser);
-            alert("User created successfully");
+            if (isEditing) {
+                await axios.put(`${API_URL}/api/admin/users/${editingUserId}`, newUser, getAuthHeader());
+                alert("User updated successfully");
+            } else {
+                await axios.post(`${API_URL}/api/auth/register`, newUser);
+                alert("User created successfully");
+            }
             setNewUser({
                 name: '', email: '', password: '', role: 'student',
                 enrollment: '', branch: '', employeeId: ''
             });
+            setIsEditing(false);
+            setEditingUserId(null);
             setShowUserModal(false);
             fetchUsers();
             fetchStats();
-        } catch (err) { alert(err.response?.data?.message || "Failed to add user"); }
+        } catch (err) { alert(err.response?.data?.message || `Failed to ${isEditing ? 'update' : 'add'} user`); }
+    };
+
+    const handleEditUser = (u) => {
+        setNewUser({
+            name: u.name,
+            email: u.email,
+            password: '', // Don't populate password
+            role: u.role,
+            enrollment: u.enrollment || '',
+            branch: u.branch || '',
+            employeeId: u.employeeId || ''
+        });
+        setIsEditing(true);
+        setEditingUserId(u._id);
+        setShowUserModal(true);
     };
 
     const handlePostAnnouncement = async (e) => {
         e.preventDefault();
         try {
-            await axios.post(`${API_URL}/api/admin/announcements`, newAnnouncement, getAuthHeader());
+            await axios.post(`${API_URL}/api/announcements`, newAnnouncement, getAuthHeader());
             alert("Announcement posted");
             setNewAnnouncement({ title: '', content: '', target: 'all' });
             setShowAnnouncementModal(false);
@@ -116,7 +138,7 @@ function AdminDashboard() {
     const deleteAnnouncement = async (id) => {
         if (!window.confirm("Delete this announcement?")) return;
         try {
-            await axios.delete(`${API_URL}/api/admin/announcements/${id}`, getAuthHeader());
+            await axios.delete(`${API_URL}/api/announcements/${id}`, getAuthHeader());
             fetchAnnouncements();
         } catch (err) { alert("Delete failed"); }
     };
@@ -308,6 +330,7 @@ function AdminDashboard() {
                                             {u.branch || '-'}
                                         </td>
                                         <td style={{ padding: '15px' }}>
+                                            <button onClick={() => handleEditUser(u)} style={{ color: '#3182ce', border: 'none', background: 'none', cursor: 'pointer', marginRight: '10px' }}>Edit</button>
                                             <button onClick={() => handleDeleteUser(u._id)} style={{ color: 'red', border: 'none', background: 'none', cursor: 'pointer' }}>Delete</button>
                                         </td>
                                     </tr>
@@ -486,10 +509,22 @@ function AdminDashboard() {
 
             {/* QUICK ACTION MODALS */}
             {showUserModal && (
-                <Modal title="Add New User Manually" onClose={() => setShowUserModal(false)} onSubmit={handleAddUser}>
+                <Modal
+                    title={isEditing ? "Edit User Details" : "Add New User Manually"}
+                    onClose={() => {
+                        setShowUserModal(false);
+                        setIsEditing(false);
+                        setEditingUserId(null);
+                        setNewUser({
+                            name: '', email: '', password: '', role: 'student',
+                            enrollment: '', branch: '', employeeId: ''
+                        });
+                    }}
+                    onSubmit={handleAddUser}
+                >
                     <InputGroup label="Full Name" value={newUser.name} onChange={e => setNewUser({ ...newUser, name: e.target.value })} placeholder="John Doe" />
                     <InputGroup label="Email Address" type="email" value={newUser.email} onChange={e => setNewUser({ ...newUser, email: e.target.value })} placeholder="john@example.com" />
-                    <InputGroup label="Password" type="password" value={newUser.password} onChange={e => setNewUser({ ...newUser, password: e.target.value })} placeholder="********" />
+                    {!isEditing && <InputGroup label="Password" type="password" value={newUser.password} onChange={e => setNewUser({ ...newUser, password: e.target.value })} placeholder="********" />}
                     <InputGroup label="Role" type="select" value={newUser.role} onChange={e => setNewUser({ ...newUser, role: e.target.value })} options={[
                         { label: 'Student', value: 'student' },
                         { label: 'Teacher', value: 'teacher' },

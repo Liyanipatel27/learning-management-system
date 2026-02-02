@@ -62,6 +62,33 @@ function TeacherDashboard() {
         }
     };
 
+    const handlePostAnnouncement = async (annData) => {
+        try {
+            const token = localStorage.getItem('token');
+            const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/announcements`, annData, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setAnnouncements([res.data, ...announcements]);
+        } catch (err) {
+            console.error('Error posting announcement:', err);
+            throw err;
+        }
+    };
+
+    const handleDeleteAnnouncement = async (id) => {
+        if (!window.confirm('Delete this announcement?')) return;
+        try {
+            const token = localStorage.getItem('token');
+            await axios.delete(`${import.meta.env.VITE_API_URL}/api/announcements/${id}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setAnnouncements(announcements.filter(a => a._id !== id));
+        } catch (err) {
+            console.error('Error deleting announcement:', err);
+            alert('Failed to delete announcement');
+        }
+    };
+
     const deleteCourse = async (courseId, e) => {
         e.stopPropagation();
         if (!window.confirm('Are you sure you want to delete this course? This will remove all chapters and modules.')) return;
@@ -205,7 +232,11 @@ function TeacherDashboard() {
                 ) : activeTab === 'profile' ? (
                     <ProfileSection userId={user.id || user._id} />
                 ) : activeTab === 'announcements' ? (
-                    <AnnouncementsSection announcements={announcements} />
+                    <AnnouncementsSection
+                        announcements={announcements}
+                        onPost={handlePostAnnouncement}
+                        onDelete={handleDeleteAnnouncement}
+                    />
                 ) : activeTab === 'assignments' ? (
                     <AssignmentsSection teacherId={user.id || user._id} courses={publishedCourses} />
                 ) : activeTab === 'live-class' ? (
@@ -298,10 +329,10 @@ function TeacherDashboard() {
                                             </div>
                                             <p style={{ margin: 0, color: '#4a5568', fontSize: '0.95rem', lineHeight: '1.6' }}>{ann.content}</p>
                                             <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                <div style={{ width: '24px', height: '24px', borderRadius: '6px', background: '#f0f4ff', color: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 'bold' }}>
-                                                    A
+                                                <div style={{ width: '24px', height: '24px', borderRadius: '6px', background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 'bold' }}>
+                                                    {ann.author?.name?.charAt(0).toUpperCase() || 'A'}
                                                 </div>
-                                                <span style={{ fontSize: '0.8rem', color: '#718096' }}>Posted by Admin</span>
+                                                <span style={{ fontSize: '0.8rem', color: '#718096' }}>Posted by {ann.author?.name || 'Admin'}</span>
                                             </div>
                                         </div>
                                     ))}
@@ -932,17 +963,32 @@ const AssignmentsSection = ({ teacherId, courses }) => {
                 {assignments.map(asgn => (
                     <div key={asgn._id} style={{ background: 'white', padding: '24px', borderRadius: '20px', border: '1px solid #edf2f7', boxShadow: '0 4px 6px rgba(0,0,0,0.02)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
-                            <span style={{
-                                padding: '4px 12px',
-                                borderRadius: '20px',
-                                fontSize: '0.75rem',
-                                fontWeight: '700',
-                                background: asgn.type === 'coding' ? 'rgba(99, 102, 241, 0.1)' : 'rgba(16, 185, 129, 0.1)',
-                                color: asgn.type === 'coding' ? '#6366f1' : '#10b981',
-                                textTransform: 'uppercase'
-                            }}>
-                                {asgn.type} Task
-                            </span>
+                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                <span style={{
+                                    padding: '4px 12px',
+                                    borderRadius: '20px',
+                                    fontSize: '0.75rem',
+                                    fontWeight: '700',
+                                    background: asgn.type === 'coding' ? 'rgba(99, 102, 241, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                                    color: asgn.type === 'coding' ? '#6366f1' : '#10b981',
+                                    textTransform: 'uppercase'
+                                }}>
+                                    {asgn.type} Task
+                                </span>
+                                {asgn.type === 'coding' && (
+                                    <span style={{
+                                        padding: '4px 10px',
+                                        borderRadius: '20px',
+                                        fontSize: '0.75rem',
+                                        fontWeight: '700',
+                                        background: '#EEF2FF',
+                                        color: '#4338CA',
+                                        border: '1px solid #C7D2FE'
+                                    }}>
+                                        {asgn.codingDetails?.language?.toUpperCase()}
+                                    </span>
+                                )}
+                            </div>
                             <span style={{ color: '#718096', fontSize: '0.85rem' }}>Due: {new Date(asgn.dueDate).toLocaleDateString()}</span>
                         </div>
                         <h3 style={{ margin: '0 0 10px 0', fontSize: '1.25rem', color: '#2d3748' }}>{asgn.title}</h3>
@@ -1397,7 +1443,15 @@ const SubmissionsModal = ({ assignment, onClose }) => {
                                     defaultValue={gradingSubmission.score || ''}
                                     type="number"
                                     className="form-input"
-                                    style={{ width: '100%', boxSizing: 'border-box', color: 'black' }}
+                                    style={{
+                                        width: '100%',
+                                        boxSizing: 'border-box',
+                                        color: 'black',
+                                        background: '#f8fafc',
+                                        border: '1px solid #e2e8f0',
+                                        borderRadius: '8px',
+                                        padding: '10px'
+                                    }}
                                 />
                             </div>
                             <div style={{ marginBottom: '20px' }}>
@@ -1406,7 +1460,16 @@ const SubmissionsModal = ({ assignment, onClose }) => {
                                     id="grade-feedback"
                                     defaultValue={gradingSubmission.feedback || ''}
                                     className="form-input"
-                                    style={{ width: '100%', minHeight: '80px', boxSizing: 'border-box', color: 'black' }}
+                                    style={{
+                                        width: '100%',
+                                        minHeight: '80px',
+                                        boxSizing: 'border-box',
+                                        color: 'black',
+                                        background: '#f8fafc',
+                                        border: '1px solid #e2e8f0',
+                                        borderRadius: '8px',
+                                        padding: '10px'
+                                    }}
                                 />
                             </div>
                             <div style={{ display: 'flex', gap: '10px' }}>
@@ -1526,13 +1589,114 @@ const ProfileSection = ({ userId }) => {
 };
 
 
-const AnnouncementsSection = ({ announcements }) => {
+const AnnouncementsSection = ({ announcements, onPost, onDelete }) => {
+    const [showForm, setShowForm] = useState(false);
+    const [newAnn, setNewAnn] = useState({ title: '', content: '', target: 'all' });
+    const [posting, setPosting] = useState(false);
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        if (!newAnn.title || !newAnn.content) return alert('Please fill all fields');
+        setPosting(true);
+        try {
+            await onPost(newAnn);
+            setNewAnn({ title: '', content: '', target: 'all' });
+            setShowForm(false);
+        } catch (err) {
+            alert('Failed to post announcement');
+        } finally {
+            setPosting(false);
+        }
+    };
+
     return (
         <div style={{ padding: '0 10px' }}>
-            <div style={{ background: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', border: '1px solid #edf2f7', marginBottom: '30px' }}>
-                <h3 style={{ margin: '0 0 10px 0', color: '#1a202c', fontSize: '1.25rem' }}>Notice Board</h3>
-                <p style={{ margin: 0, color: '#718096' }}>All administrative updates and official communications are archived here.</p>
+            <div style={{
+                background: 'white',
+                padding: '30px',
+                borderRadius: '20px',
+                boxShadow: '0 4px 6px rgba(0,0,0,0.02)',
+                border: '1px solid #edf2f7',
+                marginBottom: '30px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+            }}>
+                <div>
+                    <h3 style={{ margin: '0 0 10px 0', color: '#1a202c', fontSize: '1.25rem' }}>Notice Board</h3>
+                    <p style={{ margin: 0, color: '#718096' }}>Share important updates with students and staff.</p>
+                </div>
+                <button
+                    onClick={() => setShowForm(!showForm)}
+                    style={{
+                        padding: '12px 24px',
+                        background: showForm ? '#f87171' : '#6366f1',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '12px',
+                        fontWeight: '700',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s'
+                    }}
+                >
+                    {showForm ? 'Cancel' : '📢 Create Announcement'}
+                </button>
             </div>
+
+            {showForm && (
+                <div style={{ background: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 25px rgba(0,0,0,0.05)', border: '1px solid #edf2f7', marginBottom: '30px' }}>
+                    <form onSubmit={handleSubmit}>
+                        <div style={{ marginBottom: '20px' }}>
+                            <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: '#4a5568' }}>Title</label>
+                            <input
+                                type="text"
+                                value={newAnn.title}
+                                onChange={(e) => setNewAnn({ ...newAnn, title: e.target.value })}
+                                placeholder="Enter announcement title"
+                                style={{ width: '100%', padding: '12px 16px', borderRadius: '10px', border: '1px solid #e2e8f0', outline: 'none' }}
+                            />
+                        </div>
+                        <div style={{ marginBottom: '20px' }}>
+                            <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: '#4a5568' }}>Target Audience</label>
+                            <select
+                                value={newAnn.target}
+                                onChange={(e) => setNewAnn({ ...newAnn, target: e.target.value })}
+                                style={{ width: '100%', padding: '12px 16px', borderRadius: '10px', border: '1px solid #e2e8f0', outline: 'none' }}
+                            >
+                                <option value="all">Everybody</option>
+                                <option value="students">Students Only</option>
+                                <option value="teachers">Teachers Only</option>
+                            </select>
+                        </div>
+                        <div style={{ marginBottom: '20px' }}>
+                            <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: '#4a5568' }}>Content</label>
+                            <textarea
+                                value={newAnn.content}
+                                onChange={(e) => setNewAnn({ ...newAnn, content: e.target.value })}
+                                placeholder="Write your announcement message here..."
+                                style={{ width: '100%', padding: '12px 16px', borderRadius: '10px', border: '1px solid #e2e8f0', minHeight: '120px', outline: 'none' }}
+                            />
+                        </div>
+                        <button
+                            type="submit"
+                            disabled={posting}
+                            style={{
+                                width: '100%',
+                                padding: '14px',
+                                background: '#6366f1',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '12px',
+                                fontWeight: '700',
+                                cursor: 'pointer',
+                                opacity: posting ? 0.7 : 1
+                            }}
+                        >
+                            {posting ? 'Posting...' : 'Post Announcement Now'}
+                        </button>
+                    </form>
+                </div>
+            )}
 
             {announcements.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '100px 20px', background: 'white', borderRadius: '20px', border: '2px dashed #edf2f7' }}>
@@ -1542,58 +1706,75 @@ const AnnouncementsSection = ({ announcements }) => {
                 </div>
             ) : (
                 <div style={{ display: 'grid', gap: '20px' }}>
-                    {announcements.map((ann) => (
-                        <div
-                            key={ann._id}
-                            style={{
-                                background: 'white',
-                                padding: '30px',
-                                borderRadius: '20px',
-                                boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-                                border: '1px solid #edf2f7',
-                                borderLeft: '5px solid #6366f1'
-                            }}
-                        >
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                                    <div style={{ width: '45px', height: '45px', borderRadius: '12px', background: 'rgba(99, 102, 241, 0.1)', color: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.2rem' }}>
-                                        📢
+                    {announcements.map((ann) => {
+                        const isAuthor = ann.author?._id === (JSON.parse(localStorage.getItem('user'))?.id || JSON.parse(localStorage.getItem('user'))?._id);
+                        return (
+                            <div
+                                key={ann._id}
+                                style={{
+                                    background: 'white',
+                                    padding: '30px',
+                                    borderRadius: '20px',
+                                    boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                                    border: '1px solid #edf2f7',
+                                    borderLeft: '5px solid #6366f1'
+                                }}
+                            >
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                                        <div style={{ width: '45px', height: '45px', borderRadius: '12px', background: 'rgba(99, 102, 241, 0.1)', color: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.2rem' }}>
+                                            📢
+                                        </div>
+                                        <div>
+                                            <h4 style={{ margin: 0, color: '#1a202c', fontSize: '1.2rem', fontWeight: '700' }}>{ann.title}</h4>
+                                            <span style={{ fontSize: '0.75rem', color: '#6366f1', fontWeight: '700', textTransform: 'uppercase' }}>To: {ann.target}</span>
+                                        </div>
                                     </div>
-                                    <h4 style={{ margin: 0, color: '#1a202c', fontSize: '1.2rem', fontWeight: '700' }}>{ann.title}</h4>
+                                    <div style={{ textAlign: 'right', display: 'flex', alignItems: 'center', gap: '15px' }}>
+                                        <div style={{ background: '#f8fafc', padding: '8px 15px', borderRadius: '10px' }}>
+                                            <span style={{ fontSize: '0.85rem', color: '#4a5568', fontWeight: '600', display: 'block' }}>
+                                                {new Date(ann.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                            </span>
+                                        </div>
+                                        {isAuthor && (
+                                            <button
+                                                onClick={() => onDelete(ann._id)}
+                                                style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', padding: '5px' }}
+                                                title="Delete Announcement"
+                                            >
+                                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
-                                <div style={{ textAlign: 'right', background: '#f8fafc', padding: '8px 15px', borderRadius: '10px' }}>
-                                    <span style={{ fontSize: '0.85rem', color: '#4a5568', fontWeight: '600', display: 'block' }}>
-                                        {new Date(ann.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-                                    </span>
+                                <p style={{
+                                    margin: 0,
+                                    color: '#4a5568',
+                                    fontSize: '1.05rem',
+                                    lineHeight: '1.7',
+                                    whiteSpace: 'pre-wrap'
+                                }}>
+                                    {ann.content}
+                                </p>
+                                <div style={{
+                                    marginTop: '25px',
+                                    paddingTop: '20px',
+                                    borderTop: '1px solid #f8fafc',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between'
+                                }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                        <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 'bold' }}>
+                                            {ann.author?.name?.charAt(0).toUpperCase() || 'A'}
+                                        </div>
+                                        <span style={{ fontSize: '0.9rem', color: '#1a202c', fontWeight: '600' }}>{ann.author?.name || 'Unknown Author'}</span>
+                                    </div>
+                                    <span style={{ fontSize: '0.8rem', color: '#a0aec0' }}>Posted at {new Date(ann.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                                 </div>
                             </div>
-                            <p style={{
-                                margin: 0,
-                                color: '#4a5568',
-                                fontSize: '1.05rem',
-                                lineHeight: '1.7',
-                                whiteSpace: 'pre-wrap'
-                            }}>
-                                {ann.content}
-                            </p>
-                            <div style={{
-                                marginTop: '25px',
-                                paddingTop: '20px',
-                                borderTop: '1px solid #f8fafc',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between'
-                            }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                    <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: '#6366f1', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 'bold' }}>
-                                        A
-                                    </div>
-                                    <span style={{ fontSize: '0.9rem', color: '#1a202c', fontWeight: '600' }}>Admin Office</span>
-                                </div>
-                                <span style={{ fontSize: '0.8rem', color: '#a0aec0' }}>Posted at {new Date(ann.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                            </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             )}
         </div>

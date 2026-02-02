@@ -1,4 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { io } from 'socket.io-client';
+import Editor from '@monaco-editor/react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
@@ -20,7 +22,71 @@ const LiveClassroom = () => {
     const jitsiApiRef = useRef(null);
     const jitsiContainerRef = useRef(null);
 
+    // Mode State (Whiteboard or Coding)
+    const [activeMode, setActiveMode] = useState('whiteboard');
+    const [canEditCode, setCanEditCode] = useState(user?.role === 'teacher');
+    const socketRef = useRef(null);
+
+    // Coding States
+    const [code, setCode] = useState('// Write your code here...\nconsole.log("Hello, Classroom!");');
+    const [language, setLanguage] = useState('javascript');
+    const [executingCode, setExecutingCode] = useState(false);
+    const [executionResult, setExecutionResult] = useState(null);
+    const [stdin, setStdin] = useState('');
+
+    // Recording States & Refs
+    const [isRecording, setIsRecording] = useState(false);
+    const mediaRecorderRef = useRef(null);
+    const recordedChunks = useRef([]);
+    const streamRef = useRef(null);
+
     const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
+    useEffect(() => {
+        // --- Socket Initialization ---
+        const socket = io(API_URL);
+        socketRef.current = socket;
+
+        socket.emit('join-room', roomId);
+
+        socket.on('incoming-draw', ({ x, y, lastX, lastY, color, width, type }) => {
+            const ctx = ctxRef.current;
+            if (!ctx) return;
+            ctx.beginPath();
+            ctx.strokeStyle = color;
+            ctx.lineWidth = width;
+            if (type === 'start') {
+                ctx.moveTo(x, y);
+            } else {
+                ctx.moveTo(lastX, lastY);
+                ctx.lineTo(x, y);
+                ctx.stroke();
+            }
+        });
+
+        socket.on('canvas-cleared', () => {
+            const canvas = canvasRef.current;
+            if (canvas && ctxRef.current) {
+                ctxRef.current.clearRect(0, 0, canvas.width, canvas.height);
+            }
+        });
+
+        socket.on('incoming-code', (newCode) => {
+            if (user.role === 'student') {
+                setCode(newCode);
+            }
+        });
+
+        socket.on('incoming-permission', ({ canEdit }) => {
+            if (user.role === 'student') {
+                setCanEditCode(canEdit);
+            }
+        });
+
+        return () => {
+            socket.disconnect();
+        };
+    }, [roomId]);
 
     useEffect(() => {
         // --- 1. Load Jitsi Script ---
@@ -118,11 +184,23 @@ const LiveClassroom = () => {
     };
 
     // --- Whiteboard Functions ---
+    const lastPos = useRef({ x: 0, y: 0 });
+
     const startDrawing = ({ nativeEvent }) => {
         const { offsetX, offsetY } = nativeEvent;
         ctxRef.current.beginPath();
         ctxRef.current.moveTo(offsetX, offsetY);
         setIsPainting(true);
+        lastPos.current = { x: offsetX, y: offsetY };
+
+        socketRef.current?.emit('draw-event', {
+            roomId,
+            x: offsetX,
+            y: offsetY,
+            color,
+            width,
+            type: 'start'
+        });
     };
 
     const draw = ({ nativeEvent }) => {
@@ -130,6 +208,18 @@ const LiveClassroom = () => {
         const { offsetX, offsetY } = nativeEvent;
         ctxRef.current.lineTo(offsetX, offsetY);
         ctxRef.current.stroke();
+
+        socketRef.current?.emit('draw-event', {
+            roomId,
+            x: offsetX,
+            y: offsetY,
+            lastX: lastPos.current.x,
+            lastY: lastPos.current.y,
+            color,
+            width,
+            type: 'move'
+        });
+        lastPos.current = { x: offsetX, y: offsetY };
     };
 
     const stopDrawing = () => {
@@ -167,6 +257,7 @@ const LiveClassroom = () => {
         saveSlide();
         const canvas = canvasRef.current;
         ctxRef.current.clearRect(0, 0, canvas.width, canvas.height);
+        socketRef.current?.emit('clear-canvas', roomId);
         const newSlides = [...slides, canvas.toDataURL()];
         setSlides(newSlides);
         setCurrentSlideIndex(newSlides.length - 1);
@@ -191,6 +282,110 @@ const LiveClassroom = () => {
         link.click();
     };
 
+    // --- Screen Recording Functions ---
+    const startRecording = async () => {
+        try {
+            // 1. Get screen stream
+            const screenStream = await navigator.mediaDevices.getDisplayMedia({
+                video: { cursor: "always" },
+                audio: true // Captures system/tab audio
+            });
+
+            // 2. Get microphone stream
+            let micStream;
+            try {
+                micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            } catch (micErr) {
+                console.warn("Microphone access denied or not available:", micErr);
+            }
+
+            // 3. Combine audio tracks
+            const audioContext = new AudioContext();
+            const destination = audioContext.createMediaStreamDestination();
+
+            if (screenStream.getAudioTracks().length > 0) {
+                const source1 = audioContext.createMediaStreamSource(new MediaStream([screenStream.getAudioTracks()[0]]));
+                source1.connect(destination);
+            }
+
+            if (micStream && micStream.getAudioTracks().length > 0) {
+                const source2 = audioContext.createMediaStreamSource(micStream);
+                source2.connect(destination);
+            }
+
+            // 4. Create final combined stream
+            const tracks = [
+                ...screenStream.getVideoTracks(),
+                ...destination.stream.getAudioTracks()
+            ];
+            const combinedStream = new MediaStream(tracks);
+
+            streamRef.current = screenStream; // Keep track of original for stopping
+            const micStreamForCleanup = micStream;
+
+            const mediaRecorder = new MediaRecorder(combinedStream, {
+                mimeType: 'video/webm; codecs=vp9'
+            });
+
+            mediaRecorderRef.current = mediaRecorder;
+            recordedChunks.current = [];
+
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    recordedChunks.current.push(event.data);
+                }
+            };
+
+            mediaRecorder.onstop = () => {
+                const blob = new Blob(recordedChunks.current, {
+                    type: 'video/webm'
+                });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = `LiveClass-${roomId}-${new Date().getTime()}.webm`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+
+                // Stop all tracks
+                streamRef.current.getTracks().forEach(track => track.stop());
+                setIsRecording(false);
+            };
+
+            mediaRecorder.start();
+            setIsRecording(true);
+        } catch (err) {
+            console.error("Error starting recording:", err);
+            alert("Could not start recording. Please ensure you grant screen capture permissions.");
+        }
+    };
+
+    const stopRecording = () => {
+        if (mediaRecorderRef.current && isRecording) {
+            mediaRecorderRef.current.stop();
+        }
+    };
+
+    const handleExecuteCode = async () => {
+        setExecutingCode(true);
+        setExecutionResult(null);
+        try {
+            const res = await axios.post(`${API_URL}/api/assignments/execute`, {
+                code,
+                language,
+                stdin
+            });
+            setExecutionResult(res.data);
+        } catch (err) {
+            console.error('Execution error:', err);
+            setExecutionResult({ output: 'Error executing code: ' + (err.response?.data?.message || err.message) });
+        } finally {
+            setExecutingCode(false);
+        }
+    };
+
     const endClass = async (silent = false) => {
         if (silent || window.confirm("Are you sure you want to leave the class?")) {
             if (user.role === 'teacher') {
@@ -210,21 +405,155 @@ const LiveClassroom = () => {
             background: '#0F172A',
             overflow: 'hidden'
         }}>
-            {/* Left: Whiteboard area (ONLY FOR TEACHER) */}
+            {/* Left: Whiteboard/Coding area (ONLY FOR TEACHER) */}
             {isTeacher && (
                 <div style={{ display: 'flex', flexDirection: 'column', padding: '10px' }}>
-                    <div style={{ background: 'white', flex: 1, borderRadius: '12px', overflow: 'hidden', position: 'relative' }}>
-                        <canvas
-                            ref={canvasRef}
-                            onMouseDown={startDrawing}
-                            onMouseMove={draw}
-                            onMouseUp={stopDrawing}
-                            onMouseLeave={stopDrawing}
-                            style={{ cursor: isEraser ? 'crosshair' : 'pencil', width: '100%', height: '100%' }}
-                        />
-                        <div style={{ position: 'absolute', top: '10px', left: '10px', color: '#64748B', fontWeight: 'bold', background: 'rgba(255,255,255,0.8)', padding: '2px 8px', borderRadius: '4px' }}>
-                            👨‍🏫 Teaching Whiteboard
-                        </div>
+                    {/* Header with Switcher */}
+                    <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+                        <button
+                            onClick={() => setActiveMode('whiteboard')}
+                            style={{
+                                flex: 1,
+                                padding: '10px',
+                                background: activeMode === 'whiteboard' ? '#4F46E5' : '#1E293B',
+                                color: 'white',
+                                border: activeMode === 'whiteboard' ? 'none' : '1px solid #334155',
+                                borderRadius: '10px',
+                                cursor: 'pointer',
+                                fontWeight: 'bold'
+                            }}
+                        >
+                            🖌️ Whiteboard
+                        </button>
+                        <button
+                            onClick={() => setActiveMode('coding')}
+                            style={{
+                                flex: 1,
+                                padding: '10px',
+                                background: activeMode === 'coding' ? '#4F46E5' : '#1E293B',
+                                color: 'white',
+                                border: activeMode === 'coding' ? 'none' : '1px solid #334155',
+                                borderRadius: '10px',
+                                cursor: 'pointer',
+                                fontWeight: 'bold'
+                            }}
+                        >
+                            💻 Coding Area
+                        </button>
+                    </div>
+
+                    <div style={{ background: activeMode === 'whiteboard' ? 'white' : '#1e1e2e', flex: 1, borderRadius: '12px', overflow: 'hidden', position: 'relative', border: '1px solid #334155' }}>
+                        {activeMode === 'whiteboard' ? (
+                            <>
+                                <canvas
+                                    ref={canvasRef}
+                                    onMouseDown={startDrawing}
+                                    onMouseMove={draw}
+                                    onMouseUp={stopDrawing}
+                                    onMouseLeave={stopDrawing}
+                                    style={{ cursor: isEraser ? 'crosshair' : 'pencil', width: '100%', height: '100%' }}
+                                />
+                                <div style={{ position: 'absolute', top: '10px', left: '10px', color: '#64748B', fontWeight: 'bold', background: 'rgba(255,255,255,0.8)', padding: '2px 8px', borderRadius: '4px' }}>
+                                    👨‍🏫 Teaching Whiteboard
+                                </div>
+                            </>
+                        ) : (
+                            <div style={{ padding: '20px', height: '100%', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <h3 style={{ color: 'white', margin: 0 }}>Live Coding</h3>
+                                    {user.role === 'teacher' && (
+                                        <button
+                                            onClick={() => {
+                                                const newStatus = !canEditCode;
+                                                setCanEditCode(newStatus);
+                                                socketRef.current?.emit('permission-update', { roomId, canEdit: newStatus });
+                                            }}
+                                            style={{
+                                                padding: '5px 12px',
+                                                background: canEditCode ? '#10B981' : '#F59E0B',
+                                                color: 'white',
+                                                border: 'none',
+                                                borderRadius: '5px',
+                                                fontSize: '12px',
+                                                fontWeight: 'bold',
+                                                cursor: 'pointer'
+                                            }}
+                                        >
+                                            {canEditCode ? '🔓 Students Can Edit' : '🔒 Read-Only for Students'}
+                                        </button>
+                                    )}
+                                    <select
+                                        value={language}
+                                        onChange={(e) => setLanguage(e.target.value)}
+                                        style={{ padding: '5px 10px', background: '#334155', color: 'white', border: 'none', borderRadius: '5px' }}
+                                    >
+                                        <option value="javascript">JavaScript</option>
+                                        <option value="python">Python</option>
+                                        <option value="cpp">C++</option>
+                                        <option value="java">Java</option>
+                                    </select>
+                                </div>
+                                                                <div style={{ flex: 2, borderRadius: '8px', overflow: 'hidden', border: '1px solid #334155' }}>
+                                    <Editor
+                                        height="100%"
+                                        language={language === 'cpp' ? 'cpp' : language}
+                                        value={code}
+                                        theme="vs-dark"
+                                        options={{
+                                            fontSize: 14,
+                                            minimap: { enabled: false },
+                                            readOnly: !canEditCode,
+                                            automaticLayout: true
+                                        }}
+                                        onChange={(value) => {
+                                            setCode(value);
+                                            socketRef.current?.emit('code-update', { roomId, code: value });
+                                        }}
+                                    />
+                                </div>
+                                <div style={{ display: 'flex', gap: '10px' }}>
+                                    <textarea
+                                        value={stdin}
+                                        onChange={(e) => setStdin(e.target.value)}
+                                        placeholder="Input (stdin)"
+                                        style={{
+                                            flex: 1,
+                                            height: '60px',
+                                            background: '#0f172a',
+                                            color: 'white',
+                                            padding: '10px',
+                                            borderRadius: '8px',
+                                            border: '1px solid #334155',
+                                            fontSize: '0.9rem',
+                                            resize: 'none'
+                                        }}
+                                    />
+                                    <button
+                                        onClick={handleExecuteCode}
+                                        disabled={executingCode}
+                                        style={{
+                                            width: '120px',
+                                            background: '#10b981',
+                                            color: 'white',
+                                            border: 'none',
+                                            borderRadius: '8px',
+                                            fontWeight: 'bold',
+                                            cursor: executingCode ? 'not-allowed' : 'pointer'
+                                        }}
+                                    >
+                                        {executingCode ? '⚡...' : '▶ Run'}
+                                    </button>
+                                </div>
+                                {executionResult && (
+                                    <div style={{ flex: 1, background: '#0f172a', padding: '15px', borderRadius: '8px', border: '1px solid #334155', overflowY: 'auto' }}>
+                                        <p style={{ color: '#94a3b8', fontSize: '0.8rem', margin: '0 0 5px 0' }}>Result:</p>
+                                        <pre style={{ color: '#10b981', margin: 0, whiteSpace: 'pre-wrap', fontSize: '0.9rem' }}>
+                                            {executionResult.output}
+                                        </pre>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                         {isTeacher && slides.length > 0 && (
                             <div style={{
                                 position: 'absolute',
@@ -275,6 +604,32 @@ const LiveClassroom = () => {
                             <button onClick={() => loadSlide(currentSlideIndex + 1)} disabled={currentSlideIndex === slides.length - 1} style={{ padding: '8px', borderRadius: '5px', cursor: 'pointer' }}>➡️</button>
                             <button onClick={addSlide} style={{ background: '#10B981', color: 'white', border: 'none', padding: '8px 12px', borderRadius: '5px', cursor: 'pointer' }}>➕ New</button>
                         </div>
+
+                        <button
+                            onClick={isRecording ? stopRecording : startRecording}
+                            style={{
+                                background: isRecording ? '#EF4444' : '#10B981',
+                                color: 'white',
+                                border: 'none',
+                                padding: '8px 15px',
+                                borderRadius: '5px',
+                                cursor: 'pointer',
+                                fontWeight: 'bold',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                                boxShadow: isRecording ? '0 0 10px rgba(239, 68, 68, 0.5)' : 'none'
+                            }}
+                        >
+                            {isRecording ? (
+                                <>
+                                    <span style={{ width: '8px', height: '8px', background: 'white', borderRadius: '50%', animation: 'pulse 1s infinite' }} />
+                                    Stop Recording
+                                </>
+                            ) : (
+                                <>⏺ Record Class</>
+                            )}
+                        </button>
 
                         <button onClick={downloadSlide} style={{ marginLeft: 'auto', background: '#64748B', color: 'white', border: 'none', padding: '8px 12px', borderRadius: '5px', cursor: 'pointer' }}>💾 Save</button>
                         <button onClick={endClass} style={{ background: '#EF4444', color: 'white', border: 'none', padding: '8px 12px', borderRadius: '5px', cursor: 'pointer' }}>End Class</button>

@@ -42,18 +42,25 @@ router.get('/users', async (req, res) => {
 });
 
 // Update user (Role, Ban/Active status)
-// Note: You might need to add a 'status' field to User model if not exists. 
-// For now, we assume deleting or just changing role, but let's allow updating generic fields
 router.put('/users/:id', async (req, res) => {
+    console.log(`[DEBUG] Updating user ${req.params.id}`, req.body);
     try {
-        const { role, name, email } = req.body;
+        const { role, name, email, enrollment, branch, employeeId } = req.body;
         const updatedUser = await User.findByIdAndUpdate(
             req.params.id,
-            { role, name, email },
+            { role, name, email, enrollment, branch, employeeId },
             { new: true }
         ).select('-password');
+
+        if (!updatedUser) {
+            console.log(`[DEBUG] User ${req.params.id} not found`);
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        console.log(`[DEBUG] User ${req.params.id} updated successfully`);
         res.json(updatedUser);
     } catch (err) {
+        console.error(`[DEBUG] Error updating user ${req.params.id}:`, err);
         res.status(500).json({ message: err.message });
     }
 });
@@ -195,44 +202,6 @@ router.get('/reports/teachers', async (req, res) => {
     }
 });
 
-// 5. ANNOUNCEMENTS
-// Post Announcement
-router.post('/announcements', async (req, res) => {
-    try {
-        const { title, content, target } = req.body;
-        const announcement = new Announcement({
-            title,
-            content,
-            target,
-            author: req.user.id || req.user._id
-        });
-        await announcement.save();
-        res.status(201).json(announcement);
-    } catch (err) {
-        res.status(500).json({ message: err.message });
-    }
-});
-
-// Get all announcements
-router.get('/announcements', async (req, res) => {
-    try {
-        const announcements = await Announcement.find()
-            .populate('author', 'name')
-            .sort({ createdAt: -1 });
-        res.json(announcements);
-    } catch (err) {
-        res.status(500).json({ message: err.message });
-    }
-});
-
-// Delete Announcement
-router.delete('/announcements/:id', async (req, res) => {
-    try {
-        await Announcement.findByIdAndDelete(req.params.id);
-        res.json({ message: 'Announcement deleted' });
-    } catch (err) {
-        res.status(500).json({ message: err.message });
-    }
-});
+// 5. ANNOUNCEMENTS routes moved to announcement.js
 
 module.exports = router;

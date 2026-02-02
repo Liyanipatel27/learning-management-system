@@ -1482,6 +1482,22 @@ const AssignmentsSection = ({ userId, courses }) => {
                                         Due: {new Date(asgn.dueDate).toLocaleDateString()}
                                     </span>
                                 </div>
+                                {asgn.type === 'coding' && (
+                                    <div style={{
+                                        position: 'absolute',
+                                        top: '60px',
+                                        right: '24px',
+                                        background: '#EEF2FF',
+                                        color: '#4338CA',
+                                        padding: '4px 10px',
+                                        borderRadius: '20px',
+                                        fontSize: '0.75rem',
+                                        fontWeight: 'bold',
+                                        border: '1px solid #C7D2FE'
+                                    }}>
+                                        💻 {asgn.codingDetails?.language?.toUpperCase()}
+                                    </div>
+                                )}
                                 <h3 style={{ margin: '0 0 10px 0' }}>{asgn.title}</h3>
                                 <p style={{ color: '#718096', fontSize: '0.9rem', marginBottom: '20px', minHeight: '40px' }}>{asgn.description}</p>
 
@@ -1526,6 +1542,28 @@ const AssignmentsSection = ({ userId, courses }) => {
                             <button onClick={() => setActiveAssignment(null)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }}>&times;</button>
                         </div>
                         <p style={{ color: '#718096', marginBottom: '24px' }}>{activeAssignment.description}</p>
+
+                        {activeAssignment.type === 'coding' && (
+                            <div style={{
+                                background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
+                                padding: '15px 20px',
+                                borderRadius: '15px',
+                                marginBottom: '24px',
+                                color: 'white',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '15px',
+                                boxShadow: '0 4px 15px rgba(99, 102, 241, 0.3)'
+                            }}>
+                                <div style={{ fontSize: '1.5rem' }}>ℹ️</div>
+                                <div>
+                                    <div style={{ fontWeight: 'bold', fontSize: '1rem' }}>Required Programming Language</div>
+                                    <div style={{ fontSize: '0.9rem', opacity: 0.9 }}>
+                                        Please write your solution in <strong style={{ textDecoration: 'underline' }}>{activeAssignment.codingDetails?.language?.toUpperCase()}</strong> as requested by the instructor.
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
                         {submissions[activeAssignment._id] ? (
                             <div style={{ maxHeight: '70vh', overflowY: 'auto' }}>
@@ -1621,7 +1659,22 @@ const AssignmentsSection = ({ userId, courses }) => {
                                     </div>
                                 ) : (
                                     <div style={{ marginBottom: '24px' }}>
-                                        <label style={{ display: 'block', marginBottom: '10px', fontWeight: 'bold' }}>Code Editor ({activeAssignment.codingDetails?.language})</label>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                                            <label style={{ fontWeight: 'bold' }}>Code Editor</label>
+                                            <div style={{
+                                                background: '#4F46E5',
+                                                color: 'white',
+                                                padding: '5px 12px',
+                                                borderRadius: '8px',
+                                                fontSize: '0.8rem',
+                                                fontWeight: 'bold',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '5px'
+                                            }}>
+                                                Required Language: {activeAssignment.codingDetails?.language?.toUpperCase()}
+                                            </div>
+                                        </div>
                                         <div style={{ background: '#1a202c', padding: '15px', borderRadius: '15px' }}>
                                             <textarea
                                                 value={code}
