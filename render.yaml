@@ -1,5 +1,6 @@
 services:
-  # Backend Service (Node.js)
+  # Backend Service (Node.js) only
+  # We will host the Frontend on Vercel for a better free-tier experience
   - type: web
     name: lms-backend
     runtime: node
@@ -25,14 +26,4 @@ services:
       - key: EMAIL_USER
         sync: false
       - key: EMAIL_PASS
-        sync: false
-
-  # Frontend Service (Static Site)
-  - type: static
-    name: lms-frontend
-    rootDir: frontend
-    buildCommand: npm install && npm run build
-    staticPublishPath: dist
-    envVars:
-      - key: VITE_API_URL
         sync: false
