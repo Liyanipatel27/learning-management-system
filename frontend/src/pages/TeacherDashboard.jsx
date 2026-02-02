@@ -12,6 +12,7 @@ function TeacherDashboard() {
     const [activeTab, setActiveTab] = useState(localStorage.getItem(`teacherTab_${user.id || user._id}`) || 'dashboard');
     const [courses, setCourses] = useState([]);
     const [pendingGradingCount, setPendingGradingCount] = useState(0);
+    const [announcements, setAnnouncements] = useState([]);
 
     useEffect(() => {
         if (user.id || user._id) {
@@ -23,6 +24,7 @@ function TeacherDashboard() {
         const userId = user.id || user._id;
         if (userId) {
             fetchCourses(userId);
+            fetchAnnouncements();
         }
     }, [user.id, user._id]);
 
@@ -45,6 +47,18 @@ function TeacherDashboard() {
             setPendingGradingCount(totalPending);
         } catch (err) {
             console.error(err);
+        }
+    };
+
+    const fetchAnnouncements = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/announcements`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setAnnouncements(res.data);
+        } catch (err) {
+            console.error('Error fetching announcements:', err);
         }
     };
 
@@ -98,7 +112,10 @@ function TeacherDashboard() {
                             { id: 'create-course', label: 'Create Course', icon: '➕' },
                             { id: 'students', label: 'Students List', icon: '👥' },
                             { id: 'assignments', label: 'Assignments', icon: '📝' },
-                            { id: 'student-grades', label: 'Student Grades', icon: '📊' },
+                            { id: 'live-class', label: 'Live Classes', icon: '📽️' },
+                            { id: 'student-grades', label: 'Academic Performance', icon: '📊' },
+                            { id: 'student-reports', label: 'Student Reports', icon: '📋' },
+                            { id: 'announcements', label: 'Announcements', icon: '📢' },
                             { id: 'profile', label: 'My Profile', icon: '👤' }
                         ].map(item => (
                             <li
@@ -151,7 +168,10 @@ function TeacherDashboard() {
                                 activeTab === 'my-courses' ? 'My Courses' :
                                     activeTab === 'students' ? 'Students Directory' :
                                         activeTab === 'student-grades' ? 'Academic Performance' :
-                                            activeTab === 'profile' ? 'My Profile' : 'Course Builder'}
+                                            activeTab === 'student-reports' ? 'Course Completion Reports' :
+                                                activeTab === 'announcements' ? 'Administrative Announcements' :
+                                                    activeTab === 'live-class' ? 'Live Classrooms' :
+                                                        activeTab === 'profile' ? 'My Profile' : 'Course Builder'}
                         </h1>
                         <p style={{ color: '#718096', margin: 0 }}>Welcome back, <span style={{ color: '#4a5568', fontWeight: '600' }}>{user.name}</span>! Ready to inspire today?</p>
                     </div>
@@ -178,10 +198,18 @@ function TeacherDashboard() {
                     />
                 ) : activeTab === 'students' ? (
                     <StudentsSection />
+                ) : activeTab === 'student-grades' ? (
+                    <StudentGradesSection teacherId={user.id || user._id} allPublishedCourses={publishedCourses} />
+                ) : activeTab === 'student-reports' ? (
+                    <StudentProgressSection />
                 ) : activeTab === 'profile' ? (
                     <ProfileSection userId={user.id || user._id} />
+                ) : activeTab === 'announcements' ? (
+                    <AnnouncementsSection announcements={announcements} />
                 ) : activeTab === 'assignments' ? (
                     <AssignmentsSection teacherId={user.id || user._id} courses={publishedCourses} />
+                ) : activeTab === 'live-class' ? (
+                    <LiveClassSection teacherId={user.id || user._id} teacherName={user.name} />
                 ) : activeTab === 'my-courses' ? (
                     <div>
                         {/* Published Section */}
@@ -243,6 +271,43 @@ function TeacherDashboard() {
                                 <p style={{ fontSize: '2rem', fontWeight: 'bold', color: '#FF6584' }}>{pendingGradingCount}</p>
                             </div>
                         </section>
+
+                        {announcements.length > 0 && (
+                            <section style={{ marginBottom: '40px' }}>
+                                <h2 style={{ fontSize: '1.25rem', fontWeight: '700', color: '#2d3748', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <span>📢</span> Admin Announcements
+                                </h2>
+                                <div style={{ display: 'grid', gap: '16px' }}>
+                                    {announcements.map((ann) => (
+                                        <div
+                                            key={ann._id}
+                                            style={{
+                                                background: 'white',
+                                                padding: '24px',
+                                                borderRadius: '16px',
+                                                boxShadow: '0 4px 6px rgba(0,0,0,0.02)',
+                                                border: '1px solid #edf2f7',
+                                                borderLeft: '4px solid #6366f1'
+                                            }}
+                                        >
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+                                                <h4 style={{ margin: 0, color: '#1a202c', fontSize: '1.1rem', fontWeight: '700' }}>{ann.title}</h4>
+                                                <span style={{ fontSize: '0.75rem', color: '#718096', fontWeight: '500' }}>
+                                                    {new Date(ann.createdAt).toLocaleDateString()}
+                                                </span>
+                                            </div>
+                                            <p style={{ margin: 0, color: '#4a5568', fontSize: '0.95rem', lineHeight: '1.6' }}>{ann.content}</p>
+                                            <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                <div style={{ width: '24px', height: '24px', borderRadius: '6px', background: '#f0f4ff', color: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 'bold' }}>
+                                                    A
+                                                </div>
+                                                <span style={{ fontSize: '0.8rem', color: '#718096' }}>Posted by Admin</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </section>
+                        )}
 
                         <div style={{ background: '#f8fafc', padding: '30px', borderRadius: '20px', textAlign: 'center' }}>
                             <h2 style={{ fontSize: '1.5rem', color: '#2d3748', marginBottom: '15px' }}>Quick Start</h2>
@@ -327,6 +392,80 @@ const CourseCard = ({ course, onEdit, onDelete }) => (
         </div>
     </div>
 );
+
+const LiveClassSection = ({ teacherId, teacherName }) => {
+    const navigate = useNavigate();
+    const [title, setTitle] = useState('');
+    const [activeClasses, setActiveClasses] = useState([]);
+
+    useEffect(() => {
+        fetchActiveClasses();
+    }, []);
+
+    const fetchActiveClasses = async () => {
+        try {
+            const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/live-class/active`);
+            setActiveClasses(res.data.filter(c => c.teacher._id === teacherId || c.teacher === teacherId));
+        } catch (err) { console.error(err); }
+    };
+
+    const handleStartClass = async (e) => {
+        e.preventDefault();
+        if (!title.trim()) return alert('Please enter class title');
+
+        const roomId = `LMS_${Date.now()}`;
+        try {
+            await axios.post(`${import.meta.env.VITE_API_URL}/api/live-class/create`, {
+                title, roomId, teacherId, teacherName
+            });
+            navigate(`/live-class/${roomId}`);
+        } catch (err) {
+            alert("Failed to start class");
+        }
+    };
+
+    return (
+        <div style={{ background: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: '800', marginBottom: '30px' }}>📽️ Live Class Management</h2>
+
+            <form onSubmit={handleStartClass} style={{ background: '#f8fafc', padding: '24px', borderRadius: '16px', marginBottom: '40px', border: '1px solid #e2e8f0' }}>
+                <h3 style={{ fontSize: '1.1rem', marginBottom: '20px' }}>Start New Live Session</h3>
+                <div style={{ display: 'flex', gap: '15px' }}>
+                    <input
+                        type="text"
+                        placeholder="Enter Class Title (e.g. Intro to React)"
+                        value={title}
+                        onChange={(e) => setTitle(e.target.value)}
+                        style={{ flex: 1, padding: '12px 16px', borderRadius: '10px', border: '1px solid #cbd5e0', fontSize: '1rem', outline: 'none' }}
+                    />
+                    <button type="submit" style={{ padding: '0 30px', background: '#6366f1', color: 'white', border: 'none', borderRadius: '10px', fontWeight: '700', cursor: 'pointer' }}>
+                        Go Live Now 🚀
+                    </button>
+                </div>
+            </form>
+
+            <h3 style={{ fontSize: '1.1rem', marginBottom: '20px' }}>Your Session History</h3>
+            <div style={{ display: 'grid', gap: '15px' }}>
+                {activeClasses.length === 0 ? (
+                    <p style={{ color: '#718096', fontStyle: 'italic' }}>No active classes found.</p>
+                ) : (
+                    activeClasses.map(c => (
+                        <div key={c._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 20px', background: '#f0f4ff', borderRadius: '12px', borderLeft: '4px solid #6366f1' }}>
+                            <div>
+                                <h4 style={{ margin: 0, fontSize: '1.05rem', color: '#1a202c' }}>{c.title}</h4>
+                                <small style={{ color: '#718096' }}>Room ID: {c.roomId}</small>
+                            </div>
+                            <button onClick={() => navigate(`/live-class/${c.roomId}`)} style={{ padding: '8px 20px', background: '#6366f1', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>
+                                Resume Class
+                            </button>
+                        </div>
+                    ))
+                )}
+            </div>
+        </div>
+    );
+};
+
 
 const StudentGradesSection = ({ teacherId, allPublishedCourses }) => {
     const [gradesData, setGradesData] = useState([]);
@@ -415,6 +554,7 @@ const StudentGradesSection = ({ teacherId, allPublishedCourses }) => {
                                         <thead>
                                             <tr style={{ background: '#fff', borderBottom: '1px solid #edf2f7' }}>
                                                 <th style={{ padding: '12px 20px', textAlign: 'left', color: '#718096', fontSize: '0.85rem' }}>Student Details</th>
+                                                <th style={{ padding: '12px 20px', textAlign: 'left', color: '#718096', fontSize: '0.85rem' }}>Client ID</th>
                                                 <th style={{ padding: '12px 20px', textAlign: 'left', color: '#718096', fontSize: '0.85rem' }}>Quiz (Module)</th>
                                                 <th style={{ padding: '12px 20px', textAlign: 'center', color: '#718096', fontSize: '0.85rem' }}>Score</th>
                                                 <th style={{ padding: '12px 20px', textAlign: 'center', color: '#718096', fontSize: '0.85rem' }}>Status</th>
@@ -430,16 +570,24 @@ const StudentGradesSection = ({ teacherId, allPublishedCourses }) => {
                                                                 <div style={{ fontWeight: '600', color: '#2d3748' }}>{student.studentName}</div>
                                                                 <div style={{ fontSize: '0.75rem', color: '#a0aec0' }}>{student.studentEmail}</div>
                                                             </td>
+                                                            <td style={{ padding: '15px 20px', color: '#4a5568', fontSize: '0.85rem' }}>
+                                                                {student.studentEnrollment || '-'}
+                                                            </td>
                                                             <td colSpan="4" style={{ padding: '15px 20px', color: '#a0aec0', fontSize: '0.85rem' }}>No quizzes attempted yet.</td>
                                                         </tr>
                                                     ) : (
                                                         student.quizzes.map((quiz, qIdx) => (
                                                             <tr key={`${student.studentId}-${quiz.moduleId}`} style={{ borderBottom: '1px solid #f8fafc' }}>
                                                                 {qIdx === 0 && (
-                                                                    <td rowSpan={student.quizzes.length} style={{ padding: '15px 20px', verticalAlign: 'top', borderRight: '1px solid #f8fafc' }}>
-                                                                        <div style={{ fontWeight: '600', color: '#2d3748' }}>{student.studentName}</div>
-                                                                        <div style={{ fontSize: '0.75rem', color: '#a0aec0' }}>{student.studentEmail}</div>
-                                                                    </td>
+                                                                    <>
+                                                                        <td rowSpan={student.quizzes.length} style={{ padding: '15px 20px', verticalAlign: 'top', borderRight: '1px solid #f8fafc' }}>
+                                                                            <div style={{ fontWeight: '600', color: '#2d3748' }}>{student.studentName}</div>
+                                                                            <div style={{ fontSize: '0.75rem', color: '#a0aec0' }}>{student.studentEmail}</div>
+                                                                        </td>
+                                                                        <td rowSpan={student.quizzes.length} style={{ padding: '15px 20px', verticalAlign: 'top', borderRight: '1px solid #f8fafc', color: '#4a5568', fontSize: '0.9rem' }}>
+                                                                            {student.studentEnrollment || '-'}
+                                                                        </td>
+                                                                    </>
                                                                 )}
                                                                 <td style={{ padding: '15px 20px' }}>
                                                                     <div style={{ fontSize: '0.85rem', color: '#4a5568' }}>{quiz.chapterTitle}</div>
@@ -485,6 +633,91 @@ const StudentGradesSection = ({ teacherId, allPublishedCourses }) => {
         </div>
     );
 };
+
+const StudentProgressSection = () => {
+    const [report, setReport] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        fetchReport();
+    }, []);
+
+    const fetchReport = async () => {
+        try {
+            const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+            const res = await axios.get(`${apiUrl}/api/courses/reports/student-progress`);
+            setReport(res.data);
+        } catch (err) {
+            console.error('Error fetching report:', err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleExport = (data, filename) => {
+        if (!data || data.length === 0) return;
+        const header = Object.keys(data[0]).join(',');
+        const rows = data.map(obj => Object.values(obj).join(',')).join('\n');
+        const blob = new Blob([header + '\n' + rows], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
+    };
+
+    if (loading) return <div>Loading reports...</div>;
+
+    return (
+        <div style={{ background: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 25px rgba(0,0,0,0.05)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+                <div>
+                    <h2 style={{ fontSize: '1.75rem', fontWeight: '800', color: '#1a202c', margin: 0 }}>Student Progress Report</h2>
+                    <p style={{ color: '#718096', margin: '5px 0 0 0' }}>Overall course completion tracking for all students</p>
+                </div>
+                <button
+                    onClick={() => handleExport(report, 'student_progress_report.csv')}
+                    style={{ padding: '10px 20px', background: '#6366f1', color: 'white', border: 'none', borderRadius: '12px', fontWeight: '700', cursor: 'pointer' }}
+                >
+                    📥 Export CSV
+                </button>
+            </div>
+
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                    <tr style={{ background: '#f7fafc', textAlign: 'left', borderBottom: '2px solid #edf2f7' }}>
+                        <th style={{ padding: '15px' }}>Enrollment ID</th>
+                        <th style={{ padding: '15px' }}>Name</th>
+                        <th style={{ padding: '15px' }}>Course Completion</th>
+                        <th style={{ padding: '15px' }}>Progress %</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {report.map(s => (
+                        <tr key={s.id} style={{ borderBottom: '1px solid #edf2f7' }}>
+                            <td style={{ padding: '15px', fontWeight: '600' }}>{s.enrollment}</td>
+                            <td style={{ padding: '15px' }}>{s.name}</td>
+                            <td style={{ padding: '15px' }}>
+                                <span style={{ padding: '4px 12px', background: '#ebf4ff', color: '#3182ce', borderRadius: '20px', fontWeight: 'bold', fontSize: '0.9rem' }}>
+                                    {s.completedCourses} / {s.totalCourses} Courses
+                                </span>
+                            </td>
+                            <td style={{ padding: '15px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                                    <div style={{ flex: 1, background: '#e2e8f0', height: '10px', borderRadius: '5px', minWidth: '150px' }}>
+                                        <div style={{ width: `${s.percentage}%`, background: '#48bb78', height: '100%', borderRadius: '5px', transition: 'width 0.5s ease-in-out' }}></div>
+                                    </div>
+                                    <span style={{ fontWeight: 'bold', color: '#2d3748', minWidth: '40px' }}>{s.percentage}%</span>
+                                </div>
+                            </td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+    );
+};
+
 
 // --- NEW SECTION: Students Directory ---
 const StudentsSection = () => {
@@ -1286,6 +1519,81 @@ const ProfileSection = ({ userId }) => {
             {error && (
                 <div style={{ marginTop: '20px', padding: '10px', background: '#fff5f5', color: '#c53030', fontSize: '0.75rem', borderRadius: '8px', textAlign: 'center' }}>
                     Note: Using offline session data. (Original error: {error})
+                </div>
+            )}
+        </div>
+    );
+};
+
+
+const AnnouncementsSection = ({ announcements }) => {
+    return (
+        <div style={{ padding: '0 10px' }}>
+            <div style={{ background: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 4px 6px rgba(0,0,0,0.02)', border: '1px solid #edf2f7', marginBottom: '30px' }}>
+                <h3 style={{ margin: '0 0 10px 0', color: '#1a202c', fontSize: '1.25rem' }}>Notice Board</h3>
+                <p style={{ margin: 0, color: '#718096' }}>All administrative updates and official communications are archived here.</p>
+            </div>
+
+            {announcements.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '100px 20px', background: 'white', borderRadius: '20px', border: '2px dashed #edf2f7' }}>
+                    <div style={{ fontSize: '3.5rem', marginBottom: '20px' }}>📁</div>
+                    <h3 style={{ color: '#2d3748', margin: '0 0 10px 0' }}>No Announcements</h3>
+                    <p style={{ color: '#718096', margin: 0 }}>There are no administrative messages to display at this time.</p>
+                </div>
+            ) : (
+                <div style={{ display: 'grid', gap: '20px' }}>
+                    {announcements.map((ann) => (
+                        <div
+                            key={ann._id}
+                            style={{
+                                background: 'white',
+                                padding: '30px',
+                                borderRadius: '20px',
+                                boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                                border: '1px solid #edf2f7',
+                                borderLeft: '5px solid #6366f1'
+                            }}
+                        >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                                    <div style={{ width: '45px', height: '45px', borderRadius: '12px', background: 'rgba(99, 102, 241, 0.1)', color: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.2rem' }}>
+                                        📢
+                                    </div>
+                                    <h4 style={{ margin: 0, color: '#1a202c', fontSize: '1.2rem', fontWeight: '700' }}>{ann.title}</h4>
+                                </div>
+                                <div style={{ textAlign: 'right', background: '#f8fafc', padding: '8px 15px', borderRadius: '10px' }}>
+                                    <span style={{ fontSize: '0.85rem', color: '#4a5568', fontWeight: '600', display: 'block' }}>
+                                        {new Date(ann.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                    </span>
+                                </div>
+                            </div>
+                            <p style={{
+                                margin: 0,
+                                color: '#4a5568',
+                                fontSize: '1.05rem',
+                                lineHeight: '1.7',
+                                whiteSpace: 'pre-wrap'
+                            }}>
+                                {ann.content}
+                            </p>
+                            <div style={{
+                                marginTop: '25px',
+                                paddingTop: '20px',
+                                borderTop: '1px solid #f8fafc',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between'
+                            }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: '#6366f1', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 'bold' }}>
+                                        A
+                                    </div>
+                                    <span style={{ fontSize: '0.9rem', color: '#1a202c', fontWeight: '600' }}>Admin Office</span>
+                                </div>
+                                <span style={{ fontSize: '0.8rem', color: '#a0aec0' }}>Posted at {new Date(ann.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                            </div>
+                        </div>
+                    ))}
                 </div>
             )}
         </div>

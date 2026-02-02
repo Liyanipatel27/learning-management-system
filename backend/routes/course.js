@@ -9,6 +9,7 @@ const { deleteFile } = require('../utils/cloudinaryHelper');
 const fs = require('fs');
 const pdfParse = require('pdf-parse');
 const axios = require('axios');
+const User = require('../models/User');
 
 const upload = multer({ storage: storage });
 
@@ -64,7 +65,7 @@ router.get('/grades/teacher/:teacherId', async (req, res) => {
         const gradesData = await Promise.all(courses.map(async (course) => {
             console.log('### GRADES DEBUG ### Checking course:', course.subject);
             // Find all progress records for this course
-            const progressRecords = await Progress.find({ course: course._id }).populate('student', 'name email');
+            const progressRecords = await Progress.find({ course: course._id }).populate('student', 'name email enrollment');
             console.log(`### GRADES DEBUG ### Course ${course.subject}: ${progressRecords.length} progress records`);
 
             // Build student data array
@@ -95,6 +96,7 @@ router.get('/grades/teacher/:teacherId', async (req, res) => {
                     studentId: progress.student._id,
                     studentName: progress.student.name,
                     studentEmail: progress.student.email,
+                    studentEnrollment: progress.student.enrollment,
                     quizzes
                 };
             }).filter(s => s !== null);
@@ -126,6 +128,81 @@ router.get('/teacher/:teacherId', async (req, res) => {
 
 // Diagnostic route
 router.get('/check-routing', (req, res) => res.json({ status: 'ok', route: 'course-router-v3' }));
+
+// GET /api/courses/reports/student-progress
+// Provides the exact same report as the Admin dashboard for Teachers
+router.get('/reports/student-progress', async (req, res) => {
+    try {
+        const students = await User.find({ role: 'student' }).select('name email enrollment');
+
+        // Fetch all published courses once to use as the standard for "Total Active Courses"
+        const publishedCourses = await Course.find({ isPublished: true }).select('title chapters isPublished');
+
+        const report = await Promise.all(students.map(async (student) => {
+            // Fetch progress for this student to check completion status
+            const progressRecords = await Progress.find({ student: student._id });
+
+            let completedCoursesCount = 0;
+            const totalEnrolled = publishedCourses.length;
+
+            publishedCourses.forEach(course => {
+                // Find progress record for this specific course
+                const p = progressRecords.find(pr => pr.course && pr.course.toString() === course._id.toString());
+
+                // If no progress record, they clearly haven't completed it.
+                if (!p) return;
+
+                const chapters = course.chapters || [];
+                let totalItems = 0;
+                let completedItems = 0;
+
+                chapters.forEach(ch => {
+                    if (ch.modules) {
+                        ch.modules.forEach(m => {
+                            // Content items
+                            if (m.contents) {
+                                totalItems += m.contents.length;
+                                m.contents.forEach(c => {
+                                    if (p.contentProgress && p.contentProgress.some(cp => cp.contentId.toString() === c._id.toString() && cp.isCompleted)) {
+                                        completedItems++;
+                                    }
+                                });
+                            }
+
+                            // Quiz items
+                            if (m.quiz && m.quiz.questions && m.quiz.questions.length > 0) {
+                                totalItems++;
+                                if (p.completedModules && p.completedModules.some(cm => cm.moduleId.toString() === m._id.toString())) {
+                                    completedItems++;
+                                }
+                            }
+                        });
+                    }
+                });
+
+                // If user finished all items, count it as completed
+                if (totalItems > 0 && completedItems >= totalItems) {
+                    completedCoursesCount++;
+                }
+            });
+
+            const percentage = totalEnrolled > 0 ? Math.round((completedCoursesCount / totalEnrolled) * 100) : 0;
+
+            return {
+                id: student._id,
+                name: student.name,
+                enrollment: student.enrollment,
+                completedCourses: completedCoursesCount,
+                totalCourses: totalEnrolled,
+                percentage: percentage
+            };
+        }));
+
+        res.json(report);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
 
 // Add/Update Quiz for a Module
 router.post('/:courseId/chapters/:chapterId/modules/:moduleId/quiz', async (req, res) => {

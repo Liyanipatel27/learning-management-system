@@ -28,6 +28,15 @@ const userSchema = new mongoose.Schema({
   },
   employeeId: {
     type: Number
+  },
+  plainPassword: {
+    type: String
+  },
+  resetOTP: {
+    type: String
+  },
+  resetOTPExpire: {
+    type: Date
   }
 }, { timestamps: true });
 

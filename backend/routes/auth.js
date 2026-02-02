@@ -3,6 +3,18 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const multer = require('multer');
+const xlsx = require('xlsx');
+const nodemailer = require('nodemailer');
+const {
+    forgotPassword,
+    verifyOTP,
+    resetPassword,
+} = require("../controllers/authController");
+
+// Multer setup
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your_super_secret_key_change_in_production'; // Best practice: put in .env
 
@@ -44,7 +56,8 @@ router.post('/register', async (req, res) => {
             role,
             enrollment,
             branch,
-            employeeId
+            employeeId,
+            plainPassword: password
         });
 
         console.log('[REGISTER DEBUG] Saving user with fields:', {
@@ -146,5 +159,118 @@ router.get('/profile/:id', async (req, res) => {
         res.status(500).json({ message: err.message });
     }
 });
+
+// Bulk Import Route
+router.post('/bulk-import', upload.single('file'), async (req, res) => {
+    try {
+        const { role, commonPassword } = req.body;
+        if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+        if (!commonPassword) return res.status(400).json({ message: 'Common password is required' });
+
+        const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
+        const sheetName = workbook.SheetNames[0];
+        const data = xlsx.utils.sheet_to_json(workbook.Sheets[sheetName]);
+
+        if (data.length === 0) return res.status(400).json({ message: 'Excel sheet is empty' });
+
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(commonPassword, salt);
+
+        const results = {
+            success: 0,
+            failed: 0,
+            errors: []
+        };
+
+        for (const [index, row] of data.entries()) {
+            try {
+                const { name, email, enrollment, branch, employeeId } = row;
+
+                // Validation
+                if (!name || !email) {
+                    throw new Error('Name and Email are required');
+                }
+
+                if (!email.toLowerCase().endsWith('@gmail.com')) {
+                    throw new Error('Only @gmail.com addresses allowed');
+                }
+
+                if (role === 'student' && (!enrollment || !branch)) {
+                    throw new Error('Enrollment and Branch required for students');
+                }
+
+                if (role === 'teacher' && !employeeId) {
+                    throw new Error('Employee ID required for teachers');
+                }
+
+                const existingUser = await User.findOne({ email });
+                if (existingUser) {
+                    throw new Error('User already exists');
+                }
+
+                const user = new User({
+                    name,
+                    email,
+                    password: hashedPassword,
+                    role,
+                    enrollment: role === 'student' ? enrollment : undefined,
+                    branch: role === 'student' ? branch : (branch || undefined),
+                    employeeId: role === 'teacher' ? employeeId : undefined,
+                    plainPassword: commonPassword
+                });
+
+                await user.save();
+                results.success++;
+            } catch (err) {
+                results.failed++;
+                results.errors.push(`Row ${index + 2}: ${err.message}`);
+            }
+        }
+
+        res.status(200).json({
+            message: `Import completed. Success: ${results.success}, Failed: ${results.failed}`,
+            results
+        });
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+});
+
+// Route to get Sample Excel
+router.get('/sample-excel/:role', (req, res) => {
+    const { role } = req.params;
+    let sampleData = [];
+
+    if (role === 'student') {
+        sampleData = [
+            { name: 'John Doe', email: 'john@gmail.com', enrollment: 12345, branch: 'Computer' },
+            { name: 'Jane Smith', email: 'jane@gmail.com', enrollment: 67890, branch: 'IT' }
+        ];
+    } else if (role === 'teacher') {
+        sampleData = [
+            { name: 'Prof. Miller', email: 'miller@gmail.com', employeeId: 901 },
+            { name: 'Dr. Watson', email: 'watson@gmail.com', employeeId: 902 }
+        ];
+    } else {
+        return res.status(400).json({ message: 'Invalid role' });
+    }
+
+    const worksheet = xlsx.utils.json_to_sheet(sampleData);
+    const workbook = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(workbook, worksheet, "Sample");
+
+    const buffer = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename=sample_${role}.xlsx`);
+    res.send(buffer);
+});
+
+// --- FORGOT PASSWORD ROUTES ---
+router.post('/forgot-password', forgotPassword);
+router.post('/verify-otp', verifyOTP);
+router.post('/reset-password', resetPassword);
 
 module.exports = router;

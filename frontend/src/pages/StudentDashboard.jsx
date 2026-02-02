@@ -31,21 +31,25 @@ function StudentDashboard() {
     const [dailyHours, setDailyHours] = useState(2);
     const [weekendHours, setWeekendHours] = useState(4);
     const [pendingAssignmentsCount, setPendingAssignmentsCount] = useState(0);
+    const [announcements, setAnnouncements] = useState([]);
 
 
     useEffect(() => {
         fetchCourses();
+        fetchAnnouncements();
     }, []);
 
     useEffect(() => {
-        if (['dashboard', 'my-courses', 'ai-roadmap', 'certificates', 'grades'].includes(activeTab)) {
+        if (['dashboard', 'my-courses', 'ai-roadmap', 'certificates', 'grades', 'announcements'].includes(activeTab)) {
             fetchCourses();
             fetchAllProgress();
+            fetchAnnouncements();
 
             // Periodically refresh every 60 seconds
             const interval = setInterval(() => {
                 fetchCourses();
                 fetchAllProgress();
+                fetchAnnouncements();
             }, 60000);
             return () => clearInterval(interval);
         }
@@ -144,6 +148,18 @@ function StudentDashboard() {
     };
 
 
+    const fetchAnnouncements = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/announcements`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setAnnouncements(res.data);
+        } catch (err) {
+            console.error('Error fetching announcements:', err);
+        }
+    };
+
     const handleLogout = () => {
         localStorage.removeItem('user');
         localStorage.removeItem('token');
@@ -165,6 +181,8 @@ function StudentDashboard() {
                         <div className={`nav-item ${activeTab === 'ai-roadmap' ? 'active' : ''}`} onClick={() => { setActiveTab('ai-roadmap'); setSelectedCourse(null); }}>AI Career Roadmap</div>
                         <div className={`nav-item ${activeTab === 'assignments' ? 'active' : ''}`} onClick={() => { setActiveTab('assignments'); setSelectedCourse(null); }}>Assignments</div>
                         <div className={`nav-item ${activeTab === 'grades' ? 'active' : ''}`} onClick={() => { setActiveTab('grades'); setSelectedCourse(null); }}>Grades</div>
+                        <div className={`nav-item ${activeTab === 'announcements' ? 'active' : ''}`} onClick={() => { setActiveTab('announcements'); setSelectedCourse(null); }}>Announcements</div>
+                        <div className={`nav-item ${activeTab === 'live-class' ? 'active' : ''}`} onClick={() => { setActiveTab('live-class'); setSelectedCourse(null); }}>📺 Live Class</div>
                         <div className={`nav-item ${activeTab === 'profile' ? 'active' : ''}`} onClick={() => { setActiveTab('profile'); setSelectedCourse(null); }}>Profile</div>
 
                         <div
@@ -214,15 +232,18 @@ function StudentDashboard() {
                                             activeTab === 'my-courses' ? 'My Courses' :
                                                 activeTab === 'ai-roadmap' ? 'AI Roadmap' :
                                                     activeTab === 'assignments' ? 'Assignments' :
-                                                        activeTab === 'grades' ? 'My Grades' :
-                                                            activeTab === 'profile' ? 'My Profile' : 'My Certificates'}
+                                                        activeTab === 'announcements' ? 'Announcements' :
+                                                            activeTab === 'live-class' ? 'Live Classes' :
+                                                                activeTab === 'grades' ? 'My Grades' :
+                                                                    activeTab === 'profile' ? 'My Profile' : 'My Certificates'}
                                     </h1>
                                     <p style={{ color: '#718096', margin: 0 }}>
                                         {activeTab === 'dashboard' ? `Welcome back, ${user.name}!` :
                                             activeTab === 'my-courses' ? 'Track your learning progress' :
                                                 activeTab === 'assignments' ? 'Complete and submit your tasks' :
-                                                    activeTab === 'grades' ? 'View your quiz and assignment scores' :
-                                                        'Download your earned certifications'}
+                                                    activeTab === 'announcements' ? 'Stay updated with latest news' :
+                                                        activeTab === 'grades' ? 'View your quiz and assignment scores' :
+                                                            'Download your earned certifications'}
                                     </p>
                                 </div>
                             )}
@@ -329,6 +350,46 @@ function StudentDashboard() {
 
                         </section>
 
+                        {announcements.length > 0 && (
+                            <section style={{ marginTop: '40px' }}>
+                                <h2 style={{ fontSize: '1.25rem', marginBottom: '20px', color: '#2D3748', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <span>📢</span> Latest Announcements
+                                </h2>
+                                <div style={{ display: 'grid', gap: '15px' }}>
+                                    {announcements.map((ann, idx) => (
+                                        <div
+                                            key={ann._id}
+                                            style={{
+                                                background: 'linear-gradient(135deg, #ffffff 0%, #f9faff 100%)',
+                                                padding: '20px',
+                                                borderRadius: '16px',
+                                                boxShadow: '0 4px 6px rgba(0,0,0,0.02)',
+                                                border: '1px solid #eef2ff',
+                                                borderLeft: '5px solid #6366f1',
+                                                position: 'relative',
+                                                overflow: 'hidden'
+                                            }}
+                                        >
+                                            <div style={{ position: 'absolute', top: '-10px', right: '-10px', width: '60px', height: '60px', background: 'rgba(99, 102, 241, 0.03)', borderRadius: '50%' }}></div>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                                                <h4 style={{ margin: 0, color: '#1e293b', fontSize: '1.1rem', fontWeight: '700' }}>{ann.title}</h4>
+                                                <span style={{ fontSize: '0.75rem', color: '#94a3b8', background: '#f1f5f9', padding: '4px 8px', borderRadius: '6px' }}>
+                                                    {new Date(ann.createdAt).toLocaleDateString('en-GB')}
+                                                </span>
+                                            </div>
+                                            <p style={{ margin: 0, color: '#475569', fontSize: '0.95rem', lineHeight: '1.5' }}>{ann.content}</p>
+                                            <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: '#6c63ff', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem' }}>
+                                                    {ann.author?.name?.charAt(0) || 'A'}
+                                                </div>
+                                                <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: '500' }}>{ann.author?.name || 'Admin'}</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </section>
+                        )}
+
                         <section style={{ marginTop: '40px' }}>
                             <h2 style={{ fontSize: '1.2rem', marginBottom: '20px', color: '#2D3748' }}>Explore Courses</h2>
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
@@ -368,6 +429,10 @@ function StudentDashboard() {
                     <AssignmentsSection userId={user.id || user._id} courses={courses} />
                 ) : activeTab === 'profile' ? (
                     <ProfileSection userId={user.id || user._id} />
+                ) : activeTab === 'announcements' ? (
+                    <AnnouncementsSection announcements={announcements} />
+                ) : activeTab === 'live-class' ? (
+                    <LiveClassStudentSection />
                 ) : (
                     <CertificatesSection
                         courses={courses}
@@ -499,74 +564,81 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
         };
     }, [selectedContent, user]); // Include dependencies for saveProgress
 
+    // Track initialized content to prevent overwriting timeSpent on re-renders
+    const initializedContentRef = useRef(null);
+
+    // 1. Initialization Effect (Runs when content changes or progress loads)
     useEffect(() => {
         if (selectedContent && studentProgress) {
-            const contentKey = `timer_${user.id || user._id}_${selectedContent._id}`;
+            // Only initialize if we haven't done so for this content ID yet
+            if (initializedContentRef.current !== selectedContent._id) {
+                const contentKey = `timer_${user.id || user._id}_${selectedContent._id}`;
+                const existingProgress = studentProgress.contentProgress?.find(
+                    cp => cp.contentId.toString() === selectedContent._id.toString()
+                );
 
-            // 1. Initialize time spent
-            // Priority: localStorage (for refresh/instant) > progress from server
-            const existingProgress = studentProgress.contentProgress?.find(
-                cp => cp.contentId.toString() === selectedContent._id.toString()
-            );
+                const serverTime = existingProgress ? existingProgress.timeSpent : 0;
+                const locallySavedTime = parseInt(localStorage.getItem(contentKey) || '0', 10);
+                const initialTime = Math.max(serverTime, locallySavedTime);
+                const alreadyCompleted = existingProgress ? existingProgress.isCompleted : false;
 
-            const serverTime = existingProgress ? existingProgress.timeSpent : 0;
-            const locallySavedTime = parseInt(localStorage.getItem(contentKey) || '0', 10);
+                setTimeSpent(initialTime);
+                timeSpentRef.current = initialTime;
 
-            // If local storage has a higher value, it means the user refreshed before an auto-save
-            const initialTime = Math.max(serverTime, locallySavedTime);
-            const alreadyCompleted = existingProgress ? existingProgress.isCompleted : false;
+                // Set completion status based on initial data
+                if (alreadyCompleted || initialTime >= selectedContent.minTime) {
+                    setIsTimeRequirementMet(true);
+                } else {
+                    setIsTimeRequirementMet(false);
+                }
 
-            setTimeSpent(initialTime);
-            timeSpentRef.current = initialTime;
-
-            if (alreadyCompleted) {
-                setIsTimeRequirementMet(true);
-            } else if (initialTime >= selectedContent.minTime) {
-                setIsTimeRequirementMet(true);
-            } else {
-                setIsTimeRequirementMet(false);
+                initializedContentRef.current = selectedContent._id;
             }
+        }
+    }, [selectedContent, studentProgress, user]);
 
+    // 2. Timer & Auto-Save Effect (Runs ONLY when selectedContent changes)
+    useEffect(() => {
+        if (selectedContent) {
             let timer = null;
             let autoSaveTimer = null;
 
-            if (!alreadyCompleted) {
-                // 2. Start Timer
-                timer = setInterval(() => {
-                    if (document.hidden || !document.hasFocus()) return;
+            // Start Timer (only if not already completed? No, keep tracking for total time)
+            // Note: We don't check 'isTimeRequirementMet' here to stop timer, we track everything.
+            timer = setInterval(() => {
+                if (document.hidden || !document.hasFocus()) return;
 
-                    setTimeSpent(prev => {
-                        if (document.hasFocus() && !document.hidden) {
-                            if (prev >= selectedContent.minTime) {
-                                setIsTimeRequirementMet(true);
-                                // Continue counting even after requirement met if they stay on page
-                                // but the user requested it to stop at requirement? 
-                                // Actually, typical LMS keeps counting total study time.
-                            }
-
-                            const next = prev + 1;
-                            timeSpentRef.current = next;
-                            // Sync with localStorage for refresh persistence
-                            localStorage.setItem(contentKey, next.toString());
-                            return next;
+                setTimeSpent(prev => {
+                    if (document.hasFocus() && !document.hidden) {
+                        const next = prev + 1;
+                        // Check requirement in real-time
+                        if (next >= selectedContent.minTime) {
+                            setIsTimeRequirementMet(true);
                         }
-                        return prev;
-                    });
-                }, 1000);
-            }
 
-            // 3. Periodic Auto-save (Every 10 seconds)
+                        timeSpentRef.current = next;
+                        // Sync with localStorage
+                        const contentKey = `timer_${user.id || user._id}_${selectedContent._id}`;
+                        localStorage.setItem(contentKey, next.toString());
+                        return next;
+                    }
+                    return prev;
+                });
+            }, 1000);
+
+            // Periodic Auto-save (Every 10 seconds)
             autoSaveTimer = setInterval(() => {
-                saveProgress(false);
+                saveProgress(false); // Using Ref for time, so safe to call
             }, 10000);
 
             return () => {
                 if (timer) clearInterval(timer);
                 if (autoSaveTimer) clearInterval(autoSaveTimer);
+                // Save on unmount/change
                 saveProgress(false);
             };
         }
-    }, [selectedContent, studentProgress, user]);
+    }, [selectedContent]); // REMOVED studentProgress to prevent loop
 
     // Separate effect for completion save
     useEffect(() => {
@@ -1162,25 +1234,32 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
                                             </a>
                                         )}
                                         <a
-                                            href={getContentUrl(selectedContent.url)}
-                                            target="_blank"
+                                            href={isTimeRequirementMet ? getContentUrl(selectedContent.url) : '#'}
+                                            target={isTimeRequirementMet ? "_blank" : "_self"}
                                             rel="noopener noreferrer"
+                                            onClick={(e) => {
+                                                if (!isTimeRequirementMet) {
+                                                    e.preventDefault();
+                                                    alert('Please complete the minimum time requirement before opening this link!');
+                                                }
+                                            }}
                                             style={{
                                                 padding: '8px 12px',
-                                                background: '#edf2f7',
-                                                color: '#4a5568',
+                                                background: isTimeRequirementMet ? '#edf2f7' : '#e2e8f0',
+                                                color: isTimeRequirementMet ? '#4a5568' : '#a0aec0',
                                                 border: 'none',
                                                 borderRadius: '8px',
                                                 fontSize: '0.8rem',
                                                 fontWeight: 'bold',
                                                 textDecoration: 'none',
-                                                cursor: 'pointer',
+                                                cursor: isTimeRequirementMet ? 'pointer' : 'not-allowed',
                                                 display: 'flex',
                                                 alignItems: 'center',
-                                                gap: '6px'
+                                                gap: '6px',
+                                                opacity: isTimeRequirementMet ? 1 : 0.7
                                             }}
                                         >
-                                            🚀 Open in New Tab
+                                            {isTimeRequirementMet ? '🚀' : '🔒'} Open in New Tab
                                         </a>
                                     </div>
                                 </div>
@@ -1842,7 +1921,172 @@ const ProfileSection = ({ userId }) => {
     );
 };
 
+
+const AnnouncementsSection = ({ announcements }) => {
+    return (
+        <div style={{ padding: '20px' }}>
+            {announcements.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '50px', background: 'white', borderRadius: '15px' }}>
+                    <div style={{ fontSize: '3rem', marginBottom: '15px' }}>📢</div>
+                    <h3 style={{ color: '#2d3748' }}>No announcements yet</h3>
+                    <p style={{ color: '#718096' }}>Check back later for updates from the administration.</p>
+                </div>
+            ) : (
+                <div style={{ display: 'grid', gap: '20px' }}>
+                    {announcements.map((ann) => (
+                        <div
+                            key={ann._id}
+                            style={{
+                                background: 'white',
+                                padding: '30px',
+                                borderRadius: '16px',
+                                boxShadow: '0 4px 6px rgba(0,0,0,0.02)',
+                                border: '1px solid #edf2f7',
+                                borderLeft: '6px solid #6366f1'
+                            }}
+                        >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '15px' }}>
+                                <h3 style={{ margin: 0, color: '#1e293b', fontSize: '1.25rem', fontWeight: '700' }}>{ann.title}</h3>
+                                <div style={{ textAlign: 'right' }}>
+                                    <div style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: '600' }}>
+                                        {new Date(ann.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+                                    </div>
+                                    <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
+                                        {new Date(ann.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </div>
+                                </div>
+                            </div>
+                            <p style={{
+                                margin: 0,
+                                color: '#475569',
+                                fontSize: '1.05rem',
+                                lineHeight: '1.6',
+                                whiteSpace: 'pre-wrap'
+                            }}>
+                                {ann.content}
+                            </p>
+                            <div style={{
+                                marginTop: '20px',
+                                paddingTop: '15px',
+                                borderTop: '1px solid #f1f5f9',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '10px'
+                            }}>
+                                <div style={{
+                                    width: '32px',
+                                    height: '32px',
+                                    borderRadius: '50%',
+                                    background: '#6366f1',
+                                    color: 'white',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    fontSize: '0.85rem',
+                                    fontWeight: 'bold'
+                                }}>
+                                    {ann.author?.name?.charAt(0) || 'A'}
+                                </div>
+                                <div>
+                                    <div style={{ fontSize: '0.85rem', fontWeight: '600', color: '#1e293b' }}>
+                                        {ann.author?.name || 'Administrator'}
+                                    </div>
+                                    <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Authorized User</div>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
+
 export default StudentDashboard;
+
+const LiveClassStudentSection = () => {
+    const navigate = useNavigate();
+    const [liveClasses, setLiveClasses] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        fetchActive();
+        const interval = setInterval(fetchActive, 10000); // Check every 10s
+        return () => clearInterval(interval);
+    }, []);
+
+    const fetchActive = async () => {
+        try {
+            const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/live-class/active`);
+            setLiveClasses(res.data);
+        } catch (err) { console.error(err); }
+        finally { setLoading(false); }
+    };
+
+    if (loading) return <div style={{ textAlign: 'center', padding: '50px' }}>Checking for active classes...</div>;
+
+    return (
+        <div style={{ background: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: '800', marginBottom: '30px' }}>📺 Active Live Classrooms</h2>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
+                {liveClasses.length === 0 ? (
+                    <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '50px', background: '#f8fafc', borderRadius: '15px', color: '#64748b' }}>
+                        <div style={{ fontSize: '3rem', marginBottom: '15px' }}>😴</div>
+                        <h3>No classes are live right now</h3>
+                        <p>Keep an eye on announcements for scheduled class timings.</p>
+                    </div>
+                ) : (
+                    liveClasses.map(c => (
+                        <div key={c._id} style={{
+                            background: 'white',
+                            padding: '24px',
+                            borderRadius: '16px',
+                            borderLeft: '5px solid #10b981',
+                            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.05)',
+                            position: 'relative'
+                        }}>
+                            <div style={{ position: 'absolute', top: '20px', right: '20px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                <div style={{ width: '8px', height: '8px', background: '#ef4444', borderRadius: '50%', animation: 'pulse 1.5s infinite' }}></div>
+                                <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#ef4444' }}>LIVE</span>
+                            </div>
+                            <h4 style={{ margin: '0 0 10px 0', fontSize: '1.2rem', color: '#1a202c' }}>{c.title}</h4>
+                            <p style={{ color: '#64748b', fontSize: '0.9rem', marginBottom: '20px' }}>
+                                👨‍🏫 <b>Host:</b> {c.teacherName || c.teacher?.name || 'Instructor'}
+                            </p>
+                            <button
+                                onClick={() => navigate(`/live-class/${c.roomId}`)}
+                                style={{
+                                    width: '100%',
+                                    padding: '12px',
+                                    background: '#10b981',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '8px',
+                                    fontWeight: 'bold',
+                                    cursor: 'pointer',
+                                    transition: 'background 0.2s'
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.background = '#059669'}
+                                onMouseLeave={(e) => e.currentTarget.style.background = '#10b981'}
+                            >
+                                Enter Classroom 🚀
+                            </button>
+                        </div>
+                    ))
+                )}
+            </div>
+
+            <style>{`
+                @keyframes pulse {
+                    0% { opacity: 1; }
+                    50% { opacity: 0.3; }
+                    100% { opacity: 1; }
+                }
+            `}</style>
+        </div>
+    );
+};
 
 const generateCertificate = (studentName, courseName) => {
     const doc = new jsPDF({
