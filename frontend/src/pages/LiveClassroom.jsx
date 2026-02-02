@@ -442,22 +442,33 @@ const LiveClassroom = () => {
                         </button>
                     </div>
 
-                    <div style={{ background: activeMode === 'whiteboard' ? 'white' : '#1e1e2e', flex: 1, borderRadius: '12px', overflow: 'hidden', position: 'relative', border: '1px solid #334155' }}>
-                        {activeMode === 'whiteboard' ? (
-                            <>
-                                <canvas
-                                    ref={canvasRef}
-                                    onMouseDown={startDrawing}
-                                    onMouseMove={draw}
-                                    onMouseUp={stopDrawing}
-                                    onMouseLeave={stopDrawing}
-                                    style={{ cursor: isEraser ? 'crosshair' : 'pencil', width: '100%', height: '100%' }}
-                                />
-                                <div style={{ position: 'absolute', top: '10px', left: '10px', color: '#64748B', fontWeight: 'bold', background: 'rgba(255,255,255,0.8)', padding: '2px 8px', borderRadius: '4px' }}>
-                                    👨‍🏫 Teaching Whiteboard
-                                </div>
-                            </>
-                        ) : (
+                    <div style={{ flex: 1, borderRadius: '12px', overflow: 'hidden', position: 'relative', border: '1px solid #334155', display: 'flex', flexDirection: 'column' }}>
+                        {/* Whiteboard Container (Always in DOM) */}
+                        <div style={{
+                            display: activeMode === 'whiteboard' ? 'block' : 'none',
+                            height: '100%',
+                            background: 'white',
+                            position: 'relative'
+                        }}>
+                            <canvas
+                                ref={canvasRef}
+                                onMouseDown={startDrawing}
+                                onMouseMove={draw}
+                                onMouseUp={stopDrawing}
+                                onMouseLeave={stopDrawing}
+                                style={{ cursor: isEraser ? 'crosshair' : 'pencil', width: '100%', height: '100%', display: 'block' }}
+                            />
+                            <div style={{ position: 'absolute', top: '10px', left: '10px', color: '#64748B', fontWeight: 'bold', background: 'rgba(255,255,255,0.8)', padding: '2px 8px', borderRadius: '4px' }}>
+                                👨‍🏫 Teaching Whiteboard
+                            </div>
+                        </div>
+
+                        {/* Coding Container (Always in DOM) */}
+                        <div style={{
+                            display: activeMode === 'coding' ? 'block' : 'none',
+                            height: '100%',
+                            background: '#1e1e2e'
+                        }}>
                             <div style={{ padding: '20px', height: '100%', display: 'flex', flexDirection: 'column', gap: '15px' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <h3 style={{ color: 'white', margin: 0 }}>Live Coding</h3>
@@ -553,7 +564,7 @@ const LiveClassroom = () => {
                                     </div>
                                 )}
                             </div>
-                        )}
+                        </div>
                         {isTeacher && slides.length > 0 && (
                             <div style={{
                                 position: 'absolute',
