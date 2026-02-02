@@ -4,7 +4,7 @@ import axios from 'axios';
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
 import ReactMarkdown from 'react-markdown';
-const API_URL = import.meta.env.VITE_API_URL || '${API_URL}';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 
 //import AIAssistantSidebar from '../components/AIAssistantSidebar'; // Import the new component

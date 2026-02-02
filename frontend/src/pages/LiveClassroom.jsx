@@ -40,7 +40,7 @@ const LiveClassroom = () => {
     const recordedChunks = useRef([]);
     const streamRef = useRef(null);
 
-    const API_URL = import.meta.env.VITE_API_URL || '${API_URL}';
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
     useEffect(() => {
         // --- Socket Initialization ---
@@ -493,7 +493,7 @@ const LiveClassroom = () => {
                                         <option value="java">Java</option>
                                     </select>
                                 </div>
-                                                                <div style={{ flex: 2, borderRadius: '8px', overflow: 'hidden', border: '1px solid #334155' }}>
+                                <div style={{ flex: 2, borderRadius: '8px', overflow: 'hidden', border: '1px solid #334155' }}>
                                     <Editor
                                         height="100%"
                                         language={language === 'cpp' ? 'cpp' : language}

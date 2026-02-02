@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import axios from 'axios';
 import { useNavigate, Link } from 'react-router-dom';
-const API_URL = import.meta.env.VITE_API_URL || '${API_URL}';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 
 function Login() {
@@ -20,7 +20,7 @@ function Login() {
         e.preventDefault();
         setLoading(true);
         try {
-            const res = await axios.post(`${API_URL}/api/auth/login', formData);
+            const res = await axios.post(`${API_URL}/api/auth/login`, formData);
             const { user, token } = res.data;
 
             localStorage.setItem('user', JSON.stringify(user));
