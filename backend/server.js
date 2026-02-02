@@ -19,7 +19,8 @@ const PORT = process.env.PORT || 5000;
 
 // Middleware
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Debug Middleware: Log all requests
 app.use((req, res, next) => {
@@ -87,6 +88,23 @@ io.on('connection', (socket) => {
 
     socket.on('permission-update', ({ roomId, ...permData }) => {
         socket.to(roomId).emit('incoming-permission', permData);
+    });
+
+    socket.on('end-class', ({ roomId }) => {
+        socket.to(roomId).emit('class-ended');
+    });
+
+    socket.on('slide-change-event', ({ roomId, index }) => {
+        socket.to(roomId).emit('incoming-slide-change', { index });
+    });
+
+
+    socket.on('slide-add-event', ({ roomId, slideData }) => {
+        socket.to(roomId).emit('incoming-slide-add', { slideData });
+    });
+
+    socket.on('canvas-update', ({ roomId, imageData }) => {
+        socket.to(roomId).emit('incoming-canvas-update', { imageData });
     });
 
     socket.on('disconnect', () => {

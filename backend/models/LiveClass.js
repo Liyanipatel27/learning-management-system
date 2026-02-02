@@ -22,6 +22,22 @@ const liveClassSchema = new mongoose.Schema({
         type: Boolean,
         default: true
     },
+    slides: {
+        type: [String], // Array of DataURLs
+        default: []
+    },
+    currentSlideIndex: {
+        type: Number,
+        default: 0
+    },
+    code: {
+        type: String,
+        default: ""
+    },
+    language: {
+        type: String,
+        default: "javascript"
+    },
     createdAt: {
         type: Date,
         default: Date.now
