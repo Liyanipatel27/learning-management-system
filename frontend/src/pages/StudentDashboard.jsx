@@ -4,6 +4,7 @@ import axios from 'axios';
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
 import ReactMarkdown from 'react-markdown';
+import signatureImg from '../assets/signature.png';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 
@@ -29,6 +30,7 @@ function StudentDashboard() {
     const [dailyHours, setDailyHours] = useState(2);
     const [weekendHours, setWeekendHours] = useState(4);
     const [pendingAssignmentsCount, setPendingAssignmentsCount] = useState(0);
+    const [pendingAssignments, setPendingAssignments] = useState([]);
     const [announcements, setAnnouncements] = useState([]);
 
 
@@ -137,8 +139,9 @@ function StudentDashboard() {
             const submittedAssignmentIds = new Set(subRes.data.map(s => String(s.assignment)));
 
             // Calculate pending: Assignment exists but ID is NOT in submitted set
-            const pendingCount = allAsgns.filter(asgn => !submittedAssignmentIds.has(String(asgn._id))).length;
-            setPendingAssignmentsCount(pendingCount);
+            const pending = allAsgns.filter(asgn => !submittedAssignmentIds.has(String(asgn._id)));
+            setPendingAssignmentsCount(pending.length);
+            setPendingAssignments(pending);
 
         } catch (err) {
             console.error('Error in fetchCourses:', err);
@@ -321,6 +324,9 @@ function StudentDashboard() {
                     />
                 ) : activeTab === 'dashboard' ? (
                     <>
+                        {/* Deadline Warnings */}
+                        {/* Deadline Warnings - Condensed */}
+
                         <section className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
                             {/* Card 1 */}
                             <div style={{ background: 'white', padding: '20px', borderRadius: '15px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
@@ -334,11 +340,63 @@ function StudentDashboard() {
                                 <p style={{ fontSize: '2rem', fontWeight: 'bold', color: '#FF6584' }}>{pendingAssignmentsCount}</p>
                             </div>
 
+                            {/* Deadline Warnings - Card Version */}
+                            {(() => {
+                                const now = new Date();
+                                const urgentAssignments = pendingAssignments.filter(a => {
+                                    const due = new Date(a.dueDate);
+                                    const diffHrs = (due - now) / (1000 * 60 * 60);
+                                    return diffHrs < 48; // Due within 48 hours or overdue
+                                });
+
+                                if (urgentAssignments.length === 0) return null;
+
+                                const overdueCount = urgentAssignments.filter(a => new Date(a.dueDate) < now).length;
+                                const approachingCount = urgentAssignments.length - overdueCount;
+
+                                return (
+                                    <div style={{
+                                        background: '#FFF5F5',
+                                        padding: '20px',
+                                        borderRadius: '15px',
+                                        boxShadow: '0 4px 6px rgba(0,0,0,0.05)',
+                                        border: '1px solid #FED7D7',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        justifyContent: 'space-between'
+                                    }}>
+                                        <div>
+                                            <h3 style={{ color: '#C53030', fontSize: '0.9rem', marginBottom: '5px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                                <span>⚠️</span> Attention Needed
+                                            </h3>
+                                            <p style={{ margin: 0, fontSize: '0.9rem', color: '#2D3748', lineHeight: '1.4' }}>
+                                                <span style={{ fontWeight: 'bold', color: '#E53E3E' }}>{overdueCount} Overdue</span>
+                                                {approachingCount > 0 && <span style={{ fontWeight: 'bold', color: '#D69E2E' }}>, {approachingCount} Due soon</span>}
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={() => { setActiveTab('assignments'); setSelectedCourse(null); }}
+                                            style={{
+                                                marginTop: '15px',
+                                                padding: '8px 12px',
+                                                background: '#C53030',
+                                                color: 'white',
+                                                border: 'none',
+                                                borderRadius: '8px',
+                                                fontWeight: 'bold',
+                                                cursor: 'pointer',
+                                                fontSize: '0.8rem',
+                                                width: '100%'
+                                            }}
+                                        >
+                                            View Assignments &rarr;
+                                        </button>
+                                    </div>
+                                );
+                            })()}
+
                             {/* Card 3 */}
-                            <div style={{ background: 'white', padding: '20px', borderRadius: '15px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
-                                <h3 style={{ color: '#718096', fontSize: '0.9rem', marginBottom: '10px' }}>Attendance</h3>
-                                <p style={{ fontSize: '2rem', fontWeight: 'bold', color: '#38B2AC' }}>95%</p>
-                            </div>
+
 
 
                         </section>
@@ -2143,6 +2201,11 @@ const generateCertificate = (studentName, courseName) => {
     doc.text(`Issued on: ${date}`, pageWidth / 2, 160, { align: 'center' });
 
     // --- Signature ---
+    try {
+        doc.addImage(signatureImg, 'PNG', pageWidth / 2 - 20, 165, 40, 20);
+    } catch (e) {
+        console.warn('Signature image failed to load', e);
+    }
     doc.setDrawColor(203, 213, 224);
     doc.line(pageWidth / 2 - 30, 185, pageWidth / 2 + 30, 185);
     doc.setFontSize(10);
