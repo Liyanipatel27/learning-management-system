@@ -1,8 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
-import Editor from '@monaco-editor/react';
+import Editor, { loader } from '@monaco-editor/react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+
+// Configure Monaco loader to use CDN to avoid local AMD conflicts
+loader.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } });
 
 const LiveClassroom = () => {
     const { roomId } = useParams();
@@ -210,7 +213,7 @@ const LiveClassroom = () => {
 
             try {
                 console.log("Attempting to load Jitsi via fetch-eval...");
-                const response = await fetch('https://meet.jit.si/external_api.js');
+                const response = await fetch('https://meet.element.io/external_api.js');
                 if (!response.ok) throw new Error("Network response was not ok");
                 const scriptText = await response.text();
 
@@ -232,7 +235,7 @@ const LiveClassroom = () => {
                 window.define = undefined;
 
                 const script = document.createElement('script');
-                script.src = 'https://meet.jit.si/external_api.js';
+                script.src = 'https://meet.element.io/external_api.js';
                 script.async = true;
                 script.onload = () => {
                     setTimeout(() => {
@@ -336,7 +339,7 @@ const LiveClassroom = () => {
         if (!jitsiContainerRef.current || jitsiApiRef.current) return;
 
         try {
-            const domain = 'meet.jit.si';
+            const domain = 'meet.element.io';
             const options = {
                 roomName: roomId,
                 width: '100%',
@@ -376,15 +379,10 @@ const LiveClassroom = () => {
                 },
                 videoConferenceLeft: () => {
                     console.log("[LIVE CLASS DEBUG] Video conference left");
-                    // Only redirect if the user had ACTUALLY joined the conference.
-                    // This ignores the 'Log-in' button click which triggers a 'left' event before joining.
-                    if (joinedConferenceRef.current) {
-                        if (user.role === 'teacher') {
-                            endClass(true);
-                        } else {
-                            window.location.href = '/student-dashboard';
-                        }
-                    }
+                    // We DO NOT want to auto-end the class or redirect immediately.
+                    // This allows users to rejoin if they were disconnected or if Jitsi timed out.
+                    joinedConferenceRef.current = false;
+                    // Optional: You could show a UI notice here, e.g., "You have left the audio/video call."
                 },
                 readyToClose: () => {
                     console.log("[LIVE CLASS DEBUG] Jitsi ready to close (Hangup)");
@@ -397,7 +395,8 @@ const LiveClassroom = () => {
                         console.warn("Error disposing Jitsi API:", err);
                     }
                     if (user.role === 'teacher') {
-                        endClass(true); // silent end when hangup button clicked
+                        // endClass(true); // Don't destroy the room on local hangup
+                        window.location.href = '/teacher-dashboard';
                     } else {
                         window.location.href = '/student-dashboard';
                     }
@@ -759,6 +758,16 @@ const LiveClassroom = () => {
         }
     };
 
+    const [isFullScreen, setIsFullScreen] = useState(false);
+
+    useEffect(() => {
+        const handleFullScreenChange = () => {
+            setIsFullScreen(!!document.fullscreenElement);
+        };
+        document.addEventListener('fullscreenchange', handleFullScreenChange);
+        return () => document.removeEventListener('fullscreenchange', handleFullScreenChange);
+    }, []);
+
     const isTeacher = user.role === 'teacher';
 
     return (
@@ -766,7 +775,7 @@ const LiveClassroom = () => {
             ref={classroomRef}
             style={{
                 display: isTeacher ? 'grid' : 'block',
-                gridTemplateColumns: isTeacher ? '1fr 350px' : '1fr',
+                gridTemplateColumns: (isTeacher && !isFullScreen) ? '1fr 350px' : '1fr',
                 height: '100vh',
                 background: '#0F172A',
                 overflow: 'hidden',
@@ -776,7 +785,14 @@ const LiveClassroom = () => {
             {/* Left: Whiteboard/Coding area (ONLY FOR TEACHER) */}
             {isTeacher && (
                 <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', position: 'relative', overflow: 'hidden' }}>
-                    <div style={{ display: 'flex', gap: '10px', padding: '10px', background: '#0F172A', zIndex: 10, flexShrink: 0 }}>
+                    <div style={{
+                        display: 'flex',
+                        gap: '10px',
+                        padding: '10px',
+                        background: '#0F172A',
+                        zIndex: 10,
+                        flexShrink: 0
+                    }}>
                         <button
                             onClick={() => setActiveMode('whiteboard')}
                             style={{
@@ -883,27 +899,7 @@ const LiveClassroom = () => {
                             <div style={{ padding: '20px', height: '100%', display: 'flex', flexDirection: 'column', gap: '15px', minHeight: 0 }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <h3 style={{ color: 'white', margin: 0 }}>Live Coding</h3>
-                                    {user.role === 'teacher' && (
-                                        <button
-                                            onClick={() => {
-                                                const newStatus = !canEditCode;
-                                                setCanEditCode(newStatus);
-                                                socketRef.current?.emit('permission-update', { roomId, canEdit: newStatus });
-                                            }}
-                                            style={{
-                                                padding: '5px 12px',
-                                                background: canEditCode ? '#10B981' : '#F59E0B',
-                                                color: 'white',
-                                                border: 'none',
-                                                borderRadius: '5px',
-                                                fontSize: '12px',
-                                                fontWeight: 'bold',
-                                                cursor: 'pointer'
-                                            }}
-                                        >
-                                            {canEditCode ? '🔓 Students Can Edit' : '🔒 Read-Only for Students'}
-                                        </button>
-                                    )}
+
                                     <select
                                         value={language}
                                         onChange={(e) => setLanguage(e.target.value)}
@@ -1038,7 +1034,7 @@ const LiveClassroom = () => {
             <div style={{
                 background: '#1E293B',
                 height: '100%',
-                display: sidebarVisible ? 'flex' : 'none',
+                display: (sidebarVisible && !isFullScreen) ? 'flex' : 'none',
                 flexDirection: 'column',
                 position: 'relative',
                 overflow: 'hidden',
