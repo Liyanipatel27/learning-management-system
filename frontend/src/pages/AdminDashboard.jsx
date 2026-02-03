@@ -157,15 +157,27 @@ function AdminDashboard() {
         } catch (err) { alert("Failed to delete user"); }
     };
 
-    const handleExport = (data, filename) => {
+    const handleExport = (data, filename, columns) => {
         if (!data || data.length === 0) {
             alert("No data available to export");
             return;
         }
-        // Simple CSV Export
-        const header = Object.keys(data[0]).join(',');
-        const rows = data.map(obj => Object.values(obj).join(',')).join('\n');
-        const blob = new Blob([header + '\n' + rows], { type: 'text/csv' });
+
+        const header = columns.map(col => col.header).join(',');
+        const rows = data.map(row => {
+            return columns.map(col => {
+                let val = col.accessor ? col.accessor(row) : row[col.key];
+                if (val === null || val === undefined) val = '';
+                const stringVal = String(val);
+                // Escape commas and double quotes
+                if (stringVal.includes(',') || stringVal.includes('"') || stringVal.includes('\n')) {
+                    return `"${stringVal.replace(/"/g, '""')}"`;
+                }
+                return stringVal;
+            }).join(',');
+        }).join('\n');
+
+        const blob = new Blob([header + '\n' + rows], { type: 'text/csv;charset=utf-8;' });
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -302,6 +314,33 @@ function AdminDashboard() {
 
                 {(activeTab === 'students' || activeTab === 'teachers' || activeTab === 'admins') && (
                     <div style={{ background: 'white', padding: '20px', borderRadius: '15px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '15px' }}>
+                            <button onClick={() => {
+                                const currentRole = activeTab.slice(0, -1); // 'students' -> 'student'
+                                const filteredUsers = users.filter(u => u.role === currentRole);
+
+                                let cols = [
+                                    { header: 'Name', key: 'name' },
+                                    { header: 'Email', key: 'email' },
+                                    { header: 'Role', accessor: (u) => u.role.toUpperCase() }
+                                ];
+
+                                if (currentRole === 'student') {
+                                    cols = [
+                                        { header: 'Enrollment ID', key: 'enrollment' },
+                                        ...cols,
+                                        { header: 'Branch', key: 'branch' }
+                                    ];
+                                } else {
+                                    cols = [
+                                        { header: 'Employee ID', key: 'employeeId' },
+                                        ...cols
+                                    ];
+                                }
+
+                                handleExport(filteredUsers, `${activeTab}_list.csv`, cols);
+                            }} style={btnStyle}>📥 Export {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} List</button>
+                        </div>
                         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                             <thead>
                                 <tr style={{ borderBottom: '2px solid #edf2f7', textAlign: 'left' }}>
@@ -309,7 +348,7 @@ function AdminDashboard() {
                                     <th style={{ padding: '15px' }}>Email</th>
                                     <th style={{ padding: '15px' }}>Role</th>
                                     <th style={{ padding: '15px' }}>{activeTab === 'students' ? 'Enrollment' : 'Employee ID'}</th>
-                                    <th style={{ padding: '15px' }}>Branch</th>
+                                    {activeTab === 'students' && <th style={{ padding: '15px' }}>Branch</th>}
                                     <th style={{ padding: '15px' }}>Actions</th>
                                 </tr>
                             </thead>
@@ -326,9 +365,11 @@ function AdminDashboard() {
                                         <td style={{ padding: '15px' }}>
                                             {u.role === 'student' ? u.enrollment : (u.employeeId || '-')}
                                         </td>
-                                        <td style={{ padding: '15px' }}>
-                                            {u.branch || '-'}
-                                        </td>
+                                        {activeTab === 'students' && (
+                                            <td style={{ padding: '15px' }}>
+                                                {u.branch || '-'}
+                                            </td>
+                                        )}
                                         <td style={{ padding: '15px' }}>
                                             <button onClick={() => handleEditUser(u)} style={{ color: '#3182ce', border: 'none', background: 'none', cursor: 'pointer', marginRight: '10px' }}>Edit</button>
                                             <button onClick={() => handleDeleteUser(u._id)} style={{ color: 'red', border: 'none', background: 'none', cursor: 'pointer' }}>Delete</button>
@@ -383,7 +424,16 @@ function AdminDashboard() {
                         <div style={{ background: 'white', padding: '25px', borderRadius: '15px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
                                 <h3>Student Progress Report</h3>
-                                <button onClick={() => handleExport(studentReports, 'students_progress.xls')} style={btnStyle}>📥 Export Excel</button>
+                                <button onClick={() => {
+                                    const cols = [
+                                        { header: 'Enrollment ID', key: 'enrollment' },
+                                        { header: 'Name', key: 'name' },
+                                        { header: 'Completed Courses', key: 'completedCourses' },
+                                        { header: 'Total Courses', key: 'totalCourses' },
+                                        { header: 'Progress (%)', key: 'percentage' }
+                                    ];
+                                    handleExport(studentReports, 'students_progress.csv', cols);
+                                }} style={btnStyle}>📥 Export Excel</button>
                             </div>
                             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                                 <thead>
@@ -420,7 +470,16 @@ function AdminDashboard() {
                         <div style={{ background: 'white', padding: '25px', borderRadius: '15px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
                                 <h3>Teacher Portfolio</h3>
-                                <button onClick={() => handleExport(teacherReports, 'teachers.xls')} style={btnStyle}>📥 Export Excel</button>
+                                <button onClick={() => {
+                                    const cols = [
+                                        { header: 'Employee ID', key: 'employeeId' },
+                                        { header: 'Name', key: 'name' },
+                                        { header: 'Email', key: 'email' },
+                                        { header: 'Total Courses', accessor: (row) => row.courses ? row.courses.length : 0 },
+                                        { header: 'Course Titles', accessor: (row) => row.courses ? row.courses.map(c => c.title).join('; ') : '' }
+                                    ];
+                                    handleExport(teacherReports, 'teachers_portfolio.csv', cols);
+                                }} style={btnStyle}>📥 Export Excel</button>
                             </div>
                             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                                 <thead>
