@@ -14,7 +14,7 @@ router.get('/stats', async (req, res) => {
     try {
         const totalStudents = await User.countDocuments({ role: 'student' });
         const totalTeachers = await User.countDocuments({ role: 'teacher' });
-        const totalCourses = await Course.countDocuments();
+        const totalCourses = await Course.countDocuments({ isPublished: true });
         // Calculate total enrollments (sum of enrollees in all courses)
         const courses = await Course.find().select('enrolledStudents');
         const totalEnrollments = courses.reduce((acc, course) => acc + (course.enrolledStudents ? course.enrolledStudents.length : 0), 0);
