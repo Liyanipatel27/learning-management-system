@@ -1682,6 +1682,9 @@ const AssignmentsSection = ({ userId, courses }) => {
                                                 value={code}
                                                 readOnly={!!submissions[activeAssignment._id]}
                                                 onChange={(e) => setCode(e.target.value)}
+                                                onCopy={(e) => { e.preventDefault(); alert('Copying is disabled!'); }}
+                                                onPaste={(e) => { e.preventDefault(); alert('Pasting is disabled!'); }}
+                                                onCut={(e) => { e.preventDefault(); alert('Cutting is disabled!'); }}
                                                 style={{
                                                     width: '100%',
                                                     minHeight: '300px',
