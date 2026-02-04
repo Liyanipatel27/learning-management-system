@@ -339,13 +339,17 @@ const PerformanceAnalyzer = ({ studentId, courses: propCourses, allProgress: pro
             }}>
                 <h3 style={{ marginTop: 0, marginBottom: '20px' }}>🎯 Overall Performance Across All Subjects</h3>
                 <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={overallData} layout="vertical">
+                    <BarChart data={overallData}>
                         <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis type="number" domain={[0, 100]} />
-                        <YAxis type="category" dataKey="name" width={100} />
+                        <XAxis dataKey="name" />
+                        <YAxis type="number" domain={[0, 100]} />
                         <Tooltip formatter={(value) => [`${value}%`, 'Score']} />
                         <Legend />
-                        <Bar dataKey="score" fill="#3182ce" radius={[0, 4, 4, 0]} />
+                        <Bar dataKey="score" radius={[4, 4, 0, 0]} barSize={40}>
+                            {overallData.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                            ))}
+                        </Bar>
                     </BarChart>
                 </ResponsiveContainer>
             </div>
