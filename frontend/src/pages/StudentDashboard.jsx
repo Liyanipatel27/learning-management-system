@@ -9,6 +9,7 @@ import SummaryWidget from '../components/AI/SummaryWidget';
 import ReactMarkdown from 'react-markdown';
 
 //import AIAssistantSidebar from '../components/AIAssistantSidebar'; // Import the new component
+import StudentAIHub from './StudentAIHub';
 
 const formatTime = (seconds) => {
     if (seconds <= 0) return '0s';
@@ -40,7 +41,7 @@ function StudentDashboard() {
     }, []);
 
     useEffect(() => {
-        if (['dashboard', 'my-courses', 'ai-roadmap', 'certificates', 'grades', 'announcements'].includes(activeTab)) {
+        if (['dashboard', 'my-courses', 'ai-hub', 'ai-roadmap', 'certificates', 'grades', 'announcements'].includes(activeTab)) {
             fetchCourses();
             fetchAllProgress();
             fetchAnnouncements();
@@ -176,7 +177,7 @@ function StudentDashboard() {
                         <div className={`nav-item ${activeTab === 'my-courses' ? 'active' : ''}`} onClick={() => { setActiveTab('my-courses'); setSelectedCourse(null); }}>My Courses</div>
                         <div className={`nav-item ${activeTab === 'certificates' ? 'active' : ''}`} onClick={() => { setActiveTab('certificates'); setSelectedCourse(null); }}>Certificates</div>
 
-                        <div className="nav-item" onClick={() => navigate('/ai-hub', { state: { student: user } })}>🤖 AI Learning Hub</div>
+                        <div className={`nav-item ${activeTab === 'ai-hub' ? 'active' : ''}`} onClick={() => { setActiveTab('ai-hub'); setSelectedCourse(null); }}>🤖 AI Learning Hub</div>
 
                         <div className={`nav-item ${activeTab === 'ai-roadmap' ? 'active' : ''}`} onClick={() => { setActiveTab('ai-roadmap'); setSelectedCourse(null); }}>AI Career Roadmap</div>
                         <div className={`nav-item ${activeTab === 'assignments' ? 'active' : ''}`} onClick={() => { setActiveTab('assignments'); setSelectedCourse(null); }}>Assignments</div>
@@ -230,20 +231,22 @@ function StudentDashboard() {
                                     <h1 style={{ fontSize: '2rem', color: '#2D3748', margin: 0 }}>
                                         {activeTab === 'dashboard' ? 'Dashboard' :
                                             activeTab === 'my-courses' ? 'My Courses' :
-                                                activeTab === 'ai-roadmap' ? 'AI Roadmap' :
-                                                    activeTab === 'assignments' ? 'Assignments' :
-                                                        activeTab === 'announcements' ? 'Announcements' :
-                                                            activeTab === 'live-class' ? 'Live Classes' :
-                                                                activeTab === 'grades' ? 'My Grades' :
-                                                                    activeTab === 'profile' ? 'My Profile' : 'My Certificates'}
+                                                activeTab === 'ai-hub' ? 'AI Learning Hub' :
+                                                    activeTab === 'ai-roadmap' ? 'AI Roadmap' :
+                                                        activeTab === 'assignments' ? 'Assignments' :
+                                                            activeTab === 'announcements' ? 'Announcements' :
+                                                                activeTab === 'live-class' ? 'Live Classes' :
+                                                                    activeTab === 'grades' ? 'My Grades' :
+                                                                        activeTab === 'profile' ? 'My Profile' : 'My Certificates'}
                                     </h1>
                                     <p style={{ color: '#718096', margin: 0 }}>
                                         {activeTab === 'dashboard' ? `Welcome back, ${user.name}!` :
                                             activeTab === 'my-courses' ? 'Track your learning progress' :
-                                                activeTab === 'assignments' ? 'Complete and submit your tasks' :
-                                                    activeTab === 'announcements' ? 'Stay updated with latest news' :
-                                                        activeTab === 'grades' ? 'View your quiz and assignment scores' :
-                                                            'Download your earned certifications'}
+                                                activeTab === 'ai-hub' ? 'Supercharge your learning with AI' :
+                                                    activeTab === 'assignments' ? 'Complete and submit your tasks' :
+                                                        activeTab === 'announcements' ? 'Stay updated with latest news' :
+                                                            activeTab === 'grades' ? 'View your quiz and assignment scores' :
+                                                                'Download your earned certifications'}
                                     </p>
                                 </div>
                             )}
@@ -411,6 +414,8 @@ function StudentDashboard() {
                         allProgress={allProgress}
                         onSelectCourse={(course) => setSelectedCourse(course)}
                     />
+                ) : activeTab === 'ai-hub' ? (
+                    <StudentAIHub user={user} />
                 ) : activeTab === 'ai-roadmap' ? (
                     <RoadmapSection
                         courses={courses}

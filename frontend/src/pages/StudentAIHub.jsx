@@ -6,17 +6,16 @@ import StudyRoadmap from '../components/AI/StudyRoadmap';
 import PerformanceAnalyzer from '../components/AI/PerformanceAnalyzer';
 
 
-const StudentAIHub = () => {
-    const location = useLocation();
-    const navigate = useNavigate();
-
-    // Safe user retrieval with error handling
-    let studentData = null;
-    try {
-        studentData = location.state?.student || JSON.parse(localStorage.getItem('user') || 'null');
-    } catch (e) {
-        console.error('Error parsing user data:', e);
-        studentData = null;
+const StudentAIHub = ({ user }) => {
+    // Safe user retrieval with error handling (fallback to passed prop, then localStorage)
+    let studentData = user;
+    if (!studentData) {
+        try {
+            studentData = JSON.parse(localStorage.getItem('user') || 'null');
+        } catch (e) {
+            console.error('Error parsing user data:', e);
+            studentData = null;
+        }
     }
 
     const student = studentData;
@@ -56,74 +55,15 @@ const StudentAIHub = () => {
 
     return (
         <div style={{
-            minHeight: '100vh',
-            background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
-            fontFamily: 'Inter, sans-serif'
+            fontFamily: 'Inter, sans-serif',
+            width: '100%'
         }}>
-            {/* Header */}
-            <div style={{
-                background: 'rgba(255, 255, 255, 0.9)',
-                backdropFilter: 'blur(10px)',
-                padding: '20px 40px',
-                boxShadow: '0 4px 6px rgba(0,0,0,0.05)',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                position: 'sticky',
-                top: 0,
-                zIndex: 100
-            }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                    <button
-                        onClick={() => navigate(-1)}
-                        style={{
-                            background: '#eff6ff',
-                            border: 'none',
-                            borderRadius: '50%',
-                            width: '40px',
-                            height: '40px',
-                            cursor: 'pointer',
-                            fontSize: '20px',
-                            color: '#3182ce',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            transition: 'background 0.2s'
-                        }}
-                        onMouseOver={(e) => e.currentTarget.style.background = '#dbeafe'}
-                        onMouseOut={(e) => e.currentTarget.style.background = '#eff6ff'}
-                    >
-                        ←
-                    </button>
-                    <div>
-                        <h1 style={{ margin: 0, fontSize: '28px', background: 'linear-gradient(90deg, #667eea 0%, #764ba2 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', fontWeight: '800' }}>
-                            AI Learning Hub
-                        </h1>
-                        <p style={{ margin: '5px 0 0', color: '#718096', fontSize: '14px' }}>Supercharge your learning with AI</p>
-                    </div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                    <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontWeight: '600', color: '#2d3748' }}>{student.name}</div>
-                        <div style={{ fontSize: '12px', color: '#a0aec0' }}>Student</div>
-                    </div>
-                    <div style={{
-                        width: '40px', height: '40px', borderRadius: '50%',
-                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                        color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold'
-                    }}>
-                        {student.name.charAt(0)}
-                    </div>
-                </div>
-            </div>
-
             {/* Tabs */}
             <div style={{
-                padding: '20px 40px',
+                marginBottom: '30px',
                 display: 'flex',
                 justifyContent: 'center',
                 gap: '20px',
-                background: 'rgba(255,255,255,0.5)'
             }}>
                 {tabs.map(tab => (
                     <button
@@ -131,11 +71,11 @@ const StudentAIHub = () => {
                         onClick={() => setActiveTab(tab.id)}
                         style={{
                             padding: '12px 25px',
-                            background: activeTab === tab.id ? 'white' : 'transparent',
-                            color: activeTab === tab.id ? '#5a67d8' : '#718096',
-                            border: 'none',
+                            background: activeTab === tab.id ? '#6C63FF' : 'white',
+                            color: activeTab === tab.id ? 'white' : '#718096',
+                            border: activeTab === tab.id ? 'none' : '1px solid #e2e8f0',
                             borderRadius: '30px',
-                            boxShadow: activeTab === tab.id ? '0 4px 6px rgba(90, 103, 216, 0.15)' : 'none',
+                            boxShadow: activeTab === tab.id ? '0 4px 6px rgba(108, 99, 255, 0.2)' : 'none',
                             fontWeight: '600',
                             cursor: 'pointer',
                             fontSize: '15px',
@@ -149,7 +89,7 @@ const StudentAIHub = () => {
             </div>
 
             {/* Content */}
-            <div style={{ padding: '30px 40px', maxWidth: '1200px', margin: '0 auto', animation: 'fadeIn 0.5s ease-out' }}>
+            <div style={{ maxWidth: '1200px', margin: '0 auto', animation: 'fadeIn 0.5s ease-out' }}>
                 <style>
                     {`
                         @keyframes fadeIn {
