@@ -4,6 +4,17 @@ const OpenAI = require('openai');
 class AIService {
     constructor() {
         // Initialize Gemini Keys
+        if (process.env.GEMINI_API_KEYS) {
+            this.geminiKeys = process.env.GEMINI_API_KEYS.split(',').map(k => k.trim()).filter(k => k);
+            this.currentGeminiKeyIndex = 0;
+            if (this.geminiKeys.length === 0) {
+                console.warn("GEMINI_API_KEYS is set but empty. AI Tutor might fail.");
+            }
+        } else {
+            console.warn("GEMINI_API_KEYS is not set. AI Tutor will fail.");
+            this.geminiKeys = [];
+        }
+
         // Initialize PV Gemini Keys (Exclusively for Roadmap Generator)
         if (process.env.PV_GEMINI_API_KEYS) {
             this.pvGeminiKeys = process.env.PV_GEMINI_API_KEYS.split(',').map(k => k.trim()).filter(k => k);
