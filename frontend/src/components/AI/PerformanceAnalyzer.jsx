@@ -424,53 +424,8 @@ const PerformanceAnalyzer = ({ studentId, courses: propCourses, allProgress: pro
             {analysis && (
                 <>
                     {/* Score Card & Insights */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
-                        {/* Overall Level Card - Circle Graph */}
-                        <div style={{
-                            background: 'white', padding: '25px', borderRadius: '15px',
-                            boxShadow: '0 4px 6px rgba(0,0,0,0.1)', textAlign: 'center',
-                            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center'
-                        }}>
-                            <div style={{ fontSize: '18px', color: '#718096', marginBottom: '10px' }}>Overall Level</div>
+                    <div style={{ marginBottom: '20px' }}>
 
-                            <div style={{ width: '200px', height: '200px', position: 'relative' }}>
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <PieChart>
-                                        <Pie
-                                            data={[
-                                                { name: 'Score', value: analysis.overallScore },
-                                                { name: 'Remaining', value: 100 - analysis.overallScore }
-                                            ]}
-                                            cx="50%"
-                                            cy="50%"
-                                            innerRadius={60}
-                                            outerRadius={80}
-                                            startAngle={90}
-                                            endAngle={-270}
-                                            dataKey="value"
-                                        >
-                                            <Cell key="score" fill={getLevelColor(analysis.overallLevel)} />
-                                            <Cell key="remaining" fill="#edf2f7" />
-                                        </Pie>
-                                    </PieChart>
-                                </ResponsiveContainer>
-                                <div style={{
-                                    position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-                                    textAlign: 'center'
-                                }}>
-                                    <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#2d3748' }}>
-                                        {analysis.overallScore}%
-                                    </div>
-                                    <div style={{ fontSize: '16px', fontWeight: '600', color: getLevelColor(analysis.overallLevel) }}>
-                                        {analysis.overallLevel}
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div style={{ fontSize: '14px', color: '#a0aec0', marginTop: '10px' }}>
-                                (Based on AI Analysis)
-                            </div>
-                        </div>
 
                         {/* AI Insights */}
                         <div style={{
