@@ -339,26 +339,94 @@ const PerformanceAnalyzer = ({ studentId, courses: propCourses, allProgress: pro
         <div style={{ padding: '20px', fontFamily: 'Inter, sans-serif' }}>
             <h2 style={{ fontSize: '24px', marginBottom: '20px' }}>📊 AI Performance Analyzer</h2>
 
-            {/* Overall Performance Graph */}
+            {/* Overall Performance Section */}
             <div style={{
                 background: 'white', padding: '25px', borderRadius: '15px',
                 boxShadow: '0 4px 6px rgba(0,0,0,0.1)', marginBottom: '20px'
             }}>
-                <h3 style={{ marginTop: 0, marginBottom: '20px' }}>🎯 Overall Performance Across All Subjects</h3>
-                <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={overallData}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" />
-                        <YAxis type="number" domain={[0, 100]} />
-                        <Tooltip formatter={(value) => [`${value}%`, 'Score']} />
-                        <Legend />
-                        <Bar dataKey="score" radius={[4, 4, 0, 0]} barSize={40}>
-                            {overallData.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                            ))}
-                        </Bar>
-                    </BarChart>
-                </ResponsiveContainer>
+                <h3 style={{ marginTop: 0, marginBottom: '20px' }}>🎯 Overall Performance Analysis</h3>
+
+                <div style={{ display: 'flex', flexDirection: 'row', gap: '30px', flexWrap: 'wrap' }}>
+
+                    {/* Left: Bar Chart */}
+                    <div style={{ flex: 2, minWidth: '300px' }}>
+                        <h4 style={{ margin: '0 0 10px 0', color: '#718096', fontSize: '14px' }}>Subject-wise Performance</h4>
+                        <ResponsiveContainer width="100%" height={300}>
+                            <BarChart data={overallData}>
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis dataKey="name" />
+                                <YAxis type="number" domain={[0, 100]} />
+                                <Tooltip formatter={(value) => [`${value}%`, 'Score']} />
+                                <Legend />
+                                <Bar dataKey="score" radius={[4, 4, 0, 0]} barSize={40}>
+                                    {overallData.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                    ))}
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+
+                    {/* Right: Overall Level Circle Graph */}
+                    <div style={{ flex: 1, minWidth: '250px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                        <h4 style={{ margin: '0 0 10px 0', color: '#718096', fontSize: '14px' }}>Overall Level</h4>
+
+                        {analysis ? (
+                            <div style={{ position: 'relative', width: '220px', height: '220px' }}>
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <PieChart>
+                                        <Pie
+                                            data={[
+                                                { name: 'Score', value: analysis.overallScore },
+                                                { name: 'Remaining', value: 100 - analysis.overallScore }
+                                            ]}
+                                            cx="50%"
+                                            cy="50%"
+                                            innerRadius={70}
+                                            outerRadius={90}
+                                            startAngle={90}
+                                            endAngle={-270}
+                                            dataKey="value"
+                                        >
+                                            <Cell fill={getLevelColor(analysis.overallLevel)} />
+                                            <Cell fill="#e2e8f0" />
+                                        </Pie>
+                                    </PieChart>
+                                </ResponsiveContainer>
+
+                                {/* Center Text */}
+                                <div style={{
+                                    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+                                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center'
+                                }}>
+                                    <div style={{ fontSize: '36px', fontWeight: 'bold', color: getLevelColor(analysis.overallLevel) }}>
+                                        {analysis.overallScore}%
+                                    </div>
+                                    <div style={{ fontSize: '16px', fontWeight: '600', color: '#4a5568' }}>
+                                        {analysis.overallLevel}
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            <div style={{ height: '200px', display: 'flex', alignItems: 'center', color: '#a0aec0' }}>
+                                Analyzing...
+                            </div>
+                        )}
+
+                        {/* Predicted Performance Widget */}
+                        {analysis && analysis.futurePrediction && (
+                            <div style={{ marginTop: '20px', textAlign: 'center', padding: '10px', background: '#f7fafc', borderRadius: '10px', width: '100%' }}>
+                                <div style={{ fontSize: '12px', color: '#718096' }}>Predicted Performance</div>
+                                <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#3182ce' }}>
+                                    {analysis.futurePrediction.predictedScore}%
+                                    <span style={{ fontSize: '14px', marginLeft: '5px' }}>
+                                        ({analysis.futurePrediction.trend === 'Upward' ? '↗' : analysis.futurePrediction.trend === 'Downward' ? '↘' : '→'})
+                                    </span>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
             </div>
 
             {/* Subject Cards Grid */}

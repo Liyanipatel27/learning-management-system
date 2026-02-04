@@ -165,7 +165,7 @@ class AIService {
         const prompt = `Analyze this student performance data in detail: ${JSON.stringify(performanceData)}.
         
         Provide a comprehensive analysis including:
-        1. overallLevel: Performance level (Low <50, Average 50-75, Good 75-85, High >85)
+        1. overallLevel: Performance level (High: 90-100%, Good: 70-89%, Average: 50-69%, Low: <50%)
         2. overallScore: Overall percentage (0-100)
         3. overallPerformance: Brief summary of overall performance
         4. strengths: Array of 3-5 strengths with specific subject examples
@@ -226,7 +226,7 @@ class AIService {
         const prompt = `Analyze this student performance data in detail: ${JSON.stringify(performanceData)}.
         
         Provide a comprehensive analysis including:
-        1. overallLevel: Performance level (Low <50, Average 50-75, Good 75-85, High >85)
+        1. overallLevel: Performance level (High: 90-100%, Good: 70-89%, Average: 50-69%, Low: <50%)
         2. overallScore: Overall percentage (0-100)
         3. overallPerformance: Brief summary of overall performance
         4. strengths: Array of 3-5 strengths with specific subject examples
