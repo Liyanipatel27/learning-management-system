@@ -2,11 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import AIChatbot from '../components/AI/AIChatbot';
-import StudyRoadmap from '../components/AI/StudyRoadmap';
+import RoadmapGenerator from '../components/AI/RoadmapGenerator';
 import PerformanceAnalyzer from '../components/AI/PerformanceAnalyzer';
 
 
-const StudentAIHub = ({ user }) => {
+const StudentAIHub = ({
+    user,
+    dailyHours,
+    setDailyHours,
+    weekendHours,
+    setWeekendHours
+}) => {
     // Safe user retrieval with error handling (fallback to passed prop, then localStorage)
     let studentData = user;
     if (!studentData) {
@@ -48,7 +54,18 @@ const StudentAIHub = ({ user }) => {
     if (!student) return <div style={{ padding: '20px', textAlign: 'center' }}>Please log in first.</div>;
 
     const tabs = [
-        { id: 'roadmap', label: '🗺️ Study Roadmap', component: <StudyRoadmap studentId={student._id} subjects={[]} /> },
+        {
+            id: 'roadmap',
+            label: '🗺️ AI Career Roadmap Generator',
+            component: <RoadmapGenerator
+                courses={courses}
+                allProgress={allProgress}
+                dailyHours={dailyHours}
+                setDailyHours={setDailyHours}
+                weekendHours={weekendHours}
+                setWeekendHours={setWeekendHours}
+            />
+        },
         { id: 'performance', label: '📊 Performance', component: <PerformanceAnalyzer studentId={student._id} courses={courses} allProgress={allProgress} /> },
         { id: 'aitutor', label: '🤖 AI Tutor', component: <AIChatbot studentName={student.name} embedded={true} /> }
     ];
