@@ -1,4 +1,5 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const OpenAI = require('openai');
 
 class AIService {
     constructor() {
@@ -146,8 +147,17 @@ class AIService {
         }
     }
 
-    // Feature 3: Performance Analyzer (Now purely Gemini)
+    // Feature 3: Performance Analyzer (Now using OpenAI)
     async analyzePerformance(performanceData) {
+        // OpenAI Keys provided by user
+        const openAIKeys = [
+            "",
+            "",
+            "",
+            "",
+            ""
+        ];
+
         const prompt = `Analyze this student performance data in detail: ${JSON.stringify(performanceData)}.
         
         Provide a comprehensive analysis including:
@@ -183,11 +193,26 @@ class AIService {
             }
         }`;
 
+        // Simple Random Load Balancing
+        const randomKey = openAIKeys[Math.floor(Math.random() * openAIKeys.length)];
+        const openai = new OpenAI({ apiKey: randomKey });
+
         try {
-            const response = await this.callLLM(prompt, "You are a performance analyst. Return ONLY valid JSON.", true);
-            return JSON.parse(response);
+            const completion = await openai.chat.completions.create({
+                messages: [
+                    { role: "system", content: "You are a performance analyst. Return ONLY valid JSON." },
+                    { role: "user", content: prompt }
+                ],
+                model: "gpt-3.5-turbo",
+            });
+
+            const responseText = completion.choices[0].message.content;
+            // Clean markdown if present
+            const jsonStr = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
+            return JSON.parse(jsonStr);
+
         } catch (e) {
-            console.error("Failed to analyze performance with Gemini:", e.message);
+            console.error("Failed to analyze performance with OpenAI:", e.message);
             throw new Error("Failed to analyze performance");
         }
     }

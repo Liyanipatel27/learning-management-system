@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
-import { 
+import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-    LineChart, Line, AreaChart, Area
+    LineChart, Line, AreaChart, Area, PieChart, Pie, Cell
 } from 'recharts';
 import { jsPDF } from 'jspdf';
 
@@ -84,9 +84,9 @@ const SubjectDetailModal = ({ subject, onClose }) => {
         score: s.score
     }));
 
-    const performanceStatus = subject.averageScore >= 80 ? 'Excellent' : 
-                              subject.averageScore >= 70 ? 'Good' : 
-                              subject.averageScore >= 60 ? 'Average' : 'Needs Improvement';
+    const performanceStatus = subject.averageScore >= 80 ? 'Excellent' :
+        subject.averageScore >= 70 ? 'Good' :
+            subject.averageScore >= 60 ? 'Average' : 'Needs Improvement';
 
     const getStatusColor = (status) => {
         if (status === 'Excellent') return '#48bb78';
@@ -127,10 +127,10 @@ const SubjectDetailModal = ({ subject, onClose }) => {
                 </div>
 
                 {/* Performance Status */}
-                <div style={{ 
-                    background: performanceStatus === 'Excellent' ? '#f0fff4' : 
-                                performanceStatus === 'Good' ? '#ebf8ff' : 
-                                performanceStatus === 'Average' ? '#fffff0' : '#fff5f5',
+                <div style={{
+                    background: performanceStatus === 'Excellent' ? '#f0fff4' :
+                        performanceStatus === 'Good' ? '#ebf8ff' :
+                            performanceStatus === 'Average' ? '#fffff0' : '#fff5f5',
                     padding: '15px', borderRadius: '10px', marginBottom: '20px', textAlign: 'center'
                 }}>
                     <span style={{ fontSize: '18px', fontWeight: 'bold' }}>Performance: </span>
@@ -195,7 +195,7 @@ const calculateGrades = (courses, allProgress) => {
 
         // Calculate course average
         const completedScores = moduleGrades.filter(m => m.score !== null).map(m => m.score);
-        const averageScore = completedScores.length > 0 
+        const averageScore = completedScores.length > 0
             ? (completedScores.reduce((a, b) => a + b, 0) / completedScores.length).toFixed(1)
             : 0;
         const highestScore = completedScores.length > 0 ? Math.max(...completedScores) : 0;
@@ -297,7 +297,7 @@ const PerformanceAnalyzer = ({ studentId, courses: propCourses, allProgress: pro
         <div style={{ padding: '40px', textAlign: 'center' }}>
             <div style={{ fontSize: '20px', color: '#718096' }}>Loading Performance Analytics...</div>
             <div style={{ marginTop: '20px' }}>
-                <div style={{ 
+                <div style={{
                     width: '50px', height: '50px', border: '4px solid #e2e8f0', borderTop: '4px solid #3182ce',
                     borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto'
                 }}></div>
@@ -333,8 +333,8 @@ const PerformanceAnalyzer = ({ studentId, courses: propCourses, allProgress: pro
             <h2 style={{ fontSize: '24px', marginBottom: '20px' }}>📊 AI Performance Analyzer</h2>
 
             {/* Overall Performance Graph */}
-            <div style={{ 
-                background: 'white', padding: '25px', borderRadius: '15px', 
+            <div style={{
+                background: 'white', padding: '25px', borderRadius: '15px',
                 boxShadow: '0 4px 6px rgba(0,0,0,0.1)', marginBottom: '20px'
             }}>
                 <h3 style={{ marginTop: 0, marginBottom: '20px' }}>🎯 Overall Performance Across All Subjects</h3>
@@ -351,22 +351,22 @@ const PerformanceAnalyzer = ({ studentId, courses: propCourses, allProgress: pro
             </div>
 
             {/* Subject Cards Grid */}
-            <div style={{ 
-                background: 'white', padding: '25px', borderRadius: '15px', 
+            <div style={{
+                background: 'white', padding: '25px', borderRadius: '15px',
                 boxShadow: '0 4px 6px rgba(0,0,0,0.1)', marginBottom: '20px'
             }}>
                 <h3 style={{ marginTop: 0, marginBottom: '20px' }}>📚 Individual Subject Performance</h3>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '15px' }}>
                     {gradesData.map((grade, i) => (
-                        <div 
+                        <div
                             key={i}
                             onClick={() => setSelectedSubject(grade)}
                             style={{
-                                background: grade.averageScore >= 80 ? '#f0fff4' : 
-                                            grade.averageScore >= 60 ? '#fffff0' : '#fff5f5',
+                                background: grade.averageScore >= 80 ? '#f0fff4' :
+                                    grade.averageScore >= 60 ? '#fffff0' : '#fff5f5',
                                 padding: '20px', borderRadius: '12px', cursor: 'pointer',
-                                border: `2px solid ${grade.averageScore >= 80 ? '#48bb78' : 
-                                                     grade.averageScore >= 60 ? '#ecc94b' : '#f56565'}`,
+                                border: `2px solid ${grade.averageScore >= 80 ? '#48bb78' :
+                                    grade.averageScore >= 60 ? '#ecc94b' : '#f56565'}`,
                                 transition: 'transform 0.2s, box-shadow 0.2s'
                             }}
                             onMouseOver={(e) => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = '0 6px 12px rgba(0,0,0,0.15)'; }}
@@ -389,26 +389,56 @@ const PerformanceAnalyzer = ({ studentId, courses: propCourses, allProgress: pro
                 <>
                     {/* Score Card & Insights */}
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
-                        {/* Overall Level Card */}
-                        <div style={{ 
-                            background: 'white', padding: '25px', borderRadius: '15px', 
-                            boxShadow: '0 4px 6px rgba(0,0,0,0.1)', textAlign: 'center'
+                        {/* Overall Level Card - Circle Graph */}
+                        <div style={{
+                            background: 'white', padding: '25px', borderRadius: '15px',
+                            boxShadow: '0 4px 6px rgba(0,0,0,0.1)', textAlign: 'center',
+                            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center'
                         }}>
-                            <div style={{ fontSize: '18px', color: '#718096' }}>Overall Level</div>
-                            <div style={{ 
-                                fontSize: '42px', fontWeight: 'bold', color: getLevelColor(analysis.overallLevel), 
-                                margin: '10px 0' 
-                            }}>
-                                {analysis.overallLevel}
+                            <div style={{ fontSize: '18px', color: '#718096', marginBottom: '10px' }}>Overall Level</div>
+
+                            <div style={{ width: '200px', height: '200px', position: 'relative' }}>
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <PieChart>
+                                        <Pie
+                                            data={[
+                                                { name: 'Score', value: analysis.overallScore },
+                                                { name: 'Remaining', value: 100 - analysis.overallScore }
+                                            ]}
+                                            cx="50%"
+                                            cy="50%"
+                                            innerRadius={60}
+                                            outerRadius={80}
+                                            startAngle={90}
+                                            endAngle={-270}
+                                            dataKey="value"
+                                        >
+                                            <Cell key="score" fill={getLevelColor(analysis.overallLevel)} />
+                                            <Cell key="remaining" fill="#edf2f7" />
+                                        </Pie>
+                                    </PieChart>
+                                </ResponsiveContainer>
+                                <div style={{
+                                    position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+                                    textAlign: 'center'
+                                }}>
+                                    <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#2d3748' }}>
+                                        {analysis.overallScore}%
+                                    </div>
+                                    <div style={{ fontSize: '16px', fontWeight: '600', color: getLevelColor(analysis.overallLevel) }}>
+                                        {analysis.overallLevel}
+                                    </div>
+                                </div>
                             </div>
-                            <div style={{ fontSize: '14px', color: '#a0aec0' }}>
-                                Predicted Score: {analysis.overallScore}%
+
+                            <div style={{ fontSize: '14px', color: '#a0aec0', marginTop: '10px' }}>
+                                (Based on AI Analysis)
                             </div>
                         </div>
 
                         {/* AI Insights */}
-                        <div style={{ 
-                            background: 'white', padding: '25px', borderRadius: '15px', 
+                        <div style={{
+                            background: 'white', padding: '25px', borderRadius: '15px',
                             boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
                         }}>
                             <h3 style={{ marginTop: 0, marginBottom: '15px' }}>💡 AI Insights</h3>
@@ -428,14 +458,14 @@ const PerformanceAnalyzer = ({ studentId, courses: propCourses, allProgress: pro
                     </div>
 
                     {/* Improvement Suggestions */}
-                    <div style={{ 
-                        background: 'white', padding: '25px', borderRadius: '15px', 
+                    <div style={{
+                        background: 'white', padding: '25px', borderRadius: '15px',
                         boxShadow: '0 4px 6px rgba(0,0,0,0.1)', marginBottom: '20px'
                     }}>
                         <h3 style={{ marginTop: 0, marginBottom: '20px' }}>🚀 Improvement Suggestions</h3>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '15px' }}>
                             {analysis.improvementSuggestions?.map((tip, i) => (
-                                <div key={i} style={{ 
+                                <div key={i} style={{
                                     background: '#ebf8ff', padding: '15px', borderRadius: '10px',
                                     borderLeft: '4px solid #3182ce'
                                 }}>
@@ -447,8 +477,8 @@ const PerformanceAnalyzer = ({ studentId, courses: propCourses, allProgress: pro
 
                     {/* Subject Analysis */}
                     {analysis.subjectAnalysis && analysis.subjectAnalysis.length > 0 && (
-                        <div style={{ 
-                            background: 'white', padding: '25px', borderRadius: '15px', 
+                        <div style={{
+                            background: 'white', padding: '25px', borderRadius: '15px',
                             boxShadow: '0 4px 6px rgba(0,0,0,0.1)', marginBottom: '20px'
                         }}>
                             <h3 style={{ marginTop: 0, marginBottom: '20px' }}>📊 Subject-by-Subject Analysis</h3>
@@ -469,8 +499,8 @@ const PerformanceAnalyzer = ({ studentId, courses: propCourses, allProgress: pro
 
                     {/* Future Prediction */}
                     {analysis.futurePrediction && (
-                        <div style={{ 
-                            background: 'linear-gradient(135deg, #2d3748 0%, #1a202c 100%)', 
+                        <div style={{
+                            background: 'linear-gradient(135deg, #2d3748 0%, #1a202c 100%)',
                             padding: '25px', borderRadius: '15px', color: 'white',
                             boxShadow: '0 4px 6px rgba(0,0,0,0.1)', marginBottom: '20px'
                         }}>
@@ -500,9 +530,9 @@ const PerformanceAnalyzer = ({ studentId, courses: propCourses, allProgress: pro
 
             {/* Subject Detail Modal */}
             {selectedSubject && (
-                <SubjectDetailModal 
-                    subject={selectedSubject} 
-                    onClose={() => setSelectedSubject(null)} 
+                <SubjectDetailModal
+                    subject={selectedSubject}
+                    onClose={() => setSelectedSubject(null)}
                 />
             )}
         </div>
