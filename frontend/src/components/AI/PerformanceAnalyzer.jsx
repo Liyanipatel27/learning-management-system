@@ -225,6 +225,7 @@ const PerformanceAnalyzer = ({ studentId, courses: propCourses, allProgress: pro
     const [analysis, setAnalysis] = useState(null);
     const [loading, setLoading] = useState(true);
     const [selectedSubject, setSelectedSubject] = useState(null);
+    const [filterSubject, setFilterSubject] = useState('All');
 
     // Fetch courses and progress if not provided as props
     useEffect(() => {
@@ -328,6 +329,12 @@ const PerformanceAnalyzer = ({ studentId, courses: propCourses, allProgress: pro
         fullMark: 100
     }));
 
+    // Filter Logic
+    const uniqueSubjects = ['All', ...new Set(gradesData.map(g => g.subject))];
+    const filteredGrades = filterSubject === 'All'
+        ? gradesData
+        : gradesData.filter(g => g.subject === filterSubject);
+
     return (
         <div style={{ padding: '20px', fontFamily: 'Inter, sans-serif' }}>
             <h2 style={{ fontSize: '24px', marginBottom: '20px' }}>📊 AI Performance Analyzer</h2>
@@ -359,9 +366,34 @@ const PerformanceAnalyzer = ({ studentId, courses: propCourses, allProgress: pro
                 background: 'white', padding: '25px', borderRadius: '15px',
                 boxShadow: '0 4px 6px rgba(0,0,0,0.1)', marginBottom: '20px'
             }}>
-                <h3 style={{ marginTop: 0, marginBottom: '20px' }}>📚 Individual Subject Performance</h3>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                    <h3 style={{ margin: 0 }}>📚 Individual Subject Performance</h3>
+                    <select
+                        value={filterSubject}
+                        onChange={(e) => setFilterSubject(e.target.value)}
+                        style={{
+                            padding: '8px 16px',
+                            borderRadius: '8px',
+                            border: '1px solid #e2e8f0',
+                            background: 'white',
+                            color: '#2d3748',
+                            fontSize: '14px',
+                            fontWeight: '500',
+                            outline: 'none',
+                            cursor: 'pointer',
+                            boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                        }}
+                    >
+                        {uniqueSubjects.map((subject, index) => (
+                            <option key={index} value={subject}>
+                                {subject === 'All' ? 'All Subjects' : subject}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '15px' }}>
-                    {gradesData.map((grade, i) => (
+                    {filteredGrades.map((grade, i) => (
                         <div
                             key={i}
                             onClick={() => setSelectedSubject(grade)}
