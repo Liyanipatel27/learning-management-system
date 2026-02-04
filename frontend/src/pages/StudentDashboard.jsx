@@ -8,7 +8,7 @@ import SummaryWidget from '../components/AI/SummaryWidget';
 
 import ReactMarkdown from 'react-markdown';
 
-//import AIAssistantSidebar from '../components/AIAssistantSidebar'; // Import the new component
+import AIAssistantSidebar from '../components/AIAssistantSidebar'; // Import the new component
 import StudentAIHub from './StudentAIHub';
 
 const formatTime = (seconds) => {
@@ -1080,7 +1080,7 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
                                         <div>
                                             <h2 style={{ margin: 0, fontSize: '1.25rem', color: '#2d3748' }}>{selectedContent.title}</h2>
                                             <span style={{ fontSize: '0.8rem', color: '#718096' }}>Type: {selectedContent.type.toUpperCase()}</span>
-                                            <SummaryWidget content={selectedContent.description || selectedContent.title} title={selectedContent.title} />
+
                                         </div>
                                         {selectedContent.type === 'link' && isTimeRequirementMet && (
                                             <a
@@ -1170,7 +1170,7 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
                                                 boxShadow: '0 2px 4px rgba(108, 99, 255, 0.3)'
                                             }}
                                         >
-                                            📝 Summary
+                                            ✨ AI Summary
                                         </button>
                                         <button
                                             onClick={() => setActiveAIFeature(activeAIFeature === 'quiz' ? null : 'quiz')}
