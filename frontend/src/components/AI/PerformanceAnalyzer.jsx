@@ -511,27 +511,7 @@ const PerformanceAnalyzer = ({ studentId, courses: propCourses, allProgress: pro
                         </div>
                     </div>
 
-                    {/* Subject Analysis */}
-                    {analysis.subjectAnalysis && analysis.subjectAnalysis.length > 0 && (
-                        <div style={{
-                            background: 'white', padding: '25px', borderRadius: '15px',
-                            boxShadow: '0 4px 6px rgba(0,0,0,0.1)', marginBottom: '20px'
-                        }}>
-                            <h3 style={{ marginTop: 0, marginBottom: '20px' }}>📊 Subject-by-Subject Analysis</h3>
-                            <ResponsiveContainer width="100%" height={250}>
-                                <LineChart data={analysis.subjectAnalysis.map(s => ({
-                                    subject: s.subject,
-                                    score: s.averageScore
-                                }))}>
-                                    <CartesianGrid strokeDasharray="3 3" />
-                                    <XAxis dataKey="subject" />
-                                    <YAxis domain={[0, 100]} />
-                                    <Tooltip />
-                                    <Line type="monotone" dataKey="score" stroke="#3182ce" strokeWidth={3} dot={{ fill: '#3182ce', r: 6 }} />
-                                </LineChart>
-                            </ResponsiveContainer>
-                        </div>
-                    )}
+
 
                     {/* Future Prediction */}
                     {analysis.futurePrediction && (
