@@ -91,7 +91,8 @@ const RoadmapGenerator = ({
             });
 
             console.log('[Roadmap] Sending request to API...');
-            const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/ai/generate-roadmap`,
+            // [FIXED] Correct endpoint and request body
+            const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/ai/roadmap`,
                 {
                     goal,
                     courseIds: selectedCourseIds,
@@ -99,12 +100,21 @@ const RoadmapGenerator = ({
                     dailyHours,
                     weekendHours,
                     courseProgressData,
-                    missedDays: missed
+                    missedDays: missed,
+                    startDate: new Date().toISOString().split('T')[0], // Added start date
+                    targetDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] // Default 2 weeks
                 },
                 { headers: { Authorization: `Bearer ${token}` } }
             );
             console.log('[Roadmap] Received response:', res.data);
-            setRoadmap(res.data.data);
+
+            // [FIXED] backend now returns { roadmap: "markdown string" }
+            if (res.data.roadmap) {
+                setRoadmap(res.data.roadmap);
+            } else {
+                // Fallback for older format if needed, or error
+                setRoadmap(JSON.stringify(res.data));
+            }
         } catch (err) {
             console.error('[Roadmap] Error details:', err);
             console.error('[Roadmap] Error response:', err.response);

@@ -18,19 +18,29 @@ exports.getSummary = async (req, res) => {
 // 2. Generate Roadmap
 exports.createRoadmap = async (req, res) => {
     try {
-        const { studentId, targetDate, startDate, dailyHours, subjects } = req.body; // [MODIFIED] Added startDate
+        const { courseIds, goal, dailyHours, weekendHours, startDate, targetDate } = req.body;
 
-        // Fetch current student performance/progress to personalize
-        // (Simplified for now, just passing basic info)
+        // [MODIFIED] Fetch actual course details to give AI context
+        const courses = await Course.find({ _id: { $in: courseIds } }).select('title subject modules');
+
+        const subjectsList = courses.map(c => c.subject || c.title).join(', ');
+        const goalContext = goal || `Master ${subjectsList}`;
+
         const studentData = {
-            id: studentId,
-            subjects: subjects || [],
-            dailyHours: dailyHours || 2
+            goal: goalContext,
+            dailyHours: dailyHours || 2,
+            weekendHours: weekendHours || 4,
+            subjects: courses.map(c => ({
+                title: c.title,
+                subject: c.subject,
+                moduleCount: c.modules ? c.modules.length : 0
+            }))
         };
 
-        const roadmap = await aiService.generateRoadmap(studentData, targetDate, startDate); // [MODIFIED] Pass startDate
-        res.json(roadmap);
+        const roadmapMarkdown = await aiService.generateRoadmap(studentData, targetDate, startDate);
+        res.json({ roadmap: roadmapMarkdown });
     } catch (err) {
+        console.error("Roadmap Error:", err);
         res.status(500).json({ message: err.message });
     }
 };
@@ -109,7 +119,7 @@ exports.getGrades = async (req, res) => {
 exports.analyzePerformanceNew = async (req, res) => {
     try {
         const { studentId, performanceData } = req.body;
-        
+
         // Analyze the performance data with AI
         const analysis = await aiService.analyzePerformance(performanceData);
         res.json(analysis);

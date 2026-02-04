@@ -4,26 +4,23 @@ const OpenAI = require('openai');
 class AIService {
     constructor() {
         // Initialize Gemini Keys
-        if (process.env.GEMINI_API_KEYS) {
-            this.geminiKeys = process.env.GEMINI_API_KEYS.split(',').map(k => k.trim()).filter(k => k);
-            this.currentGeminiKeyIndex = 0;
-            if (this.geminiKeys.length === 0) {
-                console.warn("GEMINI_API_KEYS is set but empty.");
+        // Initialize PV Gemini Keys (Exclusively for Roadmap Generator)
+        if (process.env.PV_GEMINI_API_KEYS) {
+            this.pvGeminiKeys = process.env.PV_GEMINI_API_KEYS.split(',').map(k => k.trim()).filter(k => k);
+            this.currentTvGeminiKeyIndex = 0;
+            if (this.pvGeminiKeys.length === 0) {
+                console.warn("PV_GEMINI_API_KEYS is set but empty.");
             }
-        } else if (process.env.GEMINI_API_KEY) {
-            // Fallback for backward compatibility
-            this.geminiKeys = [process.env.GEMINI_API_KEY];
-            this.currentGeminiKeyIndex = 0;
         } else {
-            console.warn("GEMINI_API_KEYS is not set.");
-            this.geminiKeys = [];
+            console.warn("PV_GEMINI_API_KEYS is not set. Roadmap generator might fail or fall back.");
+            this.pvGeminiKeys = [];
         }
     }
 
     // ============ GEMINI METHODS ============
-    _getGenerativeModel(keyIndex) {
-        if (this.geminiKeys.length === 0) return null;
-        const key = this.geminiKeys[keyIndex];
+    _getGenerativeModel(keyIndex, keys = this.geminiKeys) {
+        if (!keys || keys.length === 0) return null;
+        const key = keys[keyIndex];
         const genAI = new GoogleGenerativeAI(key);
         // Using gemini-2.5-flash model which is available and supported
         return genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
@@ -33,23 +30,38 @@ class AIService {
         return this.geminiCallCount || 0;
     }
 
+    // Generic LLM Call (Uses default keys)
     async callLLM(prompt, systemInstruction = "", jsonMode = false) {
-        if (this.geminiKeys.length === 0) throw new Error("No Gemini API keys configured.");
+        return this._executeGeminiCall(prompt, systemInstruction, jsonMode, this.geminiKeys, 'Default');
+    }
 
-        // Active Load Balancing: Round Robin selection for new request
-        this.currentGeminiKeyIndex = (this.currentGeminiKeyIndex + 1) % this.geminiKeys.length;
+    // Dedicated PV Key LLM Call (Uses PV keys)
+    async callPVLLM(prompt, systemInstruction = "", jsonMode = false) {
+        if (this.pvGeminiKeys.length === 0) throw new Error("No PV Gemini API keys configured for Roadmap Generator.");
+        return this._executeGeminiCall(prompt, systemInstruction, jsonMode, this.pvGeminiKeys, 'PV');
+    }
 
-        this.geminiCallCount = (this.geminiCallCount || 0) + 1;
-        console.log(`[Gemini Usage] Call #${this.geminiCallCount} | Initial Key Index: ${this.currentGeminiKeyIndex}`);
+    // Unified Gemini Execution Logic
+    async _executeGeminiCall(prompt, systemInstruction, jsonMode, keys, keyType) {
+        if (!keys || keys.length === 0) throw new Error(`No ${keyType} Gemini API keys configured.`);
 
-        const maxAttempts = this.geminiKeys.length;
+        // Determine current index based on key type (simple load balancing)
+        let currentIndexName = keyType === 'PV' ? 'currentTvGeminiKeyIndex' : 'currentGeminiKeyIndex';
+        let callCountName = keyType === 'PV' ? 'pvGeminiCallCount' : 'geminiCallCount';
+
+        // Rotate Key
+        this[currentIndexName] = (this[currentIndexName] + 1) % keys.length;
+
+        this[callCountName] = (this[callCountName] || 0) + 1;
+        console.log(`[Gemini ${keyType} Usage] Call #${this[callCountName]} | Initial Key Index: ${this[currentIndexName]} (Key ending: ...${keys[this[currentIndexName]].slice(-4)})`);
+
+        const maxAttempts = keys.length;
         let attempts = 0;
-        let currentTryIndex = this.currentGeminiKeyIndex;
-        let lastError = null;
+        let currentTryIndex = this[currentIndexName];
 
         while (attempts < maxAttempts) {
             try {
-                const model = this._getGenerativeModel(currentTryIndex);
+                const model = this._getGenerativeModel(currentTryIndex, keys);
                 const fullPrompt = systemInstruction ? `${systemInstruction}\n\n${prompt}` : prompt;
 
                 let result = await model.generateContent(fullPrompt);
@@ -61,48 +73,21 @@ class AIService {
                 return response;
 
             } catch (err) {
-                console.error(`Gemini Error (Key Index ${currentTryIndex}):`, err.message);
-                require('fs').appendFileSync('gemini_debug.log', `Key ${currentTryIndex} Error: ${err.message}\nStack: ${err.stack}\n---\n`);
-
-                lastError = err;
+                console.error(`Gemini ${keyType} Error (Key Index ${currentTryIndex}):`, err.message);
 
                 // Rotate to next key on error
-                currentTryIndex = (currentTryIndex + 1) % this.geminiKeys.length;
+                currentTryIndex = (currentTryIndex + 1) % keys.length;
                 attempts++;
-                console.log(`Retrying with Key Index: ${currentTryIndex}`);
+                console.log(`Retrying with ${keyType} Key Index: ${currentTryIndex}`);
 
-                // Add delay between retries to avoid hitting rate limits
+                // Add delay between retries
                 await new Promise(resolve => setTimeout(resolve, 1000));
             }
         }
 
-        // Fallback response if all API keys are exhausted or quota is exceeded
-        console.log("All Gemini API keys exhausted, providing fallback response");
-
-        // Return different fallback responses based on request type
-        if (systemInstruction.includes("tutor") || prompt.toLowerCase().includes("explain") || prompt.toLowerCase().includes("help")) {
-            return "I'm currently experiencing high demand and can't process your request right now. Please try again later or consider asking a more specific question. In the meantime, I'd recommend checking your course materials or reaching out to your instructor for assistance.";
-        } else if (systemInstruction.includes("quiz") || prompt.toLowerCase().includes("quiz")) {
-            return JSON.stringify({
-                questions: [
-                    {
-                        question: "What is the main purpose of an LMS?",
-                        options: [
-                            "To manage learning content and track student progress",
-                            "To play video games",
-                            "To browse the internet",
-                            "To send emails"
-                        ],
-                        correctAnswerIndex: 0,
-                        explanation: "A Learning Management System (LMS) is designed to manage learning content and track student progress"
-                    }
-                ]
-            });
-        } else if (systemInstruction.includes("summary") || prompt.toLowerCase().includes("summarize")) {
-            return "The content appears to be related to learning management systems. It likely covers topics such as student progress tracking, course management, and educational technology integration. For detailed information, please review the original content or consult your course materials.";
-        } else {
-            return "I'm sorry, but I'm currently unable to assist with that request. The service is experiencing high demand, and we've temporarily reached our capacity. Please try again in a few minutes or consider checking our help documentation for common questions.";
-        }
+        // Fallback Logic (simplified from original)
+        console.log(`All ${keyType} Gemini API keys exhausted.`);
+        throw new Error(`All ${keyType} Gemini keys failed.`);
     }
 
     // ============ FEATURE METHODS ============
@@ -120,30 +105,56 @@ class AIService {
         return await this.callLLM(prompt, "Summarize key insights across all subjects.");
     }
 
-    // Feature 2: Study Roadmap
+    // Feature 2: Study Roadmap (USES PV KEYS EXCLUSIVELY)
     async generateRoadmap(studentData, targetDate, startDate) {
-        const prompt = `Create a detailed study roadmap starting from ${startDate || 'today'} and ending on ${targetDate}.
-        Student Data: ${JSON.stringify(studentData)}
+        const prompt = `Create a DETAILED, CHAPTER-BY-CHAPTER study roadmap URL for the following student goal: "${studentData.goal}".
         
-        Output a valid JSON object with this structure:
-        {
-            "roadmap": [
-                {
-                    "date": "YYYY-MM-DD",
-                    "day": 1,
-                    "tasks": [
-                        { "subject": "Subject Name", "topic": "Topic Name", "hours": 2, "description": "Details" }
-                    ]
-                }
-            ]
-        }`;
+        Selected Subjects: ${JSON.stringify(studentData.subjects)}
+        Daily Study Time: ${studentData.dailyHours} hours (Weekdays), ${studentData.weekendHours} hours (Weekends).
+        Start Date: ${startDate || 'Today'}
+        Target Date: ${targetDate || '2 weeks from now'}
+
+        RULES:
+        1. Break down EVERY subject into its specific chapters/topics.
+        2. Assign specific topics to specific days.
+        3. BE VERY SPECIFIC. Instead of "Maths", say "Maths: Calculus - Limits and Continuity".
+        4. Output format must be strictly MARKDOWN.
+        5. Structure it clearly with Days (e.g., ## Day 1: [Date]).
+
+        FORMAT TEMPLATE:
+        # 🚀 Personalized Study Roadmap: [Goal]
+
+        ## 📅 Week 1 Strategy
+        Brief overview...
+
+        ### Day 1: [Topic Name]
+        - **Subject**: [Subject]
+        - **Focus**: [Specific Chapter/Concept]
+        - **Action Items**:
+          - [ ] Read Chapter X
+          - [ ] Solve 5 problems on Y
+          - [ ] Watch video on Z
+          - [ ] Practice questions on A
+        - **Estimated Time**: [Time]
+
+        ... (Repeat for all days)
+
+        ## 🎯 Final Review Strategy
+        ...
+        
+        Do NOT wrap in JSON. Return raw Markdown text.`;
 
         try {
-            const response = await this.callLLM(prompt, "You are a study planning assistant. return ONLY valid JSON.", true);
-            return JSON.parse(response);
+            // [MODIFIED] Uses callPVLLM to enforce exclusive PV key usage
+            console.log("Generating Roadmap using PV Keys...");
+            const response = await this.callPVLLM(prompt, "You are a senior academic counselor. Create a detailed, actionable, day-by-day study plan in Markdown.", false);
+            return response;
         } catch (e) {
-            console.error("Failed to parse roadmap JSON", e);
-            throw new Error("Failed to generate valid roadmap JSON");
+            console.error("Failed to generate roadmap or PV keys failed", e);
+            if (e.message.includes("PV Gemini keys failed")) {
+                throw new Error("Roadmap generation failed: High demand on specialized AI service.");
+            }
+            throw new Error("Failed to generate roadmap");
         }
     }
 
