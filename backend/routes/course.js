@@ -445,6 +445,68 @@ router.post('/:courseId/modules/:moduleId/submit-quiz', async (req, res) => {
     }
 });
 
+// Verify Completion & Set Date
+router.put('/:courseId/complete', async (req, res) => {
+    const { studentId } = req.body;
+    try {
+        let progress = await Progress.findOne({ course: req.params.courseId, student: studentId });
+        if (!progress) return res.status(404).json({ message: 'Progress not found' });
+
+        // If date already set, return it
+        if (progress.courseCompletedAt) {
+            return res.json({ isCompleted: true, completedAt: progress.courseCompletedAt });
+        }
+
+        // Verify 100% Completion
+        const course = await Course.findById(req.params.courseId);
+        if (!course) return res.status(404).json({ message: 'Course not found' });
+
+        const allContents = course.chapters.flatMap(c => c.modules.flatMap(m => m.contents)) || [];
+        const allQuizzes = course.chapters.flatMap(c => c.modules || []).filter(m => m.quiz?.questions?.length > 0) || [];
+        const totalItems = allContents.length + allQuizzes.length;
+
+        if (totalItems === 0) return res.json({ isCompleted: true, completedAt: new Date() }); // Empty course?
+
+        let completedItems = 0;
+        let latestDate = new Date(0); // Epoch
+
+        // Check Contents
+        allContents.forEach(content => {
+            const cp = progress.contentProgress.find(p => p.contentId.toString() === content._id.toString() && p.isCompleted);
+            if (cp) {
+                completedItems++;
+                if (new Date(cp.updatedAt) > latestDate) latestDate = new Date(cp.updatedAt);
+            }
+        });
+
+        // Check Quizzes
+        allQuizzes.forEach(module => {
+            const cm = progress.completedModules.find(m => m.moduleId.toString() === module._id.toString());
+            if (cm) {
+                completedItems++;
+                // Check completedAt or fallback to updatedAt if missing
+                const date = cm.completedAt || progress.updatedAt;
+                if (new Date(date) > latestDate) latestDate = new Date(date);
+            }
+        });
+
+        if (completedItems >= totalItems) {
+            // It is complete! Set the date.
+            // If latestDate is still epoch (unlikely if items exist), use now.
+            if (latestDate.getTime() === 0) latestDate = new Date();
+
+            progress.courseCompletedAt = latestDate;
+            await progress.save();
+            return res.json({ isCompleted: true, completedAt: progress.courseCompletedAt });
+        } else {
+            return res.json({ isCompleted: false });
+        }
+
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
 // Delete a course
 router.delete('/:courseId', async (req, res) => {
     console.log('DELETE Course hit:', req.params.courseId);

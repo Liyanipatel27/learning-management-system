@@ -2146,7 +2146,7 @@ const LiveClassStudentSection = () => {
     );
 };
 
-const generateCertificate = (studentName, courseName) => {
+const generateCertificate = (studentName, courseName, completionDate) => {
     const doc = new jsPDF({
         orientation: 'landscape',
         unit: 'mm',
@@ -2197,7 +2197,7 @@ const generateCertificate = (studentName, courseName) => {
     // --- Footer & Date ---
     doc.setTextColor(113, 128, 150);
     doc.setFontSize(12);
-    const date = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+    const date = (completionDate ? new Date(completionDate) : new Date()).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
     doc.text(`Issued on: ${date}`, pageWidth / 2, 160, { align: 'center' });
 
     // --- Signature ---
@@ -2220,6 +2220,8 @@ const generateCertificate = (studentName, courseName) => {
 };
 
 const CertificatesSection = ({ courses, allProgress, user }) => {
+    const [completionDates, setCompletionDates] = useState({});
+
     const checkCompletion = (course) => {
         const progress = allProgress.find(p => p.course.toString() === course._id.toString());
         if (!progress) return 0;
@@ -2251,6 +2253,45 @@ const CertificatesSection = ({ courses, allProgress, user }) => {
         return percent === 100 && course.chapters.flatMap(c => c.modules).length > 0;
     });
 
+    useEffect(() => {
+        const fetchCompletionDates = async () => {
+            const newDates = { ...completionDates };
+            let changed = false;
+
+            for (const course of completedCourses) {
+                // If we already have a date locally, skip
+                if (newDates[course._id]) continue;
+
+                // Check if it's already in allProgress (passed from parent)
+                const progress = allProgress.find(p => p.course.toString() === course._id.toString());
+                if (progress && progress.courseCompletedAt) {
+                    newDates[course._id] = progress.courseCompletedAt;
+                    changed = true;
+                } else {
+                    // Not found, verify with backend (and force calculation/freeze)
+                    try {
+                        const studentId = user.id || user._id;
+                        const res = await axios.put(`${import.meta.env.VITE_API_URL}/api/courses/${course._id}/complete`, { studentId });
+                        if (res.data.isCompleted && res.data.completedAt) {
+                            newDates[course._id] = res.data.completedAt;
+                            changed = true;
+                        }
+                    } catch (err) {
+                        console.error('Error verifying completion:', err);
+                    }
+                }
+            }
+
+            if (changed) {
+                setCompletionDates(newDates);
+            }
+        };
+
+        if (completedCourses.length > 0) {
+            fetchCompletionDates();
+        }
+    }, [completedCourses, allProgress, user]);
+
     return (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '25px' }}>
             {completedCourses.length > 0 ? (
@@ -2272,10 +2313,12 @@ const CertificatesSection = ({ courses, allProgress, user }) => {
                         <div style={{ fontSize: '3rem', marginBottom: '15px' }}>🏆</div>
                         <h3 style={{ margin: '0 0 10px 0', fontSize: '1.2rem', color: '#2d3748' }}>{course.subject}</h3>
                         <p style={{ fontSize: '0.85rem', color: '#718096', marginBottom: '20px' }}>
-                            Congratulations! You have successfully mastered this course.
+                            {completionDates[course._id]
+                                ? `Completed on: ${new Date(completionDates[course._id]).toLocaleDateString('en-GB')}`
+                                : 'Congratulations! You have successfully mastered this course.'}
                         </p>
                         <button
-                            onClick={() => generateCertificate(user.name, course.subject)}
+                            onClick={() => generateCertificate(user.name, course.subject, completionDates[course._id])}
                             style={{
                                 background: '#6C63FF',
                                 color: 'white',

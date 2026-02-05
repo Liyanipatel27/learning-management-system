@@ -16,6 +16,7 @@ const ProgressSchema = new mongoose.Schema({
         updatedAt: { type: Date, default: Date.now }
     }],
     lastAttemptedModule: mongoose.Schema.Types.ObjectId,
+    courseCompletedAt: { type: Date }, // New field for certificate date
     updatedAt: { type: Date, default: Date.now }
 });
 
