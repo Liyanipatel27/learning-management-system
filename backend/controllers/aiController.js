@@ -218,3 +218,49 @@ exports.getTeacherRiskPrediction = async (req, res) => {
         res.status(500).json({ message: err.message });
     }
 };
+
+// 10. AI Class Insights
+exports.generateClassInsights = async (req, res) => {
+    try {
+        const { teacherId } = req.body;
+        if (!teacherId) return res.status(400).json({ message: "Teacher ID is required" });
+
+        // 1. Fetch Teacher's Courses
+        const courses = await Course.find({ teacher: teacherId });
+        if (courses.length === 0) return res.json({ message: "No courses found for analysis." });
+
+        // 2. Fetch Progress for all courses
+        const courseIds = courses.map(c => c._id);
+        const progressRecords = await Progress.find({ course: { $in: courseIds } }).populate('course');
+
+        // 3. Aggregate Data
+        const aggregatedData = courses.map(course => {
+            const courseProgress = progressRecords.filter(p => p.course._id.toString() === course._id.toString());
+            const totalStudents = courseProgress.length;
+
+            if (totalStudents === 0) return null;
+
+            const avgScore = courseProgress.reduce((acc, p) => {
+                const pTotal = p.completedModules.reduce((sum, m) => sum + m.score, 0);
+                return acc + (p.completedModules.length ? pTotal / p.completedModules.length : 0);
+            }, 0) / totalStudents;
+
+            return {
+                courseName: course.title,
+                studentCount: totalStudents,
+                averageScore: avgScore.toFixed(1),
+                moduleCompletionRate: (courseProgress.reduce((acc, p) => acc + p.completedModules.length, 0) / (totalStudents * (course.modules?.length || 1))).toFixed(2) * 100 + "%"
+            };
+        }).filter(Boolean);
+
+        if (aggregatedData.length === 0) return res.json({ message: "Insufficient data for analysis." });
+
+        // 4. Generate AI Report
+        const insights = await aiService.generateClassInsights(aggregatedData);
+        res.json(insights);
+
+    } catch (err) {
+        console.error("Class Insights Controller Error:", err);
+        res.status(500).json({ message: err.message });
+    }
+};

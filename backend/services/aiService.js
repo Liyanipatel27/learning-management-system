@@ -529,6 +529,61 @@ class AIService {
             throw new Error("Risk prediction failed on both OpenAI and Gemini.");
         }
     }
+    // Feature 4: AI Class Insights (Teacher Dashboard)
+    async generateClassInsights(classData) {
+        // Use Teacher Performance OpenAI Keys
+        let keys = this.teacherPerformanceKeys;
+        if (!keys || keys.length === 0) {
+            if (process.env.OPENAI_API_KEYS) keys = process.env.OPENAI_API_KEYS.split(',');
+        }
+
+        const prompt = `Analyze the following class performance data and generate a comprehensive insight report:
+        ${JSON.stringify(classData)}
+
+        Provide the report in the following JSON format:
+        {
+            "overview": "A brief summary of how the classes are performing overall.",
+            "learningGaps": ["List of specific topics or modules where students are struggling"],
+            "recommendations": ["Actionable advice for the teacher to improve results"],
+            "engagementAnalysis": "Analysis of student participation and completion rates.",
+            "topPerformingCourses": ["List of courses doing well"],
+            "needsAttentionCourses": ["List of courses needing intervention"]
+        }
+        Return ONLY valid JSON.`;
+
+        // Strategy: Try OpenAI first, then Gemini
+        if (keys && keys.length > 0) {
+            const randomKey = keys[Math.floor(Math.random() * keys.length)].trim();
+            const openai = new OpenAI({ apiKey: randomKey });
+
+            try {
+                const completion = await openai.chat.completions.create({
+                    messages: [
+                        { role: "system", content: "You are an educational data analyst. Return ONLY valid JSON." },
+                        { role: "user", content: prompt }
+                    ],
+                    model: "gpt-3.5-turbo",
+                });
+                const responseText = completion.choices[0].message.content;
+                const jsonStr = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
+                return JSON.parse(jsonStr);
+            } catch (e) {
+                console.error("Class Insights Error (OpenAI):", e.message);
+                console.log("Falling back to Gemini for Class Insights...");
+            }
+        } else {
+            console.warn("No OpenAI keys for Class Insights. Using Gemini.");
+        }
+
+        // Fallback to Gemini
+        try {
+            const response = await this.callLLM(prompt, "You are an educational data analyst. Return ONLY valid JSON.", true);
+            return JSON.parse(response);
+        } catch (e) {
+            console.error("Class Insights Gemini Error:", e);
+            throw new Error("Failed to generate class insights.");
+        }
+    }
 }
 
 module.exports = new AIService();

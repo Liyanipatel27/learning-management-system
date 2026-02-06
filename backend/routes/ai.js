@@ -30,5 +30,6 @@ router.post('/quiz', aiController.createQuiz);
 router.post('/teacher/feedback', aiController.getAssignmentFeedback);
 router.post('/teacher/question-analysis', aiController.analyzeQuestionQuality);
 router.post('/teacher/risk-prediction', aiController.getTeacherRiskPrediction);
+router.post('/teacher/class-insights', aiController.generateClassInsights);
 
 module.exports = router;
