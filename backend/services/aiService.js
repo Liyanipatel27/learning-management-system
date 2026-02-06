@@ -26,6 +26,38 @@ class AIService {
             console.warn("PV_GEMINI_API_KEYS is not set. Roadmap generator might fail or fall back.");
             this.pvGeminiKeys = [];
         }
+
+        // ============ TEACHER DASHBOARD KEYS ============
+
+        // 1. Assignment Feedback Keys
+        if (process.env.TEACHER_ASSIGNMENT_GEMINI_KEYS) {
+            this.teacherAssignmentKeys = process.env.TEACHER_ASSIGNMENT_GEMINI_KEYS.split(',').map(k => k.trim()).filter(k => k);
+            this.currentAssignmentKeyIndex = 0;
+        } else {
+            this.teacherAssignmentKeys = [];
+        }
+
+        // 2. Question Analyzer Keys
+        if (process.env.TEACHER_QUESTION_ANALYZER_GEMINI_KEYS) {
+            this.teacherQuestionKeys = process.env.TEACHER_QUESTION_ANALYZER_GEMINI_KEYS.split(',').map(k => k.trim()).filter(k => k);
+            this.currentQuestionKeyIndex = 0;
+        } else {
+            this.teacherQuestionKeys = [];
+        }
+
+        // 3. Risk Predictor Keys (OpenAI)
+        if (process.env.TEACHER_RISK_OPENAI_KEYS) {
+            this.teacherRiskKeys = process.env.TEACHER_RISK_OPENAI_KEYS.split(',').map(k => k.trim()).filter(k => k);
+        } else {
+            this.teacherRiskKeys = [];
+        }
+
+        // 4. Performance Analyzer Keys (OpenAI)
+        if (process.env.TEACHER_PERFORMANCE_OPENAI_KEYS) {
+            this.teacherPerformanceKeys = process.env.TEACHER_PERFORMANCE_OPENAI_KEYS.split(',').map(k => k.trim()).filter(k => k);
+        } else {
+            this.teacherPerformanceKeys = [];
+        }
     }
 
     // ============ GEMINI METHODS ============
@@ -52,13 +84,36 @@ class AIService {
         return this._executeGeminiCall(prompt, systemInstruction, jsonMode, this.pvGeminiKeys, 'PV');
     }
 
+    // Dedicated Teacher Assignment Feedback Call
+    async callAssignmentFeedbackLLM(prompt, systemInstruction = "", jsonMode = false) {
+        if (this.teacherAssignmentKeys.length === 0) throw new Error("No Teacher Assignment Gemini keys configured.");
+        return this._executeGeminiCall(prompt, systemInstruction, jsonMode, this.teacherAssignmentKeys, 'TeacherAssignment');
+    }
+
+    // Dedicated Teacher Question Analyzer Call
+    async callQuestionAnalyzerLLM(prompt, systemInstruction = "", jsonMode = false) {
+        if (this.teacherQuestionKeys.length === 0) throw new Error("No Teacher Question Analyzer Gemini keys configured.");
+        return this._executeGeminiCall(prompt, systemInstruction, jsonMode, this.teacherQuestionKeys, 'TeacherQuestion');
+    }
+
     // Unified Gemini Execution Logic
     async _executeGeminiCall(prompt, systemInstruction, jsonMode, keys, keyType) {
         if (!keys || keys.length === 0) throw new Error(`No ${keyType} Gemini API keys configured.`);
 
         // Determine current index based on key type (simple load balancing)
-        let currentIndexName = keyType === 'PV' ? 'currentTvGeminiKeyIndex' : 'currentGeminiKeyIndex';
-        let callCountName = keyType === 'PV' ? 'pvGeminiCallCount' : 'geminiCallCount';
+        let currentIndexName = 'currentGeminiKeyIndex';
+        let callCountName = 'geminiCallCount';
+
+        if (keyType === 'PV') {
+            currentIndexName = 'currentTvGeminiKeyIndex';
+            callCountName = 'pvGeminiCallCount';
+        } else if (keyType === 'TeacherAssignment') {
+            currentIndexName = 'currentAssignmentKeyIndex';
+            callCountName = 'assignmentCallCount';
+        } else if (keyType === 'TeacherQuestion') {
+            currentIndexName = 'currentQuestionKeyIndex';
+            callCountName = 'questionCallCount';
+        }
 
         // Rotate Key
         this[currentIndexName] = (this[currentIndexName] + 1) % keys.length;
@@ -338,6 +393,140 @@ class AIService {
             return JSON.parse(res);
         } catch (e) {
             throw new Error("Failed to generate quiz");
+        }
+    }
+
+    // ============ TEACHER DASHBOARD FEATURES ============
+
+    // Feature 1: Assignment Feedback Generator (Gemini)
+    async generateAssignmentFeedback(assignmentQuestion, studentAnswer) {
+        const prompt = `Analyze the student's answer for the following question and provide structured feedback.
+        
+        Question: ${assignmentQuestion}
+        Student Answer: ${studentAnswer}
+
+        Provide feedback in the following JSON format:
+        {
+            "score": "A number between 0-100 indicating quality",
+            "strengths": ["List of strong points"],
+            "areasForImprovement": ["List of areas to improve"],
+            "detailedFeedback": "A comprehensive paragraph giving constructive feedback."
+        }
+        Return ONLY valid JSON.`;
+
+        try {
+            const response = await this.callAssignmentFeedbackLLM(prompt, "You are a strict but fair academic evaluator.", true);
+            return JSON.parse(response);
+        } catch (e) {
+            console.error("Assignment Feedback Error:", e);
+            throw new Error("Failed to generate assignment feedback.");
+        }
+    }
+
+    // Feature 2: Question Quality Analyzer (Gemini)
+    async analyzeQuestionQuality(question, options, correctAnswer) {
+        const prompt = `Analyze this multiple-choice question for quality, difficulty, and Bloom's taxonomy level.
+
+        Question: ${question}
+        Options: ${JSON.stringify(options)}
+        Correct Answer: ${correctAnswer}
+
+        Provide analysis in the following JSON format:
+        {
+            "difficultyLevel": "Easy/Medium/Hard",
+            "bloomsTaxonomy": "Recall/Understand/Apply/Analyze/Evaluate/Create",
+            "qualityScore": "0-10",
+            "suggestions": ["List of suggestions to improve clarity or distractors"],
+            "isRepetitive": false
+        }
+        Return ONLY valid JSON.`;
+
+        try {
+            const response = await this.callQuestionAnalyzerLLM(prompt, "You are an expert in psychometrics and educational assessment.", true);
+            return JSON.parse(response);
+        } catch (e) {
+            console.error("Question Analysis Error:", e);
+            throw new Error("Failed to analyze question quality.");
+        }
+    }
+
+    // Feature 3: Student Risk Predictor (OpenAI)
+    async predictStudentRisk(studentData) {
+        // Use Teacher Risk OpenAI Keys
+        let keys = this.teacherRiskKeys;
+        if (!keys || keys.length === 0) {
+            if (process.env.OPENAI_API_KEYS) keys = process.env.OPENAI_API_KEYS.split(',');
+        }
+
+        if (!keys || keys.length === 0) {
+            console.warn("No OpenAI keys available for Risk Prediction. Falling back to Gemini.");
+            return this.predictStudentRiskWithGemini(studentData);
+        }
+
+        const prompt = `Predict the risk level for the following student based on their data:
+        ${JSON.stringify(studentData)}
+
+        Risk Levels:
+        - Low: Doing well.
+        - Medium: Needs attention.
+        - High: At risk of failing or dropping out.
+
+        Return JSON:
+        {
+            "riskLevel": "Low/Medium/High",
+            "riskScore": "0-100 (probability of risk)",
+            "primaryFactors": ["List of factors contributing to risk"],
+            "interventionPlan": ["Suggested actions for the teacher"]
+        }`;
+
+        // Simple Random Load Balancing for OpenAI
+        const randomKey = keys[Math.floor(Math.random() * keys.length)].trim();
+        const openai = new OpenAI({ apiKey: randomKey });
+
+        try {
+            const completion = await openai.chat.completions.create({
+                messages: [
+                    { role: "system", content: "You are an educational data scientist. Return ONLY valid JSON." },
+                    { role: "user", content: prompt }
+                ],
+                model: "gpt-3.5-turbo",
+            });
+
+            const responseText = completion.choices[0].message.content;
+            const jsonStr = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
+            return JSON.parse(jsonStr);
+
+        } catch (e) {
+            console.error("Risk Prediction Error (OpenAI):", e.message);
+            console.log("Falling back to Gemini for Risk Prediction...");
+            return this.predictStudentRiskWithGemini(studentData);
+        }
+    }
+
+    // Fallback: Predict Risk using Gemini
+    async predictStudentRiskWithGemini(studentData) {
+        const prompt = `Predict the risk level for the following student based on their data:
+        ${JSON.stringify(studentData)}
+
+        Risk Levels:
+        - Low: Doing well.
+        - Medium: Needs attention.
+        - High: At risk of failing or dropping out.
+
+        Return ONLY valid JSON with this structure:
+        {
+            "riskLevel": "Low/Medium/High",
+            "riskScore": "0-100 (probability of risk)",
+            "primaryFactors": ["List of factors contributing to risk"],
+            "interventionPlan": ["Suggested actions for the teacher"]
+        }`;
+
+        try {
+            const response = await this.callLLM(prompt, "You are an educational data scientist. Return ONLY valid JSON.", true);
+            return JSON.parse(response);
+        } catch (e) {
+            console.error("Risk Prediction Gemini Fallback Failed:", e);
+            throw new Error("Risk prediction failed on both OpenAI and Gemini.");
         }
     }
 }

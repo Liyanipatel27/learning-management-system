@@ -43,7 +43,6 @@ router.get('/', async (req, res) => {
 
 // Get all assignments for a course
 router.get('/course/:courseId', async (req, res) => {
-    console.log('GET /course/:courseId hit with ID:', req.params.courseId);
     try {
         const assignments = await Assignment.find({ course: req.params.courseId }).sort({ createdAt: -1 });
         res.json(assignments);

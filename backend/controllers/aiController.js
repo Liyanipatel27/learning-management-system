@@ -161,3 +161,60 @@ exports.createQuiz = async (req, res) => {
         res.status(500).json({ message: err.message });
     }
 };
+
+// ============ TEACHER DASHBOARD CONTROLLERS ============
+
+// 7. Assignment Feedback
+exports.getAssignmentFeedback = async (req, res) => {
+    try {
+        const { question, answer } = req.body;
+        if (!question || !answer) return res.status(400).json({ message: "Question and Answer are required." });
+
+        const feedback = await aiService.generateAssignmentFeedback(question, answer);
+        res.json(feedback);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+};
+
+// 8. Question Quality Analysis
+exports.analyzeQuestionQuality = async (req, res) => {
+    try {
+        const { question, options, correctAnswer } = req.body;
+
+        const analysis = await aiService.analyzeQuestionQuality(question, options, correctAnswer);
+        res.json(analysis);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+};
+
+// 9. Teacher Risk Prediction
+exports.getTeacherRiskPrediction = async (req, res) => {
+    try {
+        const { studentId } = req.body;
+        if (!studentId) return res.status(400).json({ message: "Student ID is required" });
+
+        // Reuse logic to fetch student progress/performance
+        const progressData = await Progress.find({ student: studentId }).populate('course');
+
+        // Transform data for Risk Predictor
+        const studentData = {
+            totalCourses: progressData.length,
+            completedModules: progressData.reduce((acc, curr) => acc + curr.completedModules.length, 0),
+            averageScore: progressData.length > 0
+                ? (progressData.reduce((acc, p) => acc + (p.completedModules.length ? (p.completedModules.reduce((sum, m) => sum + m.score, 0) / p.completedModules.length) : 0), 0) / progressData.length).toFixed(2)
+                : 0,
+            courses: progressData.map(p => ({
+                title: p.course.title,
+                progress: p.completedModules.length
+            }))
+        };
+
+        const riskAnalysis = await aiService.predictStudentRisk(studentData);
+        res.json(riskAnalysis);
+
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+};

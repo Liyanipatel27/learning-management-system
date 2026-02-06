@@ -11,11 +11,7 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
-// Debug Middleware: Log all requests
-app.use((req, res, next) => {
-    console.log(`[DEBUG] Received ${req.method} request for: ${req.url}`);
-    next();
-});
+
 
 // Database Connection
 const MONGO_URI = process.env.MONGO_URI;

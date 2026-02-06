@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import * as XLSX from 'xlsx';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line } from 'recharts';
 import CourseBuilder from './CourseBuilder';
 
 
@@ -467,172 +468,7 @@ const LiveClassSection = ({ teacherId, teacherName }) => {
 };
 
 
-const StudentGradesSection = ({ teacherId, allPublishedCourses }) => {
-    const [gradesData, setGradesData] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [selectedCourseId, setSelectedCourseId] = useState('all');
 
-    useEffect(() => {
-        fetchStudentGrades();
-    }, [teacherId]);
-
-    const fetchStudentGrades = async () => {
-        if (!teacherId || teacherId === 'undefined') {
-            console.warn('[GRADES] No valid teacherId provided. Skipping fetch.');
-            setLoading(false);
-            return;
-        }
-
-        console.log('Fetching student grades for teacherId:', teacherId);
-        try {
-            const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-            const res = await axios.get(`${apiUrl}/api/courses/grades/teacher/${teacherId}`);
-            console.log('Received grades data:', res.data);
-            setGradesData(res.data);
-        } catch (err) {
-            console.error('Error fetching student grades:', err);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const filteredData = selectedCourseId === 'all'
-        ? gradesData
-        : gradesData.filter(c => c.courseId === selectedCourseId);
-
-    if (loading) return (
-        <div style={{ textAlign: 'center', padding: '100px', background: '#fff', borderRadius: '20px' }}>
-            <div className="spinner" style={{ border: '4px solid #f3f3f3', borderTop: '4px solid #6366f1', borderRadius: '50%', width: '40px', height: '40px', animation: 'spin 1s linear infinite', margin: '0 auto 20px' }}></div>
-            <div style={{ color: '#718096', fontSize: '1.1rem' }}>Analyzing student performance data...</div>
-            <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
-        </div>
-    );
-
-    return (
-        <div style={{ background: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 25px rgba(0,0,0,0.05)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', borderBottom: '1px solid #edf2f7', paddingBottom: '20px' }}>
-                <div>
-                    <h2 style={{ fontSize: '1.75rem', fontWeight: '800', color: '#1a202c', margin: 0 }}>Student Performance</h2>
-                    <p style={{ color: '#718096', margin: '5px 0 0 0' }}>Track quiz results across your courses</p>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '15px', background: '#f8fafc', padding: '10px 20px', borderRadius: '12px' }}>
-                    <label style={{ fontSize: '0.9rem', fontWeight: '600', color: '#4a5568' }}>Filter:</label>
-                    <select
-                        value={selectedCourseId}
-                        onChange={(e) => setSelectedCourseId(e.target.value)}
-                        style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white', outline: 'none', cursor: 'pointer', color: 'black' }}
-                    >
-                        <option value="all" style={{ color: 'black' }}>All My Courses</option>
-                        {allPublishedCourses.map(course => (
-                            <option key={course._id} value={course._id} style={{ color: 'black' }}>{course.subject}</option>
-                        ))}
-                    </select>
-                </div>
-            </div>
-
-            {filteredData.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '80px 40px', background: '#f8fafc', borderRadius: '15px', border: '2px dashed #e2e8f0' }}>
-                    <div style={{ fontSize: '4rem', marginBottom: '20px' }}>📁</div>
-                    <h3 style={{ color: '#2d3748', fontSize: '1.25rem', marginBottom: '10px' }}>No Quiz Data Found</h3>
-                    <p style={{ color: '#718096', maxWidth: '400px', margin: '0 auto' }}>
-                        When students pass quizzes in your published courses, their detailed scores and completion dates will appear here.
-                    </p>
-                </div>
-            ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
-                    {filteredData.map((course) => (
-                        <div key={course.courseId} style={{ border: '1px solid #edf2f7', borderRadius: '15px', overflow: 'hidden' }}>
-                            <div style={{ background: '#f8fafc', padding: '15px 20px', borderBottom: '1px solid #edf2f7' }}>
-                                <h3 style={{ margin: 0, fontSize: '1.1rem', color: '#2d3748' }}>Course: {course.courseName}</h3>
-                            </div>
-
-                            {course.students.length === 0 ? (
-                                <div style={{ padding: '20px', textAlign: 'center', color: '#a0aec0' }}>No students have started this course yet.</div>
-                            ) : (
-                                <div style={{ overflowX: 'auto' }}>
-                                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                                        <thead>
-                                            <tr style={{ background: '#fff', borderBottom: '1px solid #edf2f7' }}>
-                                                <th style={{ padding: '12px 20px', textAlign: 'left', color: '#718096', fontSize: '0.85rem' }}>Student Details</th>
-                                                <th style={{ padding: '12px 20px', textAlign: 'left', color: '#718096', fontSize: '0.85rem' }}>Client ID</th>
-                                                <th style={{ padding: '12px 20px', textAlign: 'left', color: '#718096', fontSize: '0.85rem' }}>Quiz (Module)</th>
-                                                <th style={{ padding: '12px 20px', textAlign: 'center', color: '#718096', fontSize: '0.85rem' }}>Score</th>
-                                                <th style={{ padding: '12px 20px', textAlign: 'center', color: '#718096', fontSize: '0.85rem' }}>Status</th>
-                                                <th style={{ padding: '12px 20px', textAlign: 'center', color: '#718096', fontSize: '0.85rem' }}>Date</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {course.students.map((student) => (
-                                                <React.Fragment key={student.studentId}>
-                                                    {student.quizzes.length === 0 ? (
-                                                        <tr style={{ borderBottom: '1px solid #f8fafc' }}>
-                                                            <td style={{ padding: '15px 20px' }}>
-                                                                <div style={{ fontWeight: '600', color: '#2d3748' }}>{student.studentName}</div>
-                                                                <div style={{ fontSize: '0.75rem', color: '#a0aec0' }}>{student.studentEmail}</div>
-                                                            </td>
-                                                            <td style={{ padding: '15px 20px', color: '#4a5568', fontSize: '0.85rem' }}>
-                                                                {student.studentEnrollment || '-'}
-                                                            </td>
-                                                            <td colSpan="4" style={{ padding: '15px 20px', color: '#a0aec0', fontSize: '0.85rem' }}>No quizzes attempted yet.</td>
-                                                        </tr>
-                                                    ) : (
-                                                        student.quizzes.map((quiz, qIdx) => (
-                                                            <tr key={`${student.studentId}-${quiz.moduleId}`} style={{ borderBottom: '1px solid #f8fafc' }}>
-                                                                {qIdx === 0 && (
-                                                                    <>
-                                                                        <td rowSpan={student.quizzes.length} style={{ padding: '15px 20px', verticalAlign: 'top', borderRight: '1px solid #f8fafc' }}>
-                                                                            <div style={{ fontWeight: '600', color: '#2d3748' }}>{student.studentName}</div>
-                                                                            <div style={{ fontSize: '0.75rem', color: '#a0aec0' }}>{student.studentEmail}</div>
-                                                                        </td>
-                                                                        <td rowSpan={student.quizzes.length} style={{ padding: '15px 20px', verticalAlign: 'top', borderRight: '1px solid #f8fafc', color: '#4a5568', fontSize: '0.9rem' }}>
-                                                                            {student.studentEnrollment || '-'}
-                                                                        </td>
-                                                                    </>
-                                                                )}
-                                                                <td style={{ padding: '15px 20px' }}>
-                                                                    <div style={{ fontSize: '0.85rem', color: '#4a5568' }}>{quiz.chapterTitle}</div>
-                                                                    <div style={{ fontSize: '0.9rem', fontWeight: '500', color: '#2d3748' }}>{quiz.moduleTitle}</div>
-                                                                </td>
-                                                                <td style={{ padding: '15px 20px', textAlign: 'center' }}>
-                                                                    {quiz.score !== null ? (
-                                                                        <span style={{ fontWeight: 'bold', fontSize: '1rem', color: quiz.score >= 70 ? '#10b981' : '#f87171' }}>
-                                                                            {quiz.score}%
-                                                                        </span>
-                                                                    ) : '-'}
-                                                                </td>
-                                                                <td style={{ padding: '15px 20px', textAlign: 'center' }}>
-                                                                    {quiz.score !== null ? (
-                                                                        <span style={{
-                                                                            padding: '4px 10px',
-                                                                            borderRadius: '20px',
-                                                                            fontSize: '0.7rem',
-                                                                            fontWeight: 'bold',
-                                                                            background: quiz.score >= 70 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(248, 113, 113, 0.1)',
-                                                                            color: quiz.score >= 70 ? '#10b981' : '#f87171'
-                                                                        }}>
-                                                                            {quiz.score >= 70 ? (quiz.isFastTracked ? '⚡ FAST TRACK' : 'PASSED') : 'FAILED'}
-                                                                        </span>
-                                                                    ) : '-'}
-                                                                </td>
-                                                                <td style={{ padding: '15px 20px', textAlign: 'center', fontSize: '0.8rem', color: '#718096' }}>
-                                                                    {quiz.completedAt ? new Date(quiz.completedAt).toLocaleDateString('en-GB') : '-'}
-                                                                </td>
-                                                            </tr>
-                                                        ))
-                                                    )}
-                                                </React.Fragment>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            )}
-                        </div>
-                    ))}
-                </div>
-            )}
-        </div>
-    );
-};
 
 const StudentProgressSection = () => {
     const [report, setReport] = useState([]);
@@ -720,85 +556,7 @@ const StudentProgressSection = () => {
 
 
 // --- NEW SECTION: Students Directory ---
-const StudentsSection = () => {
-    const [students, setStudents] = useState([]);
-    const [loading, setLoading] = useState(true);
 
-    const fetchStudents = async () => {
-        setLoading(true);
-        try {
-            const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/auth/students`);
-            setStudents(res.data);
-        } catch (err) {
-            console.error('Error fetching students:', err);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        fetchStudents();
-    }, []);
-
-    if (loading) return <div style={{ textAlign: 'center', padding: '50px' }}>Loading students...</div>;
-
-    return (
-        <div style={{ background: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#1a202c', margin: 0 }}>Registered Students</h2>
-                <button
-                    onClick={fetchStudents}
-                    style={{ padding: '8px 16px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem' }}
-                >
-                    🔄 Refresh List
-                </button>
-            </div>
-            <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                    <thead>
-                        <tr style={{ background: '#f8fafc', borderBottom: '1px solid #edf2f7' }}>
-                            <th style={{ padding: '15px 20px', textAlign: 'left', color: '#718096' }}>Student Name</th>
-                            <th style={{ padding: '15px 20px', textAlign: 'left', color: '#718096' }}>Enrollment</th>
-                            <th style={{ padding: '15px 20px', textAlign: 'left', color: '#718096' }}>Branch</th>
-                            <th style={{ padding: '15px 20px', textAlign: 'left', color: '#718096' }}>Email</th>
-                            <th style={{ padding: '15px 20px', textAlign: 'left', color: '#718096' }}>Joined Date</th>
-                            <th style={{ padding: '15px 20px', textAlign: 'center', color: '#718096' }}>Account Status</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {students.length === 0 ? (
-                            <tr>
-                                <td colSpan="4" style={{ padding: '40px', textAlign: 'center', color: '#a0aec0' }}>No students registered yet.</td>
-                            </tr>
-                        ) : (
-                            students.map(student => (
-                                <tr key={student._id} style={{ borderBottom: '1px solid #f8fafc' }}>
-                                    <td style={{ padding: '15px 20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                        <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#6366f1', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '600' }}>
-                                            {student.name.charAt(0).toUpperCase()}
-                                        </div>
-                                        <span style={{ fontWeight: '600', color: '#2d3748' }}>{student.name}</span>
-                                    </td>
-                                    <td style={{ padding: '15px 20px', color: '#4a5568', fontWeight: '600' }}>{student.enrollment || 'N/A'}</td>
-                                    <td style={{ padding: '15px 20px', color: '#4a5568' }}>{student.branch || 'N/A'}</td>
-                                    <td style={{ padding: '15px 20px', color: '#4a5568' }}>{student.email}</td>
-                                    <td style={{ padding: '15px 20px', color: '#718096' }}>
-                                        {student.createdAt ? new Date(student.createdAt).toLocaleDateString('en-GB') : 'N/A'}
-                                    </td>
-                                    <td style={{ padding: '15px 20px', textAlign: 'center' }}>
-                                        <span style={{ padding: '4px 12px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: '700', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}>
-                                            ACTIVE
-                                        </span>
-                                    </td>
-                                </tr>
-                            ))
-                        )}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    );
-};
 
 // --- NEW SECTION: Profile View ---
 // --- NEW SECTION: Assignments Management ---
@@ -1192,7 +950,12 @@ const SubmissionsModal = ({ assignment, onClose }) => {
     const [gradingSubmission, setGradingSubmission] = useState(null);
     const [executingCode, setExecutingCode] = useState(false);
     const [stdin, setStdin] = useState('');
+
     const [executionResult, setExecutionResult] = useState(null);
+
+    // AI Feedback State
+    const [generatingFeedback, setGeneratingFeedback] = useState(false);
+    const [aiFeedback, setAiFeedback] = useState(null);
 
     useEffect(() => {
         fetchSubmissions();
@@ -1231,9 +994,57 @@ const SubmissionsModal = ({ assignment, onClose }) => {
         try {
             await axios.put(`${import.meta.env.VITE_API_URL}/api/assignments/grade/${gradingSubmission._id}`, { score, feedback });
             setGradingSubmission(null);
+            setAiFeedback(null); // Reset AI feedback
             fetchSubmissions();
         } catch (err) {
             alert('Error grading submission');
+        }
+    };
+
+    const handleGenerateAiFeedback = async () => {
+        if (!assignment.description) return alert("Assignment has no description/question to analyze.");
+
+        const answer = assignment.type === 'coding' ? gradingSubmission.code : "File submission (Text extraction not supported yet)";
+
+        if (!answer || answer.length < 10) return alert("Student answer is too short for AI analysis.");
+
+        setGeneratingFeedback(true);
+        setAiFeedback(null);
+        try {
+            const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/ai/teacher/feedback`, {
+                question: assignment.description,
+                answer: answer
+            });
+            setAiFeedback(res.data);
+        } catch (err) {
+            console.error(err);
+            alert("Failed to generate AI feedback: " + (err.response?.data?.message || err.message));
+        } finally {
+            setGeneratingFeedback(false);
+        }
+    };
+
+    const applyAiFeedback = () => {
+        if (!aiFeedback) return;
+
+        // Update the form inputs
+        const scoreInput = document.getElementById('grade-score');
+        const feedbackInput = document.getElementById('grade-feedback');
+
+        if (scoreInput) scoreInput.value = aiFeedback.score || '';
+        if (feedbackInput) {
+            const structuredFeedback = `
+[AI Generated Feedback]
+Strengths:
+- ${aiFeedback.strengths?.join('\n- ') || 'N/A'}
+
+Areas for Improvement:
+- ${aiFeedback.areasForImprovement?.join('\n- ') || 'N/A'}
+
+Detailed:
+${aiFeedback.detailedFeedback || ''}
+            `.trim();
+            feedbackInput.value = structuredFeedback;
         }
     };
 
@@ -1390,6 +1201,47 @@ const SubmissionsModal = ({ assignment, onClose }) => {
                                 )}
                             </div>
 
+
+
+                            {/* AI Feedback Section */}
+                            <div style={{ marginBottom: '20px', padding: '15px', background: '#f0f9ff', borderRadius: '12px', border: '1px solid #bae6fd' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                                    <h4 style={{ margin: 0, color: '#0369a1', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        🤖 AI Assistant
+                                    </h4>
+                                    <button
+                                        onClick={handleGenerateAiFeedback}
+                                        disabled={generatingFeedback}
+                                        style={{
+                                            padding: '6px 12px',
+                                            background: '#0ea5e9',
+                                            color: 'white',
+                                            border: 'none',
+                                            borderRadius: '8px',
+                                            cursor: generatingFeedback ? 'wait' : 'pointer',
+                                            fontSize: '0.8rem',
+                                            fontWeight: 'bold'
+                                        }}
+                                    >
+                                        {generatingFeedback ? 'Analyzing...' : 'Generate Feedback'}
+                                    </button>
+                                </div>
+                                {aiFeedback && (
+                                    <div style={{ background: 'white', padding: '15px', borderRadius: '8px', border: '1px solid #e0f2fe' }}>
+                                        <div style={{ marginBottom: '10px', display: 'flex', justifyContent: 'space-between' }}>
+                                            <span style={{ fontWeight: 'bold', color: '#0369a1' }}>Suggested Score: {aiFeedback.score}</span>
+                                            <button onClick={applyAiFeedback} style={{ fontSize: '0.8rem', color: '#0284c7', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
+                                                Apply to Grade
+                                            </button>
+                                        </div>
+                                        <div style={{ fontSize: '0.9rem', color: '#334155' }}>
+                                            <strong>Strengths:</strong> {aiFeedback.strengths?.join(', ')}<br />
+                                            <strong>Improvement:</strong> {aiFeedback.areasForImprovement?.join(', ')}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
                             <div style={{ marginBottom: '15px' }}>
                                 <label style={{ display: 'block', marginBottom: '5px' }}>Score (Out of {assignment.maxPoints})</label>
                                 <input
@@ -1424,11 +1276,262 @@ const SubmissionsModal = ({ assignment, onClose }) => {
                             </div>
                         </div>
                     </div>
-                )}
+                )
+                }
+            </div >
+        </div >
+    );
+}
+
+const StudentsSection = () => {
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const [students, setStudents] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [riskData, setRiskData] = useState({});
+    const [analyzingRisk, setAnalyzingRisk] = useState({});
+
+    useEffect(() => {
+        const fetchStudentData = async () => {
+            try {
+                const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/courses/grades/teacher/${user.id || user._id}`);
+
+                // Aggregate students across courses
+                const studentMap = new Map();
+                res.data.forEach(course => {
+                    course.students.forEach(s => {
+                        if (!studentMap.has(s.studentId)) {
+                            studentMap.set(s.studentId, {
+                                id: s.studentId,
+                                name: s.studentName,
+                                email: s.studentEmail,
+                                courses: [],
+                                quizzesTaken: 0,
+                                avgScore: 0
+                            });
+                        }
+                        const existing = studentMap.get(s.studentId);
+                        existing.courses.push(course.courseName);
+
+                        const scores = s.quizzes.map(q => q.score).filter(sc => sc !== null);
+                        if (scores.length > 0) {
+                            const sum = scores.reduce((a, b) => a + b, 0);
+                            const totalQuizzes = existing.quizzesTaken + scores.length;
+                            const currentTotalScore = (existing.avgScore * existing.quizzesTaken) + sum;
+                            existing.avgScore = Math.round(currentTotalScore / totalQuizzes);
+                            existing.quizzesTaken = totalQuizzes;
+                        }
+                    });
+                });
+                setStudents(Array.from(studentMap.values()));
+            } catch (err) {
+                console.error("Error fetching students:", err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchStudentData();
+    }, []);
+
+    const handleAnalyzeRisk = async (student) => {
+        setAnalyzingRisk(prev => ({ ...prev, [student.id]: true }));
+        try {
+            const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/ai/teacher/risk-prediction`, {
+                studentId: student.id
+            });
+            setRiskData(prev => ({ ...prev, [student.id]: res.data }));
+        } catch (err) {
+            console.error(err);
+            console.error(err);
+            const errorMsg = err.response?.data?.message || err.message || "Unknown error";
+            alert(`Risk prediction failed: ${errorMsg}`);
+        } finally {
+            setAnalyzingRisk(prev => ({ ...prev, [student.id]: false }));
+        }
+    };
+
+    if (loading) return <div>Loading students...</div>;
+
+    return (
+        <div style={{ background: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 4px 6px rgba(0,0,0,0.02)' }}>
+            <h2 style={{ fontSize: '1.5rem', marginBottom: '20px' }}>Student Directory & Risk Analysis</h2>
+            <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                        <tr style={{ background: '#f8fafc', textAlign: 'left' }}>
+                            <th style={{ padding: '15px' }}>Name</th>
+                            <th style={{ padding: '15px' }}>Email</th>
+                            <th style={{ padding: '15px' }}>Enrolled Courses</th>
+                            <th style={{ padding: '15px' }}>Avg Score</th>
+                            <th style={{ padding: '15px' }}>Risk Status</th>
+                            <th style={{ padding: '15px' }}>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {students.map(student => (
+                            <React.Fragment key={student.id}>
+                                <tr style={{ borderBottom: '1px solid #edf2f7' }}>
+                                    <td style={{ padding: '15px', fontWeight: 'bold', color: '#2d3748' }}>{student.name}</td>
+                                    <td style={{ padding: '15px', color: '#718096' }}>{student.email}</td>
+                                    <td style={{ padding: '15px' }}>
+                                        <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                                            {student.courses.map((c, i) => (
+                                                <span key={i} style={{ fontSize: '0.75rem', background: '#e0e7ff', color: '#4338ca', padding: '2px 8px', borderRadius: '4px' }}>{c}</span>
+                                            ))}
+                                        </div>
+                                    </td>
+                                    <td style={{ padding: '15px', fontWeight: 'bold' }}>{student.avgScore}%</td>
+                                    <td style={{ padding: '15px' }}>
+                                        {riskData[student.id] ? (
+                                            <span style={{
+                                                padding: '4px 12px', borderRadius: '20px', fontWeight: 'bold', fontSize: '0.85rem',
+                                                background: riskData[student.id].riskLevel === 'High' ? '#fee2e2' : riskData[student.id].riskLevel === 'Medium' ? '#fef3c7' : '#dcfce7',
+                                                color: riskData[student.id].riskLevel === 'High' ? '#991b1b' : riskData[student.id].riskLevel === 'Medium' ? '#92400e' : '#166534'
+                                            }}>
+                                                {riskData[student.id].riskLevel} Risk
+                                            </span>
+                                        ) : (
+                                            <span style={{ color: '#cbd5e0' }}>-</span>
+                                        )}
+                                    </td>
+                                    <td style={{ padding: '15px' }}>
+                                        <button
+                                            onClick={() => handleAnalyzeRisk(student)}
+                                            disabled={analyzingRisk[student.id]}
+                                            style={{
+                                                padding: '8px 16px', background: '#6366f1', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem'
+                                            }}
+                                        >
+                                            {analyzingRisk[student.id] ? 'Analyzing...' : 'Predict Risk'}
+                                        </button>
+                                    </td>
+                                </tr>
+                                {riskData[student.id] && (
+                                    <tr>
+                                        <td colSpan="6" style={{ padding: '0 15px 15px 15px', background: '#fff' }}>
+                                            <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '12px', border: '1px solid #e2e8f0', marginLeft: '20px' }}>
+                                                <div style={{ display: 'flex', gap: '20px' }}>
+                                                    <div style={{ flex: 1 }}>
+                                                        <h5 style={{ margin: '0 0 5px 0', color: '#4a5568' }}>Primary Risk Factors</h5>
+                                                        <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '0.9rem', color: '#e53e3e' }}>
+                                                            {riskData[student.id].primaryFactors?.map((f, i) => <li key={i}>{f}</li>)}
+                                                        </ul>
+                                                    </div>
+                                                    <div style={{ flex: 1 }}>
+                                                        <h5 style={{ margin: '0 0 5px 0', color: '#4a5568' }}>Intervention Plan</h5>
+                                                        <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '0.9rem', color: '#10b981' }}>
+                                                            {riskData[student.id].interventionPlan?.map((p, i) => <li key={i}>{p}</li>)}
+                                                        </ul>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                )}
+                            </React.Fragment>
+                        ))}
+                    </tbody>
+                </table>
             </div>
         </div>
     );
-}
+};
+
+const StudentGradesSection = ({ teacherId }) => {
+    const [gradesData, setGradesData] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/courses/grades/teacher/${teacherId}`);
+                // Process for charts
+                // Chart 1: Course Averages
+                const processed = res.data.map(course => {
+                    if (course.students.length === 0) return null;
+                    const totalScore = course.students.reduce((acc, s) => {
+                        const sTotal = s.quizzes.reduce((sum, q) => sum + (q.score || 0), 0);
+                        return acc + (s.quizzes.length ? sTotal / s.quizzes.length : 0);
+                    }, 0);
+                    return {
+                        name: course.courseName,
+                        average: Math.round(totalScore / course.students.length),
+                        students: course.students.length
+                    };
+                }).filter(Boolean);
+
+                setGradesData(processed);
+            } catch (err) {
+                console.error(err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchData();
+    }, [teacherId]);
+
+    if (loading) return <div>Loading analytics...</div>;
+
+    return (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px', paddingBottom: '50px' }}>
+            <div style={{ background: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 4px 6px rgba(0,0,0,0.02)' }}>
+                <h3 style={{ color: '#2d3748', marginBottom: '20px' }}>Course Performance Averages</h3>
+                <div style={{ height: '300px' }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={gradesData}>
+                            <XAxis dataKey="name" stroke="#718096" fontSize={12} />
+                            <YAxis stroke="#718096" fontSize={12} />
+                            <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '10px', padding: '10px' }} />
+                            <Bar dataKey="average" fill="#6366f1" radius={[8, 8, 0, 0]} barSize={40} name="Avg Score %" />
+                        </BarChart>
+                    </ResponsiveContainer>
+                </div>
+            </div>
+
+            <div style={{ background: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 4px 6px rgba(0,0,0,0.02)' }}>
+                <h3 style={{ color: '#2d3748', marginBottom: '20px' }}>Student Enrollment Distribution</h3>
+                <div style={{ height: '300px' }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                            <Pie
+                                data={gradesData}
+                                cx="50%"
+                                cy="50%"
+                                innerRadius={60}
+                                outerRadius={80}
+                                paddingAngle={5}
+                                dataKey="students"
+                                nameKey="name"
+                            >
+                                {gradesData.map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={['#6366f1', '#10b981', '#f59e0b', '#ef4444'][index % 4]} />
+                                ))}
+                            </Pie>
+                            <Tooltip contentStyle={{ borderRadius: '10px', padding: '10px' }} />
+                            <Legend layout="vertical" verticalAlign="middle" align="right" />
+                        </PieChart>
+                    </ResponsiveContainer>
+                </div>
+            </div>
+
+            {/* AI Performance Summary Placeholder */}
+            <div style={{ gridColumn: '1 / -1', background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)', padding: '30px', borderRadius: '20px', color: 'white' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                        <h3 style={{ fontSize: '1.5rem', marginBottom: '10px' }}>🤖 AI Class Insights</h3>
+                        <p style={{ color: '#a5b4fc', maxWidth: '600px', margin: 0 }}>
+                            Generate a comprehensive report on class performance, identifying learning gaps and suggesting curriculum improvements.
+                        </p>
+                    </div>
+                    <button style={{ padding: '12px 24px', background: 'white', color: '#312e81', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' }}>
+                        Generate Report (Coming Soon)
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+
 
 const ProfileSection = ({ userId }) => {
     const sessionUser = JSON.parse(localStorage.getItem('user') || '{}');

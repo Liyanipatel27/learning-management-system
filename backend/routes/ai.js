@@ -26,4 +26,9 @@ router.post('/notes', aiController.generateStudyNotes);
 // 6. Quiz Generator
 router.post('/quiz', aiController.createQuiz);
 
+// ============ TEACHER DASHBOARD ROUTES ============
+router.post('/teacher/feedback', aiController.getAssignmentFeedback);
+router.post('/teacher/question-analysis', aiController.analyzeQuestionQuality);
+router.post('/teacher/risk-prediction', aiController.getTeacherRiskPrediction);
+
 module.exports = router;

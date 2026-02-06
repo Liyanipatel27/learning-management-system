@@ -40,18 +40,14 @@ router.put('/:courseId/publish', async (req, res) => {
 
 // Get student grades for all teacher's courses
 router.get('/grades/teacher/:teacherId', async (req, res) => {
-    console.log('### GRADES DEBUG ### Route Hit. TeacherId:', req.params.teacherId);
-
     // Handle invalid or 'undefined' teacherId gracefully
     if (!req.params.teacherId || req.params.teacherId === 'undefined' || req.params.teacherId === 'null') {
-        console.log('### GRADES DEBUG ### Invalid teacherId provided, returning empty array.');
         return res.json([]);
     }
 
     try {
         const mongoose = require('mongoose');
         if (!mongoose.Types.ObjectId.isValid(req.params.teacherId)) {
-            console.log('### GRADES DEBUG ### TeacherId is not a valid ObjectId.');
             return res.json([]);
         }
 
@@ -59,14 +55,11 @@ router.get('/grades/teacher/:teacherId', async (req, res) => {
 
         // 1. Find all courses by this teacher
         const courses = await Course.find({ teacher: req.params.teacherId });
-        console.log('### GRADES DEBUG ### Courses found:', courses.length);
 
         // 2. For each course, find all students with progress
         const gradesData = await Promise.all(courses.map(async (course) => {
-            console.log('### GRADES DEBUG ### Checking course:', course.subject);
             // Find all progress records for this course
             const progressRecords = await Progress.find({ course: course._id }).populate('student', 'name email enrollment');
-            console.log(`### GRADES DEBUG ### Course ${course.subject}: ${progressRecords.length} progress records`);
 
             // Build student data array
             const students = progressRecords.map(progress => {
@@ -108,10 +101,9 @@ router.get('/grades/teacher/:teacherId', async (req, res) => {
             };
         }));
 
-        console.log('### GRADES DEBUG ### Sending responsive with gradesData length:', gradesData.length);
         res.json(gradesData);
     } catch (err) {
-        console.error('### GRADES DEBUG ### Error:', err.message);
+        console.error('Error fetching grades:', err.message);
         res.status(500).json({ message: err.message });
     }
 });

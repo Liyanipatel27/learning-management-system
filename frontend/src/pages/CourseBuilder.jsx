@@ -450,7 +450,12 @@ const QuizEditor = ({ chapterId, moduleId, quiz, quizConfig, onSave, onClose }) 
         questionsPerAttemptStandard: quizConfig?.questionsPerAttemptStandard || quizConfig?.questionsPerAttempt || 10,
         questionsPerAttemptFastTrack: quizConfig?.questionsPerAttemptFastTrack || quizConfig?.questionsPerAttempt || 5
     });
+
     const [showExplanation, setShowExplanation] = useState({}); // Track which explanation is visible
+
+    // AI Analysis State
+    const [analyzingQuestion, setAnalyzingQuestion] = useState({}); // { [index]: boolean }
+    const [questionAnalysis, setQuestionAnalysis] = useState({}); // { [index]: AnalysisObject }
 
     const handleQuestionChange = (index, field, value) => {
         const newQuestions = [...questions];
@@ -470,6 +475,29 @@ const QuizEditor = ({ chapterId, moduleId, quiz, quizConfig, onSave, onClose }) 
 
     const removeQuestion = (index) => {
         setQuestions(questions.filter((_, i) => i !== index));
+    };
+
+    const handleAnalyzeQuestion = async (index) => {
+        const q = questions[index];
+        if (!q.question || q.question.length < 5) return alert("Please enter a valid question first.");
+
+        setAnalyzingQuestion(prev => ({ ...prev, [index]: true }));
+        setQuestionAnalysis(prev => ({ ...prev, [index]: null }));
+
+        try {
+            const correctAnswer = q.options[q.correctAnswerIndex] || "Not Specified";
+            const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/ai/teacher/question-analysis`, {
+                question: q.question,
+                options: q.options,
+                correctAnswer: correctAnswer
+            });
+            setQuestionAnalysis(prev => ({ ...prev, [index]: res.data }));
+        } catch (err) {
+            console.error(err);
+            alert("Analysis failed: " + (err.response?.data?.message || err.message));
+        } finally {
+            setAnalyzingQuestion(prev => ({ ...prev, [index]: false }));
+        }
     };
 
     return (
@@ -562,6 +590,45 @@ const QuizEditor = ({ chapterId, moduleId, quiz, quizConfig, onSave, onClose }) 
                                     </div>
                                 )}
                             </div>
+
+
+                            {/* AI Analysis Result Display */}
+                            <div style={{ marginTop: '15px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                    <button
+                                        onClick={() => handleAnalyzeQuestion(qIdx)}
+                                        disabled={analyzingQuestion[qIdx]}
+                                        style={{
+                                            background: '#8b5cf6',
+                                            color: 'white',
+                                            border: 'none',
+                                            padding: '8px 16px',
+                                            borderRadius: '8px',
+                                            fontSize: '0.85rem',
+                                            fontWeight: 'bold',
+                                            cursor: analyzingQuestion[qIdx] ? 'wait' : 'pointer',
+                                            display: 'flex', alignItems: 'center', gap: '5px'
+                                        }}
+                                    >
+                                        {analyzingQuestion[qIdx] ? 'Analyzing...' : '🔍 Analyze Question Quality'}
+                                    </button>
+                                </div>
+                                {questionAnalysis[qIdx] && (
+                                    <div style={{ marginTop: '10px', padding: '15px', background: 'white', border: '1px solid #ddd6fe', borderRadius: '12px', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '10px' }}>
+                                            <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#5b21b6' }}>Difficulty: {questionAnalysis[qIdx].difficultyLevel}</span>
+                                            <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#5b21b6' }}>Bloom's: {questionAnalysis[qIdx].bloomsTaxonomy}</span>
+                                            <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#5b21b6' }}>Quality: {questionAnalysis[qIdx].qualityScore}/10</span>
+                                        </div>
+                                        <div style={{ fontSize: '0.85rem', color: '#4c1d95' }}>
+                                            <strong>Suggestions:</strong>
+                                            <ul style={{ margin: '5px 0 0 20px', padding: 0 }}>
+                                                {questionAnalysis[qIdx].suggestions?.map((s, i) => <li key={i}>{s}</li>)}
+                                            </ul>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     ))}
                 </div>
@@ -582,8 +649,8 @@ const QuizEditor = ({ chapterId, moduleId, quiz, quizConfig, onSave, onClose }) 
                         Save Quiz
                     </button>
                 </div>
-            </div>
-        </div>
+            </div >
+        </div >
     );
 };
 
