@@ -4,6 +4,7 @@ import axios from 'axios';
 import * as XLSX from 'xlsx';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line } from 'recharts';
 import CourseBuilder from './CourseBuilder';
+import StudentRiskAnalysis from './StudentRiskAnalysis';
 
 
 function TeacherDashboard() {
@@ -1408,21 +1409,8 @@ const StudentsSection = () => {
                                 {riskData[student.id] && (
                                     <tr>
                                         <td colSpan="6" style={{ padding: '0 15px 15px 15px', background: '#fff' }}>
-                                            <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '12px', border: '1px solid #e2e8f0', marginLeft: '20px' }}>
-                                                <div style={{ display: 'flex', gap: '20px' }}>
-                                                    <div style={{ flex: 1 }}>
-                                                        <h5 style={{ margin: '0 0 5px 0', color: '#4a5568' }}>Primary Risk Factors</h5>
-                                                        <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '0.9rem', color: '#e53e3e' }}>
-                                                            {riskData[student.id].primaryFactors?.map((f, i) => <li key={i}>{f}</li>)}
-                                                        </ul>
-                                                    </div>
-                                                    <div style={{ flex: 1 }}>
-                                                        <h5 style={{ margin: '0 0 5px 0', color: '#4a5568' }}>Intervention Plan</h5>
-                                                        <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '0.9rem', color: '#10b981' }}>
-                                                            {riskData[student.id].interventionPlan?.map((p, i) => <li key={i}>{p}</li>)}
-                                                        </ul>
-                                                    </div>
-                                                </div>
+                                            <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                                                <StudentRiskAnalysis riskData={riskData[student.id]} />
                                             </div>
                                         </td>
                                     </tr>

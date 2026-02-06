@@ -476,7 +476,17 @@ class AIService {
             "riskLevel": "Low/Medium/High",
             "riskScore": "0-100 (probability of risk)",
             "primaryFactors": ["List of factors contributing to risk"],
-            "interventionPlan": ["Suggested actions for the teacher"]
+            "interventionPlan": ["Suggested actions for the teacher"],
+            "copyLikelihood": "0-100 (Simulated likelihood of 'Copy' vs 'Own Written' based on performance consistency)",
+            "breakdown": {
+                "copy": "0-100",
+                "ownWritten": "0-100",
+                "aiRefined": "0-100"
+            },
+            "contributors": [
+                { "factor": "Factor Name (e.g., 'Writing Style Mismatch')", "impact": "High/Medium/Low", "description": "Brief explanation" }
+            ],
+            "detailedAnalysis": "A comprehensive paragraph explaining the results, mimicking a 'Understanding your results' section."
         }`;
 
         // Simple Random Load Balancing for OpenAI
@@ -518,7 +528,17 @@ class AIService {
             "riskLevel": "Low/Medium/High",
             "riskScore": "0-100 (probability of risk)",
             "primaryFactors": ["List of factors contributing to risk"],
-            "interventionPlan": ["Suggested actions for the teacher"]
+            "interventionPlan": ["Suggested actions for the teacher"],
+            "copyLikelihood": "0-100 (Simulated likelihood of 'Copy' vs 'Own Written')",
+            "breakdown": {
+                "copy": "0-100",
+                "ownWritten": "0-100",
+                "aiRefined": "0-100"
+            },
+            "contributors": [
+                { "factor": "Factor Name", "impact": "High/Medium/Low", "description": "Brief explanation" }
+            ],
+            "detailedAnalysis": "Detailed explanation paragraph."
         }`;
 
         try {
