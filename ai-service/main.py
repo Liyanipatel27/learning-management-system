@@ -1,8 +1,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
+from routers import plagiarism
 
 app = FastAPI(title="AI Service", version="1.0.0")
+
+app.include_router(plagiarism.router)
+
 
 # CORS Configuration
 app.add_middleware(

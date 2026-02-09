@@ -1100,6 +1100,7 @@ ${aiFeedback.detailedFeedback || ''}
                                 <th style={{ padding: '12px' }}>Enrollment</th>
                                 <th style={{ padding: '12px' }}>Submitted At</th>
                                 <th style={{ padding: '12px' }}>Status</th>
+                                <th style={{ padding: '12px' }}>Plagiarism</th>
                                 <th style={{ padding: '12px' }}>Score</th>
                                 <th style={{ padding: '12px' }}>Action</th>
                             </tr>
@@ -1118,6 +1119,28 @@ ${aiFeedback.detailedFeedback || ''}
                                             background: sub.status === 'Graded' ? '#d1fae5' : '#fef3c7',
                                             color: sub.status === 'Graded' ? '#065f46' : '#92400e'
                                         }}>{sub.status}</span>
+                                    </td>
+                                    <td style={{ padding: '12px' }}>
+                                        {sub.plagiarismResult ? (
+                                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                <span style={{
+                                                    fontWeight: 'bold',
+                                                    color: sub.plagiarismResult.riskLevel === 'High Risk' ? '#ef4444' :
+                                                        sub.plagiarismResult.riskLevel === 'Low Risk' ? '#f59e0b' : '#10b981'
+                                                }}>
+                                                    {sub.plagiarismResult.similarityPercentage}%
+                                                </span>
+                                                <span style={{
+                                                    fontSize: '0.7rem',
+                                                    color: sub.plagiarismResult.riskLevel === 'High Risk' ? '#ef4444' :
+                                                        sub.plagiarismResult.riskLevel === 'Low Risk' ? '#f59e0b' : '#10b981'
+                                                }}>
+                                                    {sub.plagiarismResult.riskLevel}
+                                                </span>
+                                            </div>
+                                        ) : (
+                                            <span style={{ color: '#cbd5e0', fontSize: '0.8rem' }}>Not Analyzed</span>
+                                        )}
                                     </td>
                                     <td style={{ padding: '12px' }}>{sub.score !== null ? `${sub.score}/${assignment.maxPoints}` : '-'}</td>
                                     <td style={{ padding: '12px' }}>
@@ -1363,8 +1386,7 @@ const StudentsSection = () => {
                             <th style={{ padding: '15px' }}>Email</th>
                             <th style={{ padding: '15px' }}>Enrolled Courses</th>
                             <th style={{ padding: '15px' }}>Avg Score</th>
-                            <th style={{ padding: '15px' }}>Risk Status</th>
-                            <th style={{ padding: '15px' }}>Action</th>
+
                         </tr>
                     </thead>
                     <tbody>
@@ -1381,65 +1403,9 @@ const StudentsSection = () => {
                                         </div>
                                     </td>
                                     <td style={{ padding: '15px', fontWeight: 'bold' }}>{student.avgScore}%</td>
-                                    <td style={{ padding: '15px' }}>
-                                        {riskData[student.id] ? (() => {
-                                            const percent = riskData[student.id].copyLikelihood || riskData[student.id].riskScore || 0;
-                                            let label = 'No Risk';
-                                            let bg = '#f1f5f9'; // slate-100
-                                            let color = '#000000';
 
-                                            if (percent === 0) {
-                                                label = 'No Risk';
-                                                bg = '#f1f5f9';
-                                                color = '#000000';
-                                            } else if (percent <= 25) {
-                                                label = 'Safe';
-                                                bg = '#dcfce7'; // green-100
-                                                color = '#166534'; // green-800
-                                            } else if (percent <= 50) {
-                                                label = 'Low Risk';
-                                                bg = '#fef9c3'; // yellow-100
-                                                color = '#854d0e'; // yellow-800
-                                            } else {
-                                                label = 'High Risk';
-                                                bg = '#fee2e2'; // red-100
-                                                color = '#991b1b'; // red-800
-                                            }
-
-                                            return (
-                                                <span style={{
-                                                    padding: '4px 12px', borderRadius: '20px', fontWeight: 'bold', fontSize: '0.85rem',
-                                                    background: bg,
-                                                    color: color
-                                                }}>
-                                                    {label}
-                                                </span>
-                                            );
-                                        })() : (
-                                            <span style={{ color: '#cbd5e0' }}>-</span>
-                                        )}
-                                    </td>
-                                    <td style={{ padding: '15px' }}>
-                                        <button
-                                            onClick={() => handleAnalyzeRisk(student)}
-                                            disabled={analyzingRisk[student.id]}
-                                            style={{
-                                                padding: '8px 16px', background: '#6366f1', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem'
-                                            }}
-                                        >
-                                            {analyzingRisk[student.id] ? 'Analyzing...' : 'Predict Risk'}
-                                        </button>
-                                    </td>
                                 </tr>
-                                {riskData[student.id] && (
-                                    <tr>
-                                        <td colSpan="6" style={{ padding: '0 15px 15px 15px', background: '#fff' }}>
-                                            <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                                                <StudentRiskAnalysis riskData={riskData[student.id]} />
-                                            </div>
-                                        </td>
-                                    </tr>
-                                )}
+
                             </React.Fragment>
                         ))}
                     </tbody>
