@@ -167,10 +167,10 @@ exports.createQuiz = async (req, res) => {
 // 7. Assignment Feedback
 exports.getAssignmentFeedback = async (req, res) => {
     try {
-        const { question, answer } = req.body;
+        const { question, answer, plagiarismScore } = req.body;
         if (!question || !answer) return res.status(400).json({ message: "Question and Answer are required." });
 
-        const feedback = await aiService.generateAssignmentFeedback(question, answer);
+        const feedback = await aiService.generateAssignmentFeedback(question, answer, plagiarismScore || 0);
         res.json(feedback);
     } catch (err) {
         res.status(500).json({ message: err.message });

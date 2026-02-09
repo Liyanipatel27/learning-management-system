@@ -1009,12 +1009,15 @@ const SubmissionsModal = ({ assignment, onClose }) => {
 
         if (!answer || answer.length < 10) return alert("Student answer is too short for AI analysis.");
 
+        const plagiarismScore = gradingSubmission.plagiarismResult?.similarityPercentage || 0;
+
         setGeneratingFeedback(true);
         setAiFeedback(null);
         try {
             const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/ai/teacher/feedback`, {
                 question: assignment.description,
-                answer: answer
+                answer: answer,
+                plagiarismScore: plagiarismScore
             });
             setAiFeedback(res.data);
         } catch (err) {

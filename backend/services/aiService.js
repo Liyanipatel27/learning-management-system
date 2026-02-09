@@ -399,23 +399,30 @@ class AIService {
     // ============ TEACHER DASHBOARD FEATURES ============
 
     // Feature 1: Assignment Feedback Generator (Gemini)
-    async generateAssignmentFeedback(assignmentQuestion, studentAnswer) {
+    async generateAssignmentFeedback(assignmentQuestion, studentAnswer, plagiarismScore) {
         const prompt = `Analyze the student's answer for the following question and provide structured feedback.
         
         Question: ${assignmentQuestion}
         Student Answer: ${studentAnswer}
+        Plagiarism Score: ${plagiarismScore}%
+
+        STRICT SCORING RULES BASED ON PLAGIARISM:
+        1. If Plagiarism is 0% (No Risk): Suggested Score MUST be between 90-100.
+        2. If Plagiarism is 1% - 25% (Safe): Suggested Score MUST be between 70-89.
+        3. If Plagiarism is 26% - 50% (Low Risk): Suggested Score MUST be between 50-69.
+        4. If Plagiarism is 51% - 100% (High Risk): Suggested Score MUST be between 0-49. AND "Re-write assignment" MUST be included in 'areasForImprovement'.
 
         Provide feedback in the following JSON format:
         {
-            "score": "A number between 0-100 indicating quality",
-            "strengths": ["List of strong points"],
+            "score": "A number between 0-100 strictly following the rules above",
+            "strengths": ["List of strong points (only if plagiarism is low)"],
             "areasForImprovement": ["List of areas to improve"],
-            "detailedFeedback": "A comprehensive paragraph giving constructive feedback."
+            "detailedFeedback": "A comprehensive paragraph giving constructive feedback. Mention plagiarism impact if score is low."
         }
         Return ONLY valid JSON.`;
 
         try {
-            const response = await this.callAssignmentFeedbackLLM(prompt, "You are a strict but fair academic evaluator.", true);
+            const response = await this.callAssignmentFeedbackLLM(prompt, "You are a strict academic evaluator. You MUST prioritize the Plagiarism Score rules over content quality for the maximum score cap.", true);
             return JSON.parse(response);
         } catch (e) {
             console.error("Assignment Feedback Error:", e);
