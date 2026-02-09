@@ -7,6 +7,9 @@ import 'jspdf-autotable';
 import SummaryWidget from '../components/AI/SummaryWidget';
 
 import ReactMarkdown from 'react-markdown';
+import signatureImg from '../assets/signature.png';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
 
 import AIAssistantSidebar from '../components/AIAssistantSidebar'; // Import the new component
 import StudentAIHub from './StudentAIHub';
@@ -32,6 +35,7 @@ function StudentDashboard() {
     const [dailyHours, setDailyHours] = useState(2);
     const [weekendHours, setWeekendHours] = useState(4);
     const [pendingAssignmentsCount, setPendingAssignmentsCount] = useState(0);
+    const [pendingAssignments, setPendingAssignments] = useState([]);
     const [announcements, setAnnouncements] = useState([]);
 
 
@@ -140,8 +144,9 @@ function StudentDashboard() {
             const submittedAssignmentIds = new Set(subRes.data.map(s => String(s.assignment)));
 
             // Calculate pending: Assignment exists but ID is NOT in submitted set
-            const pendingCount = allAsgns.filter(asgn => !submittedAssignmentIds.has(String(asgn._id))).length;
-            setPendingAssignmentsCount(pendingCount);
+            const pending = allAsgns.filter(asgn => !submittedAssignmentIds.has(String(asgn._id)));
+            setPendingAssignmentsCount(pending.length);
+            setPendingAssignments(pending);
 
         } catch (err) {
             console.error('Error in fetchCourses:', err);
@@ -331,6 +336,9 @@ function StudentDashboard() {
                     />
                 ) : activeTab === 'dashboard' ? (
                     <>
+                        {/* Deadline Warnings */}
+                        {/* Deadline Warnings - Condensed */}
+
                         <section className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
                             {/* Card 1 */}
                             <div style={{ background: 'white', padding: '20px', borderRadius: '15px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
@@ -344,11 +352,63 @@ function StudentDashboard() {
                                 <p style={{ fontSize: '2rem', fontWeight: 'bold', color: '#FF6584' }}>{pendingAssignmentsCount}</p>
                             </div>
 
+                            {/* Deadline Warnings - Card Version */}
+                            {(() => {
+                                const now = new Date();
+                                const urgentAssignments = pendingAssignments.filter(a => {
+                                    const due = new Date(a.dueDate);
+                                    const diffHrs = (due - now) / (1000 * 60 * 60);
+                                    return diffHrs < 48; // Due within 48 hours or overdue
+                                });
+
+                                if (urgentAssignments.length === 0) return null;
+
+                                const overdueCount = urgentAssignments.filter(a => new Date(a.dueDate) < now).length;
+                                const approachingCount = urgentAssignments.length - overdueCount;
+
+                                return (
+                                    <div style={{
+                                        background: '#FFF5F5',
+                                        padding: '20px',
+                                        borderRadius: '15px',
+                                        boxShadow: '0 4px 6px rgba(0,0,0,0.05)',
+                                        border: '1px solid #FED7D7',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        justifyContent: 'space-between'
+                                    }}>
+                                        <div>
+                                            <h3 style={{ color: '#C53030', fontSize: '0.9rem', marginBottom: '5px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                                <span>⚠️</span> Attention Needed
+                                            </h3>
+                                            <p style={{ margin: 0, fontSize: '0.9rem', color: '#2D3748', lineHeight: '1.4' }}>
+                                                <span style={{ fontWeight: 'bold', color: '#E53E3E' }}>{overdueCount} Overdue</span>
+                                                {approachingCount > 0 && <span style={{ fontWeight: 'bold', color: '#D69E2E' }}>, {approachingCount} Due soon</span>}
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={() => { setActiveTab('assignments'); setSelectedCourse(null); }}
+                                            style={{
+                                                marginTop: '15px',
+                                                padding: '8px 12px',
+                                                background: '#C53030',
+                                                color: 'white',
+                                                border: 'none',
+                                                borderRadius: '8px',
+                                                fontWeight: 'bold',
+                                                cursor: 'pointer',
+                                                fontSize: '0.8rem',
+                                                width: '100%'
+                                            }}
+                                        >
+                                            View Assignments &rarr;
+                                        </button>
+                                    </div>
+                                );
+                            })()}
+
                             {/* Card 3 */}
-                            <div style={{ background: 'white', padding: '20px', borderRadius: '15px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
-                                <h3 style={{ color: '#718096', fontSize: '0.9rem', marginBottom: '10px' }}>Attendance</h3>
-                                <p style={{ fontSize: '2rem', fontWeight: 'bold', color: '#38B2AC' }}>95%</p>
-                            </div>
+
 
 
                         </section>
@@ -1542,6 +1602,22 @@ const AssignmentsSection = ({ userId, courses }) => {
                                         Due: {new Date(asgn.dueDate).toLocaleDateString()}
                                     </span>
                                 </div>
+                                {asgn.type === 'coding' && (
+                                    <div style={{
+                                        position: 'absolute',
+                                        top: '60px',
+                                        right: '24px',
+                                        background: '#EEF2FF',
+                                        color: '#4338CA',
+                                        padding: '4px 10px',
+                                        borderRadius: '20px',
+                                        fontSize: '0.75rem',
+                                        fontWeight: 'bold',
+                                        border: '1px solid #C7D2FE'
+                                    }}>
+                                        💻 {asgn.codingDetails?.language?.toUpperCase()}
+                                    </div>
+                                )}
                                 <h3 style={{ margin: '0 0 10px 0' }}>{asgn.title}</h3>
                                 <p style={{ color: '#718096', fontSize: '0.9rem', marginBottom: '20px', minHeight: '40px' }}>{asgn.description}</p>
 
@@ -1586,6 +1662,28 @@ const AssignmentsSection = ({ userId, courses }) => {
                             <button onClick={() => setActiveAssignment(null)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }}>&times;</button>
                         </div>
                         <p style={{ color: '#718096', marginBottom: '24px' }}>{activeAssignment.description}</p>
+
+                        {activeAssignment.type === 'coding' && (
+                            <div style={{
+                                background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
+                                padding: '15px 20px',
+                                borderRadius: '15px',
+                                marginBottom: '24px',
+                                color: 'white',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '15px',
+                                boxShadow: '0 4px 15px rgba(99, 102, 241, 0.3)'
+                            }}>
+                                <div style={{ fontSize: '1.5rem' }}>ℹ️</div>
+                                <div>
+                                    <div style={{ fontWeight: 'bold', fontSize: '1rem' }}>Required Programming Language</div>
+                                    <div style={{ fontSize: '0.9rem', opacity: 0.9 }}>
+                                        Please write your solution in <strong style={{ textDecoration: 'underline' }}>{activeAssignment.codingDetails?.language?.toUpperCase()}</strong> as requested by the instructor.
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
                         {submissions[activeAssignment._id] ? (
                             <div style={{ maxHeight: '70vh', overflowY: 'auto' }}>
@@ -1681,12 +1779,30 @@ const AssignmentsSection = ({ userId, courses }) => {
                                     </div>
                                 ) : (
                                     <div style={{ marginBottom: '24px' }}>
-                                        <label style={{ display: 'block', marginBottom: '10px', fontWeight: 'bold' }}>Code Editor ({activeAssignment.codingDetails?.language})</label>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                                            <label style={{ fontWeight: 'bold' }}>Code Editor</label>
+                                            <div style={{
+                                                background: '#4F46E5',
+                                                color: 'white',
+                                                padding: '5px 12px',
+                                                borderRadius: '8px',
+                                                fontSize: '0.8rem',
+                                                fontWeight: 'bold',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '5px'
+                                            }}>
+                                                Required Language: {activeAssignment.codingDetails?.language?.toUpperCase()}
+                                            </div>
+                                        </div>
                                         <div style={{ background: '#1a202c', padding: '15px', borderRadius: '15px' }}>
                                             <textarea
                                                 value={code}
                                                 readOnly={!!submissions[activeAssignment._id]}
                                                 onChange={(e) => setCode(e.target.value)}
+                                                onCopy={(e) => { e.preventDefault(); alert('Copying is disabled!'); }}
+                                                onPaste={(e) => { e.preventDefault(); alert('Pasting is disabled!'); }}
+                                                onCut={(e) => { e.preventDefault(); alert('Cutting is disabled!'); }}
                                                 style={{
                                                     width: '100%',
                                                     minHeight: '300px',
@@ -1840,7 +1956,7 @@ const ProfileSection = ({ userId }) => {
 
             try {
                 console.log(`[PROFILE] Fetching student profile for: ${userId}`);
-                const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+                const apiUrl = import.meta.env.VITE_API_URL || '${API_URL}';
                 const res = await axios.get(`${apiUrl}/api/auth/profile/${userId}`);
                 console.log('[PROFILE] Data received from API:', res.data);
                 setProfile(res.data);
@@ -2090,7 +2206,7 @@ const LiveClassStudentSection = () => {
     );
 };
 
-const generateCertificate = (studentName, courseName) => {
+const generateCertificate = (studentName, courseName, completionDate) => {
     const doc = new jsPDF({
         orientation: 'landscape',
         unit: 'mm',
@@ -2141,10 +2257,15 @@ const generateCertificate = (studentName, courseName) => {
     // --- Footer & Date ---
     doc.setTextColor(113, 128, 150);
     doc.setFontSize(12);
-    const date = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+    const date = (completionDate ? new Date(completionDate) : new Date()).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
     doc.text(`Issued on: ${date}`, pageWidth / 2, 160, { align: 'center' });
 
     // --- Signature ---
+    try {
+        doc.addImage(signatureImg, 'PNG', pageWidth / 2 - 20, 165, 40, 20);
+    } catch (e) {
+        console.warn('Signature image failed to load', e);
+    }
     doc.setDrawColor(203, 213, 224);
     doc.line(pageWidth / 2 - 30, 185, pageWidth / 2 + 30, 185);
     doc.setFontSize(10);
@@ -2159,6 +2280,8 @@ const generateCertificate = (studentName, courseName) => {
 };
 
 const CertificatesSection = ({ courses, allProgress, user }) => {
+    const [completionDates, setCompletionDates] = useState({});
+
     const checkCompletion = (course) => {
         const progress = allProgress.find(p => p.course.toString() === course._id.toString());
         if (!progress) return 0;
@@ -2190,6 +2313,45 @@ const CertificatesSection = ({ courses, allProgress, user }) => {
         return percent === 100 && course.chapters.flatMap(c => c.modules).length > 0;
     });
 
+    useEffect(() => {
+        const fetchCompletionDates = async () => {
+            const newDates = { ...completionDates };
+            let changed = false;
+
+            for (const course of completedCourses) {
+                // If we already have a date locally, skip
+                if (newDates[course._id]) continue;
+
+                // Check if it's already in allProgress (passed from parent)
+                const progress = allProgress.find(p => p.course.toString() === course._id.toString());
+                if (progress && progress.courseCompletedAt) {
+                    newDates[course._id] = progress.courseCompletedAt;
+                    changed = true;
+                } else {
+                    // Not found, verify with backend (and force calculation/freeze)
+                    try {
+                        const studentId = user.id || user._id;
+                        const res = await axios.put(`${import.meta.env.VITE_API_URL}/api/courses/${course._id}/complete`, { studentId });
+                        if (res.data.isCompleted && res.data.completedAt) {
+                            newDates[course._id] = res.data.completedAt;
+                            changed = true;
+                        }
+                    } catch (err) {
+                        console.error('Error verifying completion:', err);
+                    }
+                }
+            }
+
+            if (changed) {
+                setCompletionDates(newDates);
+            }
+        };
+
+        if (completedCourses.length > 0) {
+            fetchCompletionDates();
+        }
+    }, [completedCourses, allProgress, user]);
+
     return (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '25px' }}>
             {completedCourses.length > 0 ? (
@@ -2211,10 +2373,12 @@ const CertificatesSection = ({ courses, allProgress, user }) => {
                         <div style={{ fontSize: '3rem', marginBottom: '15px' }}>🏆</div>
                         <h3 style={{ margin: '0 0 10px 0', fontSize: '1.2rem', color: '#2d3748' }}>{course.subject}</h3>
                         <p style={{ fontSize: '0.85rem', color: '#718096', marginBottom: '20px' }}>
-                            Congratulations! You have successfully mastered this course.
+                            {completionDates[course._id]
+                                ? `Completed on: ${new Date(completionDates[course._id]).toLocaleDateString('en-GB')}`
+                                : 'Congratulations! You have successfully mastered this course.'}
                         </p>
                         <button
-                            onClick={() => generateCertificate(user.name, course.subject)}
+                            onClick={() => generateCertificate(user.name, course.subject, completionDates[course._id])}
                             style={{
                                 background: '#6C63FF',
                                 color: 'white',
