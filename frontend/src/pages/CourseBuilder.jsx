@@ -250,7 +250,7 @@ const CourseBuilder = ({ teacherId, onCourseCreated, initialCourse }) => {
                                                 </div>
                                             </div>
 
-                                            <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
+                                            <div style={{ display: 'flex', gap: '10px', marginTop: '16px', flexWrap: 'wrap' }}>
                                                 <button
                                                     onClick={() => {
                                                         const questions = module.quiz?.questions || [];
@@ -264,6 +264,57 @@ const CourseBuilder = ({ teacherId, onCourseCreated, initialCourse }) => {
                                                 >
                                                     {module.quiz?.questions?.length > 0 ? `Edit Quiz (${module.quiz.questions.length} Qs)` : '+ Add Quiz'}
                                                 </button>
+
+                                                {/* AI Quiz Generator Button */}
+                                                {module.contents.some(c => c.type === 'pdf') && (
+                                                    <button
+                                                        onClick={async () => {
+                                                            if (!window.confirm("Generate a new quiz from the PDF? This will overwrite any existing quiz for this module.")) return;
+
+                                                            // Find button to show loading state (simple UI hack or use state if refactoring)
+                                                            // ideally use local state, but for quick insertion:
+                                                            const btn = document.getElementById(`gen-btn-${module._id}`);
+                                                            if (btn) { btn.disabled = true; btn.innerText = "Generating... 🤖"; }
+
+                                                            try {
+                                                                const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/courses/${currentCourseId}/chapters/${chapter._id}/modules/${module._id}/generate-quiz`);
+                                                                alert("Quiz Generated Successfully!");
+                                                                // Refresh chapters
+                                                                // We need to fetch the course again or update local state logic
+                                                                // Since we don't have the full course response from this specific endpoint easily mapped to replace just the module without full refresh logic in this component's current structure...
+                                                                // actually the route returns { message, quiz }.
+                                                                // We should probably just refresh the whole course or manually update.
+                                                                // Let's try to just reload the course (CourseBuilder structure is a bit monolithic).
+                                                                // Or simpler: The backend returns "updated course" usually? 
+                                                                // Wait, my new route returns { message, quiz }. 
+                                                                // Let's rely on a full refresh or just update the chapters via a fetch.
+                                                                // Simplest: trigger a parent refresh or fetch course. 
+                                                                // But here we can just fetch the course again.
+                                                                // Re-fetch course:
+                                                                // courseController 'create' returns course. 
+                                                                // let's just use the addChapter endpoint style which returns the updated course? 
+                                                                // No, let's just manually fetch or update state.
+                                                                // Best approach: Update the specific module in state.
+                                                                const updatedQuiz = res.data.quiz;
+                                                                const newChapters = [...chapters];
+                                                                const chIdx = newChapters.findIndex(c => c._id === chapter._id);
+                                                                const mIdx = newChapters[chIdx].modules.findIndex(m => m._id === module._id);
+                                                                newChapters[chIdx].modules[mIdx].quiz = updatedQuiz;
+                                                                setChapters(newChapters);
+
+                                                            } catch (err) {
+                                                                console.error(err);
+                                                                alert("Failed to generate quiz: " + (err.response?.data?.message || err.message));
+                                                            } finally {
+                                                                if (btn) { btn.disabled = false; btn.innerText = "Generate Quiz 🤖"; }
+                                                            }
+                                                        }}
+                                                        id={`gen-btn-${module._id}`}
+                                                        style={{ padding: '8px 16px', background: '#e0e7ff', color: '#4338ca', border: '1px solid #c7d2fe', borderRadius: '10px', fontSize: '0.85rem', fontWeight: 'bold', cursor: 'pointer' }}
+                                                    >
+                                                        Generate Quiz 🤖
+                                                    </button>
+                                                )}
                                             </div>
 
                                             <ContentUploader onUpload={(file, data) => uploadContent(chapter._id, module._id, file, data)} />

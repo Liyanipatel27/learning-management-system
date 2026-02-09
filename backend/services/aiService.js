@@ -113,6 +113,11 @@ class AIService {
         } else if (keyType === 'TeacherQuestion') {
             currentIndexName = 'currentQuestionKeyIndex';
             callCountName = 'questionCallCount';
+        } else if (keyType === 'QuizGenerator') {
+            // Single key, no rotation index needed, but we keep structure
+            currentIndexName = 'currentQuizKeyIndex';
+            callCountName = 'quizGenCallCount';
+            if (this[currentIndexName] === undefined) this[currentIndexName] = 0;
         }
 
         // Rotate Key
@@ -611,6 +616,48 @@ class AIService {
             throw new Error("Failed to generate class insights.");
         }
     }
+
+    // Feature 5: Quiz Generator from PDF (Teacher Dashboard)
+    async generateQuizFromPDF(text, numQuestions = 10, difficultyDistribution = { easy: 30, average: 40, hard: 30 }) {
+        // Use Quiz Generator Key
+        let keys = [process.env.GEMINI_QUIZ_GENERATOR_KEY];
+
+        const prompt = `Generate a quiz based on the following content.
+        
+        Content: ${text.substring(0, 50000)}... (truncated if too long)
+        
+        Requirements:
+        1. Total Questions: ${numQuestions}
+        2. Difficulty Distribution:
+           - Easy: ${difficultyDistribution.easy}%
+           - Average: ${difficultyDistribution.average}%
+           - Hard: ${difficultyDistribution.hard}%
+        3. Format: Multiple Choice Questions (MCQs) only.
+        4. Output JSON format:
+        {
+            "questions": [
+                {
+                    "question": "Question text",
+                    "options": ["Option A", "Option B", "Option C", "Option D"],
+                    "correctAnswerIndex": 0,
+                    "explanation": "Brief explanation of why this is correct",
+                    "difficulty": "easy/medium/hard"
+                }
+            ],
+             "passingScore": 70,
+             "fastTrackScore": 85
+        }
+        
+        Ensure equal distribution of difficulties as requested. Return ONLY valid JSON.`;
+
+        try {
+            return await this._executeGeminiCall(prompt, "You are an expert quiz generator. Return ONLY valid JSON.", true, keys, 'QuizGenerator');
+        } catch (e) {
+            console.error("PDF Quiz Generation Error:", e);
+            throw new Error("Failed to generate quiz from PDF: " + e.message);
+        }
+    }
 }
+
 
 module.exports = new AIService();

@@ -238,6 +238,60 @@ router.post('/:courseId/chapters/:chapterId/modules/:moduleId/quiz', async (req,
     }
 });
 
+// Generate Quiz from Module Content (PDF)
+router.post('/:courseId/chapters/:chapterId/modules/:moduleId/generate-quiz', async (req, res) => {
+    try {
+        const course = await Course.findById(req.params.courseId);
+        if (!course) return res.status(404).json({ message: 'Course not found' });
+
+        const chapter = course.chapters.id(req.params.chapterId);
+        if (!chapter) return res.status(404).json({ message: 'Chapter not found' });
+
+        const module = chapter.modules.id(req.params.moduleId);
+        if (!module) return res.status(404).json({ message: 'Module not found' });
+
+        // Find PDF content
+        const pdfContent = module.contents.find(c => c.type === 'pdf' && c.url);
+        if (!pdfContent) {
+            return res.status(400).json({ message: 'No PDF content found in this module.' });
+        }
+
+        console.log(`Generating quiz for module: ${module.title} from PDF: ${pdfContent.originalName}`);
+
+        // Download PDF
+        const response = await axios.get(pdfContent.url, { responseType: 'arraybuffer' });
+        const buffer = Buffer.from(response.data, 'binary');
+
+        // Extract Text
+        const data = await pdfParse(buffer);
+        const extractedText = data.text;
+
+        if (!extractedText || extractedText.length < 50) {
+            return res.status(400).json({ message: 'Could not extract sufficient text from the PDF.' });
+        }
+
+        // Generate Quiz
+        const aiService = require('../services/aiService');
+        const quizData = await aiService.generateQuizFromPDF(extractedText);
+
+        // Update Module
+        module.quiz = {
+            questions: quizData.questions,
+            passingScore: quizData.passingScore || 70,
+            fastTrackScore: quizData.fastTrackScore || 85
+        };
+
+        // Save Course
+        await course.save();
+
+        res.json({ message: 'Quiz generated successfully', quiz: module.quiz });
+
+    } catch (err) {
+        console.error('Quiz Generation Route Error:', err);
+        res.status(500).json({ message: 'Failed to generate quiz: ' + err.message });
+    }
+});
+
 // Create a new course
 // Create or Find a course (Subject based)
 router.post('/create', async (req, res) => {
