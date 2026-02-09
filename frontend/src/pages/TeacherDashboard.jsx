@@ -1382,15 +1382,40 @@ const StudentsSection = () => {
                                     </td>
                                     <td style={{ padding: '15px', fontWeight: 'bold' }}>{student.avgScore}%</td>
                                     <td style={{ padding: '15px' }}>
-                                        {riskData[student.id] ? (
-                                            <span style={{
-                                                padding: '4px 12px', borderRadius: '20px', fontWeight: 'bold', fontSize: '0.85rem',
-                                                background: riskData[student.id].riskLevel === 'High' ? '#fee2e2' : riskData[student.id].riskLevel === 'Medium' ? '#fef3c7' : '#dcfce7',
-                                                color: riskData[student.id].riskLevel === 'High' ? '#991b1b' : riskData[student.id].riskLevel === 'Medium' ? '#92400e' : '#166534'
-                                            }}>
-                                                {riskData[student.id].riskLevel} Risk
-                                            </span>
-                                        ) : (
+                                        {riskData[student.id] ? (() => {
+                                            const percent = riskData[student.id].copyLikelihood || riskData[student.id].riskScore || 0;
+                                            let label = 'No Risk';
+                                            let bg = '#f1f5f9'; // slate-100
+                                            let color = '#000000';
+
+                                            if (percent === 0) {
+                                                label = 'No Risk';
+                                                bg = '#f1f5f9';
+                                                color = '#000000';
+                                            } else if (percent <= 25) {
+                                                label = 'Safe';
+                                                bg = '#dcfce7'; // green-100
+                                                color = '#166534'; // green-800
+                                            } else if (percent <= 50) {
+                                                label = 'Low Risk';
+                                                bg = '#fef9c3'; // yellow-100
+                                                color = '#854d0e'; // yellow-800
+                                            } else {
+                                                label = 'High Risk';
+                                                bg = '#fee2e2'; // red-100
+                                                color = '#991b1b'; // red-800
+                                            }
+
+                                            return (
+                                                <span style={{
+                                                    padding: '4px 12px', borderRadius: '20px', fontWeight: 'bold', fontSize: '0.85rem',
+                                                    background: bg,
+                                                    color: color
+                                                }}>
+                                                    {label}
+                                                </span>
+                                            );
+                                        })() : (
                                             <span style={{ color: '#cbd5e0' }}>-</span>
                                         )}
                                     </td>

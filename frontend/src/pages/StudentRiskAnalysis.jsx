@@ -15,9 +15,10 @@ const StudentRiskAnalysis = ({ riskData }) => {
 
     // Colors based on the user's image style (Orange/Yellow for AI/Copy, Blue/Grey for Human/Own)
     const getRiskColor = (percent) => {
-        if (percent > 70) return '#facc15'; // Yellow/Orange (High Copy)
-        if (percent > 40) return '#fbbf24'; // Medium
-        return '#10b981'; // Green (Low Copy / Safe)
+        if (percent === 0) return '#000000'; // No Risk (Black)
+        if (percent <= 25) return '#10b981'; // Safe (Green)
+        if (percent <= 50) return '#eab308'; // Low Risk (Yellow - slightly darker for visibility)
+        return '#ef4444'; // High Risk (Red)
     };
 
     const riskColor = getRiskColor(copyPercent);
@@ -45,7 +46,7 @@ const StudentRiskAnalysis = ({ riskData }) => {
 
             {/* Main Percentage Display */}
             <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-                <h1 style={{ fontSize: '4rem', fontWeight: '800', color: '#1e3a8a', margin: 0, lineHeight: 1 }}>
+                <h1 style={{ fontSize: '4rem', fontWeight: '800', color: riskColor, margin: 0, lineHeight: 1 }}>
                     {copyPercent}%
                 </h1>
                 <p style={{ fontSize: '1.2rem', color: '#475569', margin: '5px 0 20px 0' }}>
