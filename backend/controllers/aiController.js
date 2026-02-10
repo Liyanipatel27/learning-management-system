@@ -5,10 +5,13 @@ const Progress = require('../models/Progress');
 // 1. Generate Summary
 exports.getSummary = async (req, res) => {
     try {
-        const { content, type } = req.body;
-        if (!content) return res.status(400).json({ message: "Content is required" });
+        const { content, type, fileUrl } = req.body;
+        // Functionality: If fileUrl is provided, use it as content
+        const finalContent = fileUrl || content;
 
-        const summary = await aiService.generateSubjectSummary(content, type || 'text');
+        if (!finalContent) return res.status(400).json({ message: "Content or File URL is required" });
+
+        const summary = await aiService.generateSubjectSummary(finalContent, type || 'text');
         res.json({ summary });
     } catch (err) {
         res.status(500).json({ message: err.message });
@@ -129,8 +132,13 @@ exports.analyzePerformanceNew = async (req, res) => {
 };
 exports.chatWithAI = async (req, res) => {
     try {
-        const { message, history, studentLevel } = req.body;
-        const response = await aiService.chat(message, history || [], studentLevel || 'Average');
+        const { message, history, studentLevel, fileUrl, context } = req.body;
+        // Determine context source
+        const contextData = fileUrl || context;
+
+        // Use resolveDoubt if context is present, otherwise fallback to chat (which also calls resolveDoubt now but without context)
+        // But better to call resolveDoubt directly to be explicit
+        const response = await aiService.resolveDoubt(message, history || [], contextData, studentLevel || 'Average');
         res.json({ response });
     } catch (err) {
         res.status(500).json({ message: err.message });
@@ -154,8 +162,11 @@ exports.generateStudyNotes = async (req, res) => {
 // 6. Generate Quiz
 exports.createQuiz = async (req, res) => {
     try {
-        const { subject, topic, difficulty } = req.body;
-        const quiz = await aiService.generateQuiz(subject, topic, difficulty || 'medium');
+        const { subject, topic, difficulty, content, fileUrl } = req.body;
+        // Prioritize fileUrl if available
+        const contextData = fileUrl || content;
+
+        const quiz = await aiService.generateQuiz(subject, topic, difficulty || 'medium', contextData);
         res.json(quiz);
     } catch (err) {
         res.status(500).json({ message: err.message });

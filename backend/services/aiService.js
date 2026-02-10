@@ -1,5 +1,9 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const OpenAI = require('openai');
+const axios = require('axios');
+const pdfParse = require('pdf-parse');
+const fs = require('fs');
+const path = require('path');
 
 class AIService {
     constructor() {
@@ -57,6 +61,45 @@ class AIService {
             this.teacherPerformanceKeys = process.env.TEACHER_PERFORMANCE_OPENAI_KEYS.split(',').map(k => k.trim()).filter(k => k);
         } else {
             this.teacherPerformanceKeys = [];
+        }
+    }
+
+    // ============ HELPER METHODS ============
+    async getTextFromPDF(url) {
+        try {
+            let dataBuffer;
+
+            // Check if it's a local file URL (e.g., /uploads/...) or localhost URL
+            const isLocalUpload = url.includes('/uploads/');
+
+            if (isLocalUpload) {
+                // Extract filename from URL
+                const filename = url.split('/uploads/').pop();
+                // Construct absolute path (assuming aiService is in backend/services and uploads is in backend/uploads)
+                const filePath = path.join(__dirname, '..', 'uploads', filename); // Decoded automatically by path join? No, need to decode URI components
+                const decodedPath = decodeURI(filePath);
+
+                console.log(`Reading local PDF from disk: ${decodedPath}`);
+
+                if (fs.existsSync(decodedPath)) {
+                    dataBuffer = fs.readFileSync(decodedPath);
+                } else {
+                    console.warn(`Local file not found at ${decodedPath}, falling back to network request.`);
+                    const response = await axios.get(url, { responseType: 'arraybuffer' });
+                    dataBuffer = response.data;
+                }
+            } else {
+                // External URL
+                console.log(`Fetching remote PDF: ${url}`);
+                const response = await axios.get(url, { responseType: 'arraybuffer' });
+                dataBuffer = response.data;
+            }
+
+            const data = await pdfParse(dataBuffer);
+            return data.text;
+        } catch (error) {
+            console.error("Error extracting text from PDF:", error.message);
+            throw new Error(`Failed to extract text from PDF: ${error.message}`);
         }
     }
 
@@ -164,9 +207,27 @@ class AIService {
     // ============ FEATURE METHODS ============
 
     // Feature 1: Subject & Video Summaries
+    // Feature 1: Subject & Video Summaries
     async generateSubjectSummary(content, type) {
-        const prompt = `Analyze the following ${type} content and generate a concise summary with bullet points. 
-        Content: ${content.substring(0, 10000)}... (truncated if too long)`;
+        let textToAnalyze = content;
+
+        if (type === 'pdf' || (typeof content === 'string' && content.startsWith('http') && content.endsWith('.pdf'))) {
+            console.log("Detected PDF URL. Extracting text...");
+            try {
+                textToAnalyze = await this.getTextFromPDF(content);
+                // Sanitize text: remove excessive newlines and spaces
+                textToAnalyze = textToAnalyze.replace(/\n\s*\n/g, '\n').replace(/\s+/g, ' ');
+
+                // Truncate to avoid token limits (max ~30k chars for safety, though 1.5 flash handles more)
+                if (textToAnalyze.length > 50000) textToAnalyze = textToAnalyze.substring(0, 50000);
+            } catch (e) {
+                console.error("PDF Text Extraction Failed:", e);
+                return "Failed to extract text from the PDF document. Please check if the URL is accessible.";
+            }
+        }
+
+        const prompt = `Analyze the following content and generate a concise summary with bullet points. 
+        Content: ${textToAnalyze.substring(0, 20000)}... (truncated if too long)`;
 
         return await this.callLLM(prompt, "You are an expert educational assistant. Summarize the content clearly/concisely.");
     }
@@ -356,13 +417,39 @@ class AIService {
     }
 
     // Feature 4: AI Tutor Chat
+    // Feature 4: AI Tutor Chat / Doubt Solver
     async chat(message, history, studentLevel) {
+        // ... (existing chat logic if needed, but we are adding resolveDoubt)
+        return this.resolveDoubt(message, history, null, studentLevel);
+    }
+
+    async resolveDoubt(question, history = [], contextUrl = null, studentLevel = 'Average') {
+        let contextText = "";
+        if (contextUrl && contextUrl.startsWith('http')) {
+            try {
+                if (contextUrl.endsWith('.pdf')) {
+                    contextText = await this.getTextFromPDF(contextUrl);
+                } else {
+                    // Assume it's a regular text file or handled otherwise, for now just skip or fetch text
+                    // contextText = await axios.get(contextUrl).then(r => r.data); 
+                }
+                if (contextText.length > 30000) contextText = contextText.substring(0, 30000);
+            } catch (e) {
+                console.error("Context extraction failed:", e);
+            }
+        }
+
         let systemPrompt = "You are a helpful AI tutor.";
+        if (contextText) {
+            systemPrompt += ` Answer the student's question MAINLY based on the provided context. If the answer is not in the context, use your general knowledge but mention that it's outside the context.
+            Context: ${contextText}`;
+        }
+
         if (studentLevel === 'Low') systemPrompt += " Explain things simply with many examples.";
         if (studentLevel === 'High') systemPrompt += " Be concise and challenge the student with advanced concepts.";
 
         const historyContext = history.map(h => `${h.role}: ${h.content}`).join('\n');
-        const prompt = `History:\n${historyContext}\n\nStudent: ${message}`;
+        const prompt = `History:\n${historyContext}\n\nStudent: ${question}`;
 
         return await this.callLLM(prompt, systemPrompt);
     }
@@ -379,8 +466,32 @@ class AIService {
     }
 
     // Feature 6: Quiz Generator
-    async generateQuiz(subject, topic, difficulty) {
-        const prompt = `Generate a quiz for ${subject} - ${topic} at ${difficulty} level.
+    async generateQuiz(subject, topic, difficulty, content = null) {
+        let prompt = "";
+
+        if (content) {
+            let textContext = content;
+            if (content.startsWith('http') && content.endsWith('.pdf')) {
+                try {
+                    textContext = await this.getTextFromPDF(content);
+                    if (textContext.length > 30000) textContext = textContext.substring(0, 30000);
+                } catch (e) {
+                    console.error("Failed to extract PDF for quiz:", e);
+                }
+            }
+
+            prompt = `Generate a quiz based on the following content context:
+             "${textContext.substring(0, 10000)}..."
+             
+             Subject: ${subject}
+             Topic: ${topic}
+             Difficulty: ${difficulty}`;
+        } else {
+            prompt = `Generate a quiz for ${subject} - ${topic} at ${difficulty} level.`;
+        }
+
+        prompt += `
+        Output ONLY valid JSON with 5 questions:
         Output ONLY valid JSON with 5 questions:
         {
             "questions": [
