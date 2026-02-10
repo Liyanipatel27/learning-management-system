@@ -206,7 +206,122 @@ const AIAssistantSidebar = ({ content, activeFeature, aiSummary, setAiSummary, i
                                 fontSize: '0.9rem',
                                 lineHeight: '1.5'
                             }}>
-                                <ReactMarkdown>{msg.content}</ReactMarkdown>
+                                {/* Improved Markdown Rendering with Preprocessing */}
+                                <ReactMarkdown
+                                    components={{
+                                        h1: ({ node, ...props }) => <h1 style={{
+                                            color: '#1a202c',
+                                            fontSize: '1.75rem',
+                                            fontWeight: 'bold',
+                                            margin: '32px 0 16px 0',
+                                            fontFamily: 'Inter, sans-serif'
+                                        }} {...props} />,
+                                        h2: ({ node, ...props }) => <h2 style={{
+                                            color: '#2d3748',
+                                            fontSize: '1.5rem',
+                                            fontWeight: 'bold',
+                                            margin: '24px 0 12px 0',
+                                            borderBottom: '2px solid #e2e8f0',
+                                            paddingBottom: '8px'
+                                        }} {...props} />,
+                                        h3: ({ node, ...props }) => <h3 style={{
+                                            background: '#F3F0FF',
+                                            color: '#6C63FF',
+                                            padding: '10px 16px',
+                                            borderRadius: '8px',
+                                            fontWeight: '700',
+                                            marginTop: '20px',
+                                            marginBottom: '16px',
+                                            display: 'block',
+                                            width: 'fit-content',
+                                            fontSize: '1.1rem',
+                                            boxShadow: '0 2px 4px rgba(108, 99, 255, 0.1)'
+                                        }} {...props} />,
+                                        ul: ({ node, ...props }) => <ul style={{
+                                            paddingLeft: '28px',
+                                            marginBottom: '16px',
+                                            listStyleType: 'disc'
+                                        }} {...props} />,
+                                        ol: ({ node, ...props }) => <ol style={{
+                                            paddingLeft: '28px',
+                                            marginBottom: '16px',
+                                            listStyleType: 'decimal'
+                                        }} {...props} />,
+                                        li: ({ node, ...props }) => <li style={{
+                                            marginBottom: '10px',
+                                            color: '#2d3748',
+                                            lineHeight: '1.7',
+                                            fontSize: '0.95rem',
+                                            paddingLeft: '4px'
+                                        }} {...props} />,
+                                        p: ({ node, ...props }) => <p style={{
+                                            marginBottom: '14px',
+                                            lineHeight: '1.7',
+                                            color: '#4a5568',
+                                            fontSize: '0.95rem'
+                                        }} {...props} />,
+                                        strong: ({ node, ...props }) => <strong style={{
+                                            color: '#553C9A',
+                                            fontWeight: '700'
+                                        }} {...props} />,
+                                        em: ({ node, ...props }) => <em style={{
+                                            color: '#d53f8c',
+                                            fontStyle: 'italic'
+                                        }} {...props} />,
+                                        blockquote: ({ node, ...props }) => <blockquote style={{
+                                            borderLeft: '4px solid #6C63FF',
+                                            padding: '12px 16px',
+                                            color: '#718096',
+                                            fontStyle: 'italic',
+                                            margin: '16px 0',
+                                            background: '#f7fafc',
+                                            borderRadius: '4px'
+                                        }} {...props} />,
+                                        code: ({ node, inline, ...props }) =>
+                                            inline
+                                                ? <code style={{
+                                                    background: '#EDF2F7',
+                                                    color: '#C53030',
+                                                    padding: '3px 6px',
+                                                    borderRadius: '4px',
+                                                    fontSize: '0.9em',
+                                                    fontFamily: 'monospace'
+                                                }} {...props} />
+                                                : <code style={{
+                                                    display: 'block',
+                                                    background: '#1A202C',
+                                                    color: '#E2E8F0',
+                                                    padding: '16px',
+                                                    borderRadius: '8px',
+                                                    overflowX: 'auto',
+                                                    margin: '12px 0',
+                                                    fontSize: '0.9em',
+                                                    fontFamily: 'monospace',
+                                                    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)'
+                                                }} {...props} />
+                                    }}
+                                >
+                                    {(() => {
+                                        if (!msg.content) return "";
+                                        let clean = msg.content;
+                                        // Fix common AI formatting issues
+                                        clean = clean.replace(/\\n/g, '\n'); // Handle escaped newlines
+
+                                        // Force double newlines before headers to ensure they break out of paragraphs
+                                        clean = clean.replace(/([^\n])\s*(#{1,3})\s/g, '$1\n\n$2 ');
+
+                                        // Ensure bullet points are on their own lines with preceding newline
+                                        clean = clean.replace(/([^\n])\s*(\*|-)\s/g, '$1\n$2 ');
+
+                                        // Ensure numbered lists are on their own lines
+                                        clean = clean.replace(/([^\n])\s*(\d+\.)\s/g, '$1\n$2 ');
+
+                                        // Clean up any unnecessary whitespace
+                                        clean = clean.replace(/\n\s+\n/g, '\n\n');
+
+                                        return clean;
+                                    })()}
+                                </ReactMarkdown>
                             </div>
                         ))}
                         {isSendingDoubt && (

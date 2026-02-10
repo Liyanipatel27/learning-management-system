@@ -7,19 +7,50 @@ const path = require('path');
 
 
 const SYSTEM_INSTRUCTION_CONFIG = `
-You are an expert AI Tutor and Educational Assistant.
-Your responses must be highly structured and strictly follow these formatting rules:
-1.  **Tone**: Professional, encouraging, and educational.
-2.  **Structure**: ALWAYS use bullet points (*) or numbered lists (1., 2., 3.) for your main content.
-3.  **Hierarchy**: Use Markdown headers (## or ###) to separate different sections.
-4.  **Emphasis**: Use **bold** text for key terms, important concepts, and takeaways.
-5.  **Paragraphs**: Avoid long paragraphs. Keep explanations to a maximum of 2 sentences per paragraph within your points.
-6.  **Clarity**: Break down complex answers into logical steps or points.
+You are an expert AI Tutor inside a Student Learning Dashboard.
+Your responses must be extremely professional, visually structured, and easy to read.
 
-Never provide a single long block of text. Always format for maximum readability.
+### 🚫 STRICT PROHIBITIONS:
+1.  **NO LONG PARAGRAPHS.** (Max 2 lines per block).
+2.  **NO ESSAY-STYLE TEXT.**
+3.  **NO GENERIC INTROS** (e.g., "Here is the explanation..."). Start directly with the content.
+
+### ✅ MANDATORY FORMATTING RULES:
+1.  **USE MARKDOWN HEADERS** (###) for every distinct section.
+2.  **USE BULLET POINTS** (-) for 90% of the content.
+3.  **USE BOLD** (**text**) for key terms and important concepts.
+4.  **USE NUMBERED LISTS** (1., 2., 3.) for sequences, steps, or processes.
+5.  **USE EMOJIS** to make headers and key points engaging.
+6.  **USE TABLES** if comparing two things.
+
+---
+
+### 📝 RESPONSE STRUCTURE (Follow this exactly):
+
+### 🎯 **Concept Overview**
+*   Define the concept in 1 concise bullet point.
+*   Explain "Why it matters" in 1 concise bullet point.
+
+### 🪜 **Step-by-Step Explanation** (Use Numbered List)
+1.  **Step 1:** Detailed but concise explanation.
+2.  **Step 2:** Detailed but concise explanation.
+3.  **Step 3:** ... (continue as needed).
+
+### 🔑 **Key Features / Points**
+*   **Feature 1:** Explanation.
+*   **Feature 2:** Explanation.
+*   **Feature 3:** Explanation.
+
+### 💡 **Real-World Example**
+*   Provide a simple, relatable example or code snippet if applicable.
+
+### ✅ **Summary**
+*   One sentence takeaway.
+
+---
 `;
 
-const FORMATTING_SUFFIX = "\n\nIMPORTANT: Format your response using clean bullet points and step-by-step structure. Avoid long paragraphs.";
+const FORMATTING_SUFFIX = "\n\nIMPORTANT: FORCE the output into the 'RESPONSE STRUCTURE' defined above. Use ### Headers, Bullet points, and **Bold** text. DO NOT WRITE PARAGRAPHS.";
 
 class AIService {
     constructor() {
@@ -124,8 +155,8 @@ class AIService {
         if (!keys || keys.length === 0) return null;
         const key = keys[keyIndex];
         const genAI = new GoogleGenerativeAI(key);
-        // Using gemini-2.5-flash model which is available and supported
-        const modelParams = { model: "gemini-2.5-flash" };
+        // Using gemini-pro model which is widely available and stable
+        const modelParams = { model: "gemini-pro" };
         if (systemInstruction) {
             modelParams.systemInstruction = systemInstruction;
         }
@@ -163,7 +194,10 @@ class AIService {
 
     // Unified Gemini Execution Logic
     async _executeGeminiCall(prompt, systemInstruction, jsonMode, keys, keyType) {
-        if (!keys || keys.length === 0) throw new Error(`No ${keyType} Gemini API keys configured.`);
+        if (!keys || keys.length === 0) {
+            console.warn(`No ${keyType} Gemini API keys configured. Using fallback response.`);
+            return this.getFallbackResponse(prompt, jsonMode);
+        }
 
         // Merge Global Instruction with specific instruction
         let combinedSystemInstruction = SYSTEM_INSTRUCTION_CONFIG;
@@ -231,11 +265,23 @@ class AIService {
                 // Add delay between retries
                 await new Promise(resolve => setTimeout(resolve, 1000));
             }
-
-            // Fallback Logic (simplified from original)
-            console.log(`All ${keyType} Gemini API keys exhausted.`);
-            throw new Error(`All ${keyType} Gemini keys failed.`);
         }
+
+        // Fallback Logic when all keys fail
+        console.log(`All ${keyType} Gemini API keys exhausted. Using fallback response.`);
+        return this.getFallbackResponse(prompt, jsonMode);
+    }
+
+    // Fallback response generator for when AI API fails
+    getFallbackResponse(prompt, jsonMode) {
+        if (jsonMode) {
+            return JSON.stringify({
+                message: "Sorry, I'm having trouble processing your request right now. Please try again later.",
+                fallback: true
+            });
+        }
+
+        return "### 🎯 AI Service Unavailable\n\n- I'm having trouble connecting to the AI service right now.\n- Please check your internet connection and try again in a few moments.\n- If the problem persists, the AI service might be temporarily unavailable.\n\n### ✅ Suggestions\n- Try rephrasing your question\n- Check your internet connection\n- Wait a minute and try again";
     }
 
     // ============ FEATURE METHODS ============
@@ -473,19 +519,120 @@ class AIService {
             }
         }
 
-        let systemPrompt = "You are a helpful AI tutor.";
+        let systemPrompt = "You are an expert AI Tutor. Your responses must be extremely professional, visually structured, and easy to read. STRICTLY follow these rules:\n\n";
+        systemPrompt += "🚫 PROHIBITIONS:\n";
+        systemPrompt += "1. NO LONG PARAGRAPHS (Max 2 lines per block)\n";
+        systemPrompt += "2. NO ESSAY-STYLE TEXT\n";
+        systemPrompt += "3. NO GENERIC INTROS (e.g., 'Here is the explanation...')\n\n";
+        systemPrompt += "✅ MANDATORY FORMATTING:\n";
+        systemPrompt += "1. USE MARKDOWN HEADERS (###) for every distinct section\n";
+        systemPrompt += "2. USE BULLET POINTS (-) for 90% of content\n";
+        systemPrompt += "3. USE BOLD (**text**) for key terms\n";
+        systemPrompt += "4. USE NUMBERED LISTS (1., 2., 3.) for steps/processes\n";
+        systemPrompt += "5. USE EMOJIS to make headers engaging\n\n";
+        systemPrompt += "📝 RESPONSE STRUCTURE (FOLLOW EXACTLY):\n";
+        systemPrompt += "### 🎯 Concept Overview\n";
+        systemPrompt += "- Define the concept in 1 concise bullet point\n";
+        systemPrompt += "- Explain 'Why it matters' in 1 concise bullet point\n\n";
+        systemPrompt += "### 🪜 Step-by-Step Explanation\n";
+        systemPrompt += "1. **Step 1:** Detailed but concise explanation\n";
+        systemPrompt += "2. **Step 2:** Detailed but concise explanation\n";
+        systemPrompt += "3. **Step 3:** ... (continue as needed)\n\n";
+        systemPrompt += "### 🔑 Key Features / Points\n";
+        systemPrompt += "- **Feature 1:** Explanation\n";
+        systemPrompt += "- **Feature 2:** Explanation\n\n";
+        systemPrompt += "### 💡 Real-World Example\n";
+        systemPrompt += "- Provide a simple, relatable example or code snippet\n\n";
+        systemPrompt += "### ✅ Summary\n";
+        systemPrompt += "- One sentence takeaway\n\n";
+
         if (contextText) {
-            systemPrompt += ` Answer the student's question MAINLY based on the provided context. If the answer is not in the context, use your general knowledge but mention that it's outside the context.
-            Context: ${contextText}`;
+            systemPrompt += `SOURCE MATERIAL (Answer based on this, but KEEP THE STRICT FORMAT):\n${contextText}\n\nIf the answer is not in the source material, use general knowledge but mention it.\n\n`;
         }
 
-        if (studentLevel === 'Low') systemPrompt += " Explain things simply with many examples.";
-        if (studentLevel === 'High') systemPrompt += " Be concise and challenge the student with advanced concepts.";
+        if (studentLevel === 'Low') systemPrompt += "ADAPTATION: Explain simply with examples, BUT MAINTAIN THE STRICT STRUCTURE.\n";
+        if (studentLevel === 'High') systemPrompt += "ADAPTATION: Be concise and advanced, BUT MAINTAIN THE STRICT STRUCTURE.\n";
 
         const historyContext = history.map(h => `${h.role}: ${h.content}`).join('\n');
-        const prompt = `History:\n${historyContext}\n\nStudent: ${question}${FORMATTING_SUFFIX}`;
+        const prompt = `History:\n${historyContext}\n\nStudent: ${question}\n\nIMPORTANT: FORCE the output into the 'RESPONSE STRUCTURE' defined above. Use ### Headers, Bullet points, and **Bold** text. DO NOT WRITE PARAGRAPHS.`;
 
-        return await this.callLLM(prompt, systemPrompt);
+        // First try OpenAI with timeout, then fall back to simple responses
+        try {
+            const openAIResult = await Promise.race([
+                this.callOpenAI(prompt, systemPrompt),
+                new Promise((_, reject) => setTimeout(() => reject(new Error("OpenAI timeout")), 15000))
+            ]);
+            return openAIResult;
+        } catch (openaiError) {
+            console.error("OpenAI fallback failed:", openaiError.message);
+            // If OpenAI fails or times out, use simple fallback responses
+            return this.getSimpleFallbackResponse(question);
+        }
+    }
+
+    // OpenAI API call method
+    async callOpenAI(prompt, systemPrompt) {
+        let openAIKeys = [];
+        if (process.env.TEACHER_RISK_OPENAI_KEYS) {
+            openAIKeys = process.env.TEACHER_RISK_OPENAI_KEYS.split(',').map(k => k.trim()).filter(k => k);
+        }
+        if (process.env.TEACHER_PERFORMANCE_OPENAI_KEYS) {
+            openAIKeys = [...openAIKeys, ...process.env.TEACHER_PERFORMANCE_OPENAI_KEYS.split(',').map(k => k.trim()).filter(k => k)];
+        }
+        if (process.env.OPENAI_API_KEY) {
+            openAIKeys.push(process.env.OPENAI_API_KEY.trim());
+        }
+
+        if (openAIKeys.length === 0) {
+            throw new Error("No OpenAI API keys configured");
+        }
+
+        const randomKey = openAIKeys[Math.floor(Math.random() * openAIKeys.length)];
+        const openai = new OpenAI({ apiKey: randomKey });
+
+        try {
+            const completion = await openai.chat.completions.create({
+                messages: [
+                    { role: "system", content: systemPrompt },
+                    { role: "user", content: prompt }
+                ],
+                model: "gpt-3.5-turbo",
+                timeout: 10000 // 10 second timeout
+            });
+
+            return completion.choices[0].message.content;
+        } catch (error) {
+            console.error("OpenAI API Error:", error);
+            throw new Error("OpenAI API failed to respond");
+        }
+    }
+
+    // Simple fallback responses based on question keywords
+    getSimpleFallbackResponse(question) {
+        const q = question.toLowerCase();
+
+        if (q.includes('hello') || q.includes('hi')) {
+            return "### 🎯 Hello!\n\n- I'm your AI Tutor, ready to help with your studies!\n\n### ✅ How I can assist\n- Explain complex concepts\n- Help with homework\n- Answer questions\n- Provide study tips\n\nJust ask me anything!";
+        }
+
+        if (q.includes('explain') || q.includes('what is')) {
+            return "### 🎯 Concept Explanation\n\n- I can help you understand this concept\n- Let me break it down step by step\n\n### 🪜 How it works\n1. **First, I need to understand your question better**\n2. **Then I'll explain with examples**\n3. **We'll practice together if you want**\n\n### ✅ Ready to start?\nAsk me to explain specific topics like \"photosynthesis\", \"calculus\", or \"history of India\"!";
+        }
+
+        if (q.includes('help') || q.includes('need')) {
+            return "### 🎯 I'm here to help!\n\n- Tell me what you need assistance with\n- I can explain concepts, solve problems, or check your work\n\n### 🔑 Common topics I help with:\n- Math problems\n- Science concepts  \n- History facts\n- Language learning\n- Test preparation\n\n### ✅ Just ask\nWhat specific help do you need today?";
+        }
+
+        if (q.includes('math') || q.includes('calculus') || q.includes('algebra')) {
+            return "### 🎯 Math Help\n\n- I can help with various math topics\n- Let's break down problems step by step\n\n### 🔑 Topics I can help with:\n- Algebra (equations, functions)\n- Geometry (shapes, theorems)\n- Calculus (derivatives, integrals)\n- Statistics and probability\n\n### ✅ Example questions\n\"Solve for x: 2x + 5 = 15\"\n\"Explain the Pythagorean theorem\"\n\"What is the derivative of x²?\"";
+        }
+
+        if (q.includes('science') || q.includes('physics') || q.includes('chemistry') || q.includes('biology')) {
+            return "### 🎯 Science Help\n\n- I can explain various scientific concepts\n- From physics to biology, chemistry to earth science\n\n### 🔑 Topics I cover:\n- Physics (motion, energy, forces)\n- Chemistry (atoms, reactions, periodic table)\n- Biology (cells, genetics, ecosystems)\n- Earth science (weather, rocks, space)\n\n### ✅ Example questions\n\"Explain photosynthesis\"\n\"How does gravity work?\"\n\"What is the water cycle?\"";
+        }
+
+        // Default response for other questions
+        return "### 🎯 I'm ready to help!\n\n- I can help you with various subjects and topics\n- My expertise includes math, science, history, and more\n\n### ✅ How to use me\n1. Ask a specific question\n2. I'll explain with examples\n3. We can practice together\n\n### 💡 Try asking\n\"Explain photosynthesis in plants\"\n\"Solve this math problem: 2+2×2\"\n\"What happened in the American Revolution?\"\n\nWhat would you like to learn today?";
     }
 
     // Feature 5: Grade-Based Notes
