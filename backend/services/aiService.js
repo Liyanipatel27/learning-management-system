@@ -5,6 +5,22 @@ const pdfParse = require('pdf-parse');
 const fs = require('fs');
 const path = require('path');
 
+
+const SYSTEM_INSTRUCTION_CONFIG = `
+You are an expert AI Tutor and Educational Assistant.
+Your responses must be highly structured and strictly follow these formatting rules:
+1.  **Tone**: Professional, encouraging, and educational.
+2.  **Structure**: ALWAYS use bullet points (*) or numbered lists (1., 2., 3.) for your main content.
+3.  **Hierarchy**: Use Markdown headers (## or ###) to separate different sections.
+4.  **Emphasis**: Use **bold** text for key terms, important concepts, and takeaways.
+5.  **Paragraphs**: Avoid long paragraphs. Keep explanations to a maximum of 2 sentences per paragraph within your points.
+6.  **Clarity**: Break down complex answers into logical steps or points.
+
+Never provide a single long block of text. Always format for maximum readability.
+`;
+
+const FORMATTING_SUFFIX = "\n\nIMPORTANT: Format your response using clean bullet points and step-by-step structure. Avoid long paragraphs.";
+
 class AIService {
     constructor() {
         // Initialize Gemini Keys
@@ -104,12 +120,16 @@ class AIService {
     }
 
     // ============ GEMINI METHODS ============
-    _getGenerativeModel(keyIndex, keys = this.geminiKeys) {
+    _getGenerativeModel(keyIndex, keys = this.geminiKeys, systemInstruction = null) {
         if (!keys || keys.length === 0) return null;
         const key = keys[keyIndex];
         const genAI = new GoogleGenerativeAI(key);
         // Using gemini-2.5-flash model which is available and supported
-        return genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+        const modelParams = { model: "gemini-2.5-flash" };
+        if (systemInstruction) {
+            modelParams.systemInstruction = systemInstruction;
+        }
+        return genAI.getGenerativeModel(modelParams);
     }
 
     getUsageCount() {
@@ -118,7 +138,9 @@ class AIService {
 
     // Generic LLM Call (Uses default keys)
     async callLLM(prompt, systemInstruction = "", jsonMode = false) {
-        return this._executeGeminiCall(prompt, systemInstruction, jsonMode, this.geminiKeys, 'Default');
+        // Append suffix only if NOT in JSON mode (to avoid breaking JSON structure with markdown instructions)
+        const finalPrompt = jsonMode ? prompt : (prompt + FORMATTING_SUFFIX);
+        return this._executeGeminiCall(finalPrompt, systemInstruction, jsonMode, this.geminiKeys, 'Default');
     }
 
     // Dedicated PV Key LLM Call (Uses PV keys)
@@ -142,6 +164,17 @@ class AIService {
     // Unified Gemini Execution Logic
     async _executeGeminiCall(prompt, systemInstruction, jsonMode, keys, keyType) {
         if (!keys || keys.length === 0) throw new Error(`No ${keyType} Gemini API keys configured.`);
+
+        // Merge Global Instruction with specific instruction
+        let combinedSystemInstruction = SYSTEM_INSTRUCTION_CONFIG;
+        if (systemInstruction) {
+            combinedSystemInstruction += `\n\n${systemInstruction}`;
+        }
+
+        // If JSON mode is requested, we strictly enforce JSON as the FINAL instruction to override any formatting nuances
+        if (jsonMode) {
+            combinedSystemInstruction += `\n\nIMPORTANT: Ignore the Markdown formatting rules for the FINAL OUTPUT structure. Return ONLY valid JSON.`;
+        }
 
         // Determine current index based on key type (simple load balancing)
         let currentIndexName = 'currentGeminiKeyIndex';
@@ -175,10 +208,11 @@ class AIService {
 
         while (attempts < maxAttempts) {
             try {
-                const model = this._getGenerativeModel(currentTryIndex, keys);
-                const fullPrompt = systemInstruction ? `${systemInstruction}\n\n${prompt}` : prompt;
+                // Pass combined system instruction to model initialization
+                const model = this._getGenerativeModel(currentTryIndex, keys, combinedSystemInstruction);
 
-                let result = await model.generateContent(fullPrompt);
+                // Prompt is now just the user prompt, system instruction is handled by the model
+                let result = await model.generateContent(prompt);
                 let response = result.response.text();
 
                 if (jsonMode) {
@@ -197,11 +231,11 @@ class AIService {
                 // Add delay between retries
                 await new Promise(resolve => setTimeout(resolve, 1000));
             }
-        }
 
-        // Fallback Logic (simplified from original)
-        console.log(`All ${keyType} Gemini API keys exhausted.`);
-        throw new Error(`All ${keyType} Gemini keys failed.`);
+            // Fallback Logic (simplified from original)
+            console.log(`All ${keyType} Gemini API keys exhausted.`);
+            throw new Error(`All ${keyType} Gemini keys failed.`);
+        }
     }
 
     // ============ FEATURE METHODS ============
@@ -227,7 +261,7 @@ class AIService {
         }
 
         const prompt = `Analyze the following content and generate a concise summary with bullet points. 
-        Content: ${textToAnalyze.substring(0, 20000)}... (truncated if too long)`;
+        Content: ${textToAnalyze.substring(0, 20000)}... (truncated if too long)${FORMATTING_SUFFIX}`;
 
         return await this.callLLM(prompt, "You are an expert educational assistant. Summarize the content clearly/concisely.");
     }
@@ -347,7 +381,7 @@ class AIService {
         try {
             const completion = await openai.chat.completions.create({
                 messages: [
-                    { role: "system", content: "You are a performance analyst. Return ONLY valid JSON." },
+                    { role: "system", content: SYSTEM_INSTRUCTION_CONFIG + "\n\nYou are a performance analyst. Return ONLY valid JSON." },
                     { role: "user", content: prompt }
                 ],
                 model: "gpt-3.5-turbo",
@@ -449,7 +483,7 @@ class AIService {
         if (studentLevel === 'High') systemPrompt += " Be concise and challenge the student with advanced concepts.";
 
         const historyContext = history.map(h => `${h.role}: ${h.content}`).join('\n');
-        const prompt = `History:\n${historyContext}\n\nStudent: ${question}`;
+        const prompt = `History:\n${historyContext}\n\nStudent: ${question}${FORMATTING_SUFFIX}`;
 
         return await this.callLLM(prompt, systemPrompt);
     }
@@ -619,7 +653,7 @@ class AIService {
         try {
             const completion = await openai.chat.completions.create({
                 messages: [
-                    { role: "system", content: "You are an educational data scientist. Return ONLY valid JSON." },
+                    { role: "system", content: SYSTEM_INSTRUCTION_CONFIG + "\n\nYou are an educational data scientist. Return ONLY valid JSON." },
                     { role: "user", content: prompt }
                 ],
                 model: "gpt-3.5-turbo",
@@ -702,7 +736,7 @@ class AIService {
             try {
                 const completion = await openai.chat.completions.create({
                     messages: [
-                        { role: "system", content: "You are an educational data analyst. Return ONLY valid JSON." },
+                        { role: "system", content: SYSTEM_INSTRUCTION_CONFIG + "\n\nYou are an educational data analyst. Return ONLY valid JSON." },
                         { role: "user", content: prompt }
                     ],
                     model: "gpt-3.5-turbo",

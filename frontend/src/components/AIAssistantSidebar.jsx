@@ -206,7 +206,7 @@ const AIAssistantSidebar = ({ content, activeFeature, aiSummary, setAiSummary, i
                                 fontSize: '0.9rem',
                                 lineHeight: '1.5'
                             }}>
-                                {msg.content}
+                                <ReactMarkdown>{msg.content}</ReactMarkdown>
                             </div>
                         ))}
                         {isSendingDoubt && (
