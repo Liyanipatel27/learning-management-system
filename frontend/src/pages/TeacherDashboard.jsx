@@ -230,7 +230,7 @@ function TeacherDashboard() {
                 ) : activeTab === 'student-grades' ? (
                     <StudentGradesSection teacherId={user.id || user._id} allPublishedCourses={publishedCourses} />
                 ) : activeTab === 'student-reports' ? (
-                    <StudentProgressSection />
+                    <StudentAnalyticsSection teacherId={user.id || user._id} />
                 ) : activeTab === 'profile' ? (
                     <ProfileSection userId={user.id || user._id} />
                 ) : activeTab === 'announcements' ? (
@@ -499,10 +499,11 @@ const LiveClassSection = ({ teacherId, teacherName }) => {
     );
 };
 
+const StudentGradesSection = ({ teacherId, allPublishedCourses }) => {
+    const [loading, setLoading] = useState(true);
+    const [gradesData, setGradesData] = useState([]);
+    const [selectedCourseId, setSelectedCourseId] = useState('all');
 
-
-<<<<<<< HEAD
-=======
     useEffect(() => {
         fetchStudentGrades();
     }, [teacherId]);
@@ -664,8 +665,6 @@ const LiveClassSection = ({ teacherId, teacherName }) => {
         </div>
     );
 };
->>>>>>> main
-
 const StudentProgressSection = () => {
     const [report, setReport] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -1645,7 +1644,7 @@ const StudentsSection = () => {
     );
 };
 
-const StudentGradesSection = ({ teacherId }) => {
+const StudentAnalyticsSection = ({ teacherId }) => {
     const [gradesData, setGradesData] = useState([]);
     const [loading, setLoading] = useState(true);
 
