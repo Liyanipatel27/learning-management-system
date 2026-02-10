@@ -78,6 +78,19 @@ class AIService {
             this.pvGeminiKeys = [];
         }
 
+        // Initialize CV Gemini Keys (Exclusively for My Courses Summary/Quiz/Doubt)
+        if (process.env.CV_GEMINI_API_KEYS) {
+            this.cvGeminiKeys = process.env.CV_GEMINI_API_KEYS.split(',').map(k => k.trim()).filter(k => k);
+            this.currentCvGeminiKeyIndex = 0;
+            if (this.cvGeminiKeys.length === 0) {
+                console.warn("CV_GEMINI_API_KEYS is set but empty.");
+            }
+            console.log(`CV_GEMINI_API_KEYS initialized with ${this.cvGeminiKeys.length} key(s)`);
+        } else {
+            console.warn("CV_GEMINI_API_KEYS is not set. Summary/Quiz/Doubt features might fail or fall back.");
+            this.cvGeminiKeys = [];
+        }
+
         // ============ TEACHER DASHBOARD KEYS ============
 
         // 1. Assignment Feedback Keys
@@ -155,8 +168,8 @@ class AIService {
         if (!keys || keys.length === 0) return null;
         const key = keys[keyIndex];
         const genAI = new GoogleGenerativeAI(key);
-        // Using gemini-pro model which is widely available and stable
-        const modelParams = { model: "gemini-pro" };
+        // Using gemini-2.5-flash model which is supported by the current API version
+        const modelParams = { model: "gemini-2.5-flash" };
         if (systemInstruction) {
             modelParams.systemInstruction = systemInstruction;
         }
@@ -178,6 +191,16 @@ class AIService {
     async callPVLLM(prompt, systemInstruction = "", jsonMode = false) {
         if (this.pvGeminiKeys.length === 0) throw new Error("No PV Gemini API keys configured for Roadmap Generator.");
         return this._executeGeminiCall(prompt, systemInstruction, jsonMode, this.pvGeminiKeys, 'PV');
+    }
+
+    // Dedicated CV Key LLM Call (Uses CV keys - Exclusively for My Courses Summary/Quiz/Doubt)
+    async callCVLLM(prompt, systemInstruction = "", jsonMode = false) {
+        if (this.cvGeminiKeys.length === 0) {
+            console.warn("No CV Gemini API keys configured. Falling back to default keys.");
+            return this.callLLM(prompt, systemInstruction, jsonMode);
+        }
+        const finalPrompt = jsonMode ? prompt : (prompt + FORMATTING_SUFFIX);
+        return this._executeGeminiCall(finalPrompt, systemInstruction, jsonMode, this.cvGeminiKeys, 'CV');
     }
 
     // Dedicated Teacher Assignment Feedback Call
@@ -227,6 +250,10 @@ class AIService {
             // Single key, no rotation index needed, but we keep structure
             currentIndexName = 'currentQuizKeyIndex';
             callCountName = 'quizGenCallCount';
+            if (this[currentIndexName] === undefined) this[currentIndexName] = 0;
+        } else if (keyType === 'CV') {
+            currentIndexName = 'currentCvGeminiKeyIndex';
+            callCountName = 'cvGeminiCallCount';
             if (this[currentIndexName] === undefined) this[currentIndexName] = 0;
         }
 
@@ -287,7 +314,7 @@ class AIService {
     // ============ FEATURE METHODS ============
 
     // Feature 1: Subject & Video Summaries
-    // Feature 1: Subject & Video Summaries
+    // Feature 1: Subject & Video Summaries (Uses CV keys exclusively)
     async generateSubjectSummary(content, type) {
         let textToAnalyze = content;
 
@@ -309,7 +336,7 @@ class AIService {
         const prompt = `Analyze the following content and generate a concise summary with bullet points. 
         Content: ${textToAnalyze.substring(0, 20000)}... (truncated if too long)${FORMATTING_SUFFIX}`;
 
-        return await this.callLLM(prompt, "You are an expert educational assistant. Summarize the content clearly/concisely.");
+        return await this.callCVLLM(prompt, "You are an expert educational assistant. Summarize the content clearly/concisely.");
     }
 
     async generateCommonSummary(summaries) {
@@ -556,16 +583,16 @@ class AIService {
         const historyContext = history.map(h => `${h.role}: ${h.content}`).join('\n');
         const prompt = `History:\n${historyContext}\n\nStudent: ${question}\n\nIMPORTANT: FORCE the output into the 'RESPONSE STRUCTURE' defined above. Use ### Headers, Bullet points, and **Bold** text. DO NOT WRITE PARAGRAPHS.`;
 
-        // First try OpenAI with timeout, then fall back to simple responses
+        // First try CV Gemini with timeout, then fall back to simple responses
         try {
-            const openAIResult = await Promise.race([
-                this.callOpenAI(prompt, systemPrompt),
-                new Promise((_, reject) => setTimeout(() => reject(new Error("OpenAI timeout")), 15000))
+            const cvResult = await Promise.race([
+                this.callCVLLM(prompt, systemPrompt),
+                new Promise((_, reject) => setTimeout(() => reject(new Error("CV Gemini timeout")), 15000))
             ]);
-            return openAIResult;
-        } catch (openaiError) {
-            console.error("OpenAI fallback failed:", openaiError.message);
-            // If OpenAI fails or times out, use simple fallback responses
+            return cvResult;
+        } catch (cvError) {
+            console.error("CV Gemini fallback failed:", cvError.message);
+            // If CV Gemini fails or times out, use simple fallback responses
             return this.getSimpleFallbackResponse(question);
         }
     }
@@ -646,7 +673,7 @@ class AIService {
         return await this.callLLM(`Generate study notes for: ${topic}`, instruction);
     }
 
-    // Feature 6: Quiz Generator
+    // Feature 6: Quiz Generator (Uses CV keys exclusively)
     async generateQuiz(subject, topic, difficulty, content = null) {
         let prompt = "";
 
@@ -686,7 +713,7 @@ class AIService {
         }`;
 
         try {
-            const res = await this.callLLM(prompt, "You are a quiz generator. Return ONLY valid JSON.", true);
+            const res = await this.callCVLLM(prompt, "You are a quiz generator. Return ONLY valid JSON.", true);
             return JSON.parse(res);
         } catch (e) {
             throw new Error("Failed to generate quiz");
