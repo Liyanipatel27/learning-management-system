@@ -1507,6 +1507,7 @@ const AssignmentsSection = ({ userId, courses }) => {
     const [submitting, setSubmitting] = useState(false);
     const [code, setCode] = useState('');
     const [file, setFile] = useState(null);
+    const fileInputRef = useRef(null);
     const [stdin, setStdin] = useState('');
     const [executionResult, setExecutionResult] = useState(null);
     const [isExecuting, setIsExecuting] = useState(false);
@@ -1838,12 +1839,39 @@ const AssignmentsSection = ({ userId, courses }) => {
                                 {activeAssignment.type === 'file' ? (
                                     <div style={{ marginBottom: '24px' }}>
                                         <label style={{ display: 'block', marginBottom: '10px', fontWeight: 'bold' }}>Upload your file (PDF/Image/Doc)</label>
-                                        <input
-                                            type="file"
-                                            disabled={!!submissions[activeAssignment._id]}
-                                            onChange={(e) => setFile(e.target.files[0])}
-                                            style={{ border: '2px dashed #e2e8f0', padding: '20px', width: '100%', borderRadius: '12px', cursor: !!submissions[activeAssignment._id] ? 'not-allowed' : 'pointer', opacity: !!submissions[activeAssignment._id] ? 0.6 : 1 }}
-                                        />
+                                        <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                                            <input
+                                                ref={fileInputRef}
+                                                type="file"
+                                                disabled={!!submissions[activeAssignment._id]}
+                                                onChange={(e) => setFile(e.target.files[0])}
+                                                style={{ border: '2px dashed #e2e8f0', padding: '20px', width: '100%', borderRadius: '12px', cursor: !!submissions[activeAssignment._id] ? 'not-allowed' : 'pointer', opacity: !!submissions[activeAssignment._id] ? 0.6 : 1 }}
+                                            />
+                                            {file && !submissions[activeAssignment._id] && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setFile(null);
+                                                        if (fileInputRef.current) fileInputRef.current.value = '';
+                                                    }}
+                                                    style={{
+                                                        padding: '20px',
+                                                        background: '#fee2e2',
+                                                        color: '#ef4444',
+                                                        border: '1px solid #fecaca',
+                                                        borderRadius: '12px',
+                                                        cursor: 'pointer',
+                                                        fontWeight: 'bold',
+                                                        whiteSpace: 'nowrap',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '5px'
+                                                    }}
+                                                >
+                                                    <span style={{ fontSize: '1.2rem', lineHeight: 0 }}>&times;</span> Cancel
+                                                </button>
+                                            )}
+                                        </div>
                                         {submissions[activeAssignment._id]?.fileUrl && (
                                             <p style={{ fontSize: '0.8rem', color: '#10b981', marginTop: '10px' }}>Current file: {submissions[activeAssignment._id].fileUrl}</p>
                                         )}
