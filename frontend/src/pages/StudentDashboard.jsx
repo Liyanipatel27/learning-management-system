@@ -23,6 +23,53 @@ const formatTime = (seconds) => {
 };
 
 
+const FeedbackReadMore = ({ feedback }) => {
+    const [isExpanded, setIsExpanded] = useState(false);
+
+    if (!feedback) return null;
+
+    if (isExpanded) {
+        return (
+            <p style={{ margin: '5px 0 0 0', fontSize: '0.8rem', color: '#15803d' }}>
+                <strong style={{ fontWeight: 'bold' }}>Feedback: </strong> {feedback}
+                <span
+                    onClick={(e) => {
+                        e.stopPropagation(); // Prevent card click if necessary
+                        setIsExpanded(false);
+                    }}
+                    style={{ cursor: 'pointer', color: '#166534', fontWeight: 'bold', marginLeft: '5px', textDecoration: 'underline' }}
+                >
+                    (read less)
+                </span>
+            </p>
+        );
+    }
+
+    const words = feedback.split(' ');
+    // Handle short feedback gracefully
+    const truncated = words.length > 2 ? words.slice(0, 2).join(' ') : words.join(' ');
+    const shouldShowReadMore = words.length > 2;
+
+    return (
+        <p style={{ margin: '5px 0 0 0', fontSize: '0.8rem', color: '#15803d' }}>
+            <strong style={{ fontWeight: 'bold' }}>Feedback: </strong>
+            {truncated}
+            {shouldShowReadMore && '...'}
+            {shouldShowReadMore && (
+                <span
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setIsExpanded(true);
+                    }}
+                    style={{ cursor: 'pointer', color: '#166534', fontWeight: 'bold', marginLeft: '5px', textDecoration: 'underline' }}
+                >
+                    read more
+                </span>
+            )}
+        </p>
+    );
+};
+
 function StudentDashboard() {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     const navigate = useNavigate();
@@ -1624,7 +1671,7 @@ const AssignmentsSection = ({ userId, courses }) => {
                                 {isGraded && (
                                     <div style={{ background: '#f0fdf4', padding: '12px', borderRadius: '12px', marginBottom: '15px', border: '1px solid #dcfce7' }}>
                                         <p style={{ margin: 0, fontWeight: 'bold', color: '#166534', fontSize: '0.9rem' }}>Score: {sub.score}/{asgn.maxPoints}</p>
-                                        <p style={{ margin: '5px 0 0 0', fontSize: '0.8rem', color: '#15803d' }}>Feedback: {sub.feedback}</p>
+                                        <FeedbackReadMore feedback={sub.feedback} />
                                     </div>
                                 )}
 
