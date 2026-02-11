@@ -1,13 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
+import { useChat } from '../../context/ChatContext';
 
 const AIChatbot = ({ studentName, performanceLevel, embedded = false }) => {
     const [isOpen, setIsOpen] = useState(embedded); // Default to open if embedded
-    const [messages, setMessages] = useState([
-        { role: 'assistant', content: `Hi ${studentName || 'Student'}! I'm your AI Tutor. How can I help you today?` }
-    ]);
+    const { messages, addMessage, isLoading, setIsLoading } = useChat();
     const [input, setInput] = useState('');
-    const [loading, setLoading] = useState(false);
+    // const [loading, setLoading] = useState(false); // Using context isLoading
     const [isListening, setIsListening] = useState(false); // Voice State
     const messagesEndRef = useRef(null);
 
@@ -95,9 +94,9 @@ const AIChatbot = ({ studentName, performanceLevel, embedded = false }) => {
         if (!messageText.trim()) return;
 
         const userMsg = { role: 'user', content: messageText };
-        setMessages(prev => [...prev, userMsg]);
+        addMessage(userMsg);
         setInput('');
-        setLoading(true);
+        setIsLoading(true);
 
         try {
             // Include recent history (last 10 messages) for context
@@ -112,16 +111,16 @@ const AIChatbot = ({ studentName, performanceLevel, embedded = false }) => {
             });
 
             const reply = response.data.response;
-            setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
+            addMessage({ role: 'assistant', content: reply });
 
             // Speak the response
             speak(reply);
 
         } catch (error) {
             console.error("Chat Error:", error);
-            setMessages(prev => [...prev, { role: 'assistant', content: "Sorry, I'm having trouble connecting right now." }]);
+            addMessage({ role: 'assistant', content: "Sorry, I'm having trouble connecting right now." });
         } finally {
-            setLoading(false);
+            setIsLoading(false);
         }
     };
 
@@ -261,7 +260,7 @@ const AIChatbot = ({ studentName, performanceLevel, embedded = false }) => {
                             </div>
                         )}
 
-                        {loading && (
+                        {isLoading && (
                             <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
                                 <div style={{ background: 'white', padding: '10px', borderRadius: '15px', color: '#888', fontSize: '12px' }}>
                                     Thinking...
@@ -319,7 +318,7 @@ const AIChatbot = ({ studentName, performanceLevel, embedded = false }) => {
 
                         <button
                             onClick={() => handleSend()}
-                            disabled={loading}
+                            disabled={isLoading}
                             style={{
                                 background: '#667eea',
                                 color: 'white',
