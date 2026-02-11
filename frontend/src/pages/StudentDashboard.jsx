@@ -28,20 +28,44 @@ const FeedbackReadMore = ({ feedback }) => {
 
     if (!feedback) return null;
 
+    // Helper to parse feedback into points
+    const parseFeedback = (text) => {
+        if (!text) return [];
+        let lines = text.split('\n').map(l => l.trim()).filter(l => l);
+
+        if (lines.length === 1 || lines.length < 3) {
+            const parts = text.split(/(?:^|\s)- /).map(p => p.trim()).filter(p => p);
+            if (parts.length > 1) return parts;
+        }
+        return lines;
+    };
+
     if (isExpanded) {
+        const points = parseFeedback(feedback);
+
         return (
-            <p style={{ margin: '5px 0 0 0', fontSize: '0.8rem', color: '#15803d' }}>
-                <strong style={{ fontWeight: 'bold' }}>Feedback: </strong> {feedback}
+            <div style={{ margin: '5px 0 0 0', fontSize: '0.8rem', color: '#15803d' }}>
+                <strong style={{ fontWeight: 'bold' }}>Feedback: </strong>
+                <ul style={{ paddingLeft: '20px', margin: '5px 0', listStyleType: 'disc' }}>
+                    {points.map((point, idx) => {
+                        const isHeader = /^(Strengths|Areas for Improvement|Detailed|Conclusion):/i.test(point);
+                        return (
+                            <li key={idx} style={{ marginBottom: '4px', listStyle: isHeader ? 'none' : 'disc', fontWeight: isHeader ? 'bold' : 'normal', marginLeft: isHeader ? '-20px' : '0' }}>
+                                {point}
+                            </li>
+                        );
+                    })}
+                </ul>
                 <span
                     onClick={(e) => {
-                        e.stopPropagation(); // Prevent card click if necessary
+                        e.stopPropagation();
                         setIsExpanded(false);
                     }}
-                    style={{ cursor: 'pointer', color: '#166534', fontWeight: 'bold', marginLeft: '5px', textDecoration: 'underline' }}
+                    style={{ cursor: 'pointer', color: '#166534', fontWeight: 'bold', textDecoration: 'underline', display: 'inline-block', marginTop: '5px' }}
                 >
                     (read less)
                 </span>
-            </p>
+            </div>
         );
     }
 
