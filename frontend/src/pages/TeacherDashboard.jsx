@@ -1346,22 +1346,35 @@ ${aiFeedback.detailedFeedback || ''}
                                     </td>
                                     <td style={{ padding: '12px' }}>
                                         {sub.plagiarismResult ? (
-                                            <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                                <span style={{
-                                                    fontWeight: 'bold',
-                                                    color: sub.plagiarismResult.riskLevel === 'High Risk' ? '#ef4444' :
-                                                        sub.plagiarismResult.riskLevel === 'Low Risk' ? '#f59e0b' : '#10b981'
-                                                }}>
-                                                    {sub.plagiarismResult.similarityPercentage}%
-                                                </span>
-                                                <span style={{
-                                                    fontSize: '0.7rem',
-                                                    color: sub.plagiarismResult.riskLevel === 'High Risk' ? '#ef4444' :
-                                                        sub.plagiarismResult.riskLevel === 'Low Risk' ? '#f59e0b' : '#10b981'
-                                                }}>
-                                                    {sub.plagiarismResult.riskLevel}
-                                                </span>
-                                            </div>
+                                            (() => {
+                                                const pct = sub.plagiarismResult.similarityPercentage;
+                                                let color = '#10b981'; // Green (No Risk / Safe)
+                                                let label = 'No Risk';
+
+                                                if (pct > 50) {
+                                                    color = '#ef4444'; // Red
+                                                    label = 'High Risk';
+                                                } else if (pct > 25) {
+                                                    color = '#f59e0b'; // Yellow
+                                                    label = 'Low Risk';
+                                                } else if (pct > 0) {
+                                                    color = '#10b981'; // Green
+                                                    label = 'Safe';
+                                                } else {
+                                                    label = 'No Risk';
+                                                }
+
+                                                return (
+                                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                        <span style={{ fontWeight: 'bold', color: color }}>
+                                                            {pct}%
+                                                        </span>
+                                                        <span style={{ fontSize: '0.7rem', color: color }}>
+                                                            {label}
+                                                        </span>
+                                                    </div>
+                                                );
+                                            })()
                                         ) : (
                                             <span style={{ color: '#cbd5e0', fontSize: '0.8rem' }}>Not Analyzed</span>
                                         )}

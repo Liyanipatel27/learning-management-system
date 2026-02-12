@@ -199,8 +199,11 @@ router.put('/request-rewrite/:submissionId', async (req, res) => {
         const submission = await Submission.findByIdAndUpdate(
             req.params.submissionId,
             {
-                status: 'Re-write',
-                feedback: feedback || 'Please re-write this assignment due to high plagiarism detected.'
+                $set: {
+                    status: 'Re-write',
+                    feedback: feedback || 'Please re-write this assignment due to high plagiarism detected.'
+                },
+                $unset: { plagiarismResult: 1 }
             },
             { new: true }
         );
