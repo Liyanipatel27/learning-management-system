@@ -4,4 +4,7 @@ scikit-learn
 google-generativeai
 python-dotenv
 numpy
-
+paddlepaddle
+paddleocr
+pymupdf
+opencv-python-headless
