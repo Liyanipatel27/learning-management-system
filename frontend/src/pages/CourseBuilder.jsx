@@ -10,6 +10,7 @@ const CourseBuilder = ({ teacherId, onCourseCreated, initialCourse }) => {
     const [chapters, setChapters] = useState(initialCourse ? initialCourse.chapters : []);
     const [currentCourseId, setCurrentCourseId] = useState(initialCourse ? initialCourse._id : null);
     const [editingQuiz, setEditingQuiz] = useState(null);
+    const [showQuizAnswers, setShowQuizAnswers] = useState(true);
 
     useEffect(() => {
         if (initialCourse) {
@@ -295,12 +296,34 @@ const CourseBuilder = ({ teacherId, onCourseCreated, initialCourse }) => {
                                                                 // let's just use the addChapter endpoint style which returns the updated course? 
                                                                 // No, let's just manually fetch or update state.
                                                                 // Best approach: Update the specific module in state.
+                                                                console.log("Quiz generated successfully based on response:", res.data);
                                                                 const updatedQuiz = res.data.quiz;
-                                                                const newChapters = [...chapters];
-                                                                const chIdx = newChapters.findIndex(c => c._id === chapter._id);
-                                                                const mIdx = newChapters[chIdx].modules.findIndex(m => m._id === module._id);
-                                                                newChapters[chIdx].modules[mIdx].quiz = updatedQuiz;
-                                                                setChapters(newChapters);
+
+                                                                if (!updatedQuiz || !updatedQuiz.questions || updatedQuiz.questions.length === 0) {
+                                                                    console.warn("Received empty quiz from backend:", updatedQuiz);
+                                                                    alert("Quiz generation completed but no questions were returned. Please try again with different content.");
+                                                                    return;
+                                                                }
+
+                                                                setChapters(prevChapters => {
+                                                                    const newChapters = prevChapters.map(c => {
+                                                                        if (c._id === chapter._id) {
+                                                                            return {
+                                                                                ...c,
+                                                                                modules: c.modules.map(m => {
+                                                                                    if (m._id === module._id) {
+                                                                                        console.log("Updating module with quiz:", module._id, updatedQuiz);
+                                                                                        return { ...m, quiz: updatedQuiz };
+                                                                                    }
+                                                                                    return m;
+                                                                                })
+                                                                            };
+                                                                        }
+                                                                        return c;
+                                                                    });
+                                                                    return newChapters;
+                                                                });
+                                                                alert(`Quiz Generated Successfully! (${updatedQuiz.questions.length} questions added)`);
 
                                                             } catch (err) {
                                                                 console.error(err);
@@ -316,6 +339,156 @@ const CourseBuilder = ({ teacherId, onCourseCreated, initialCourse }) => {
                                                     </button>
                                                 )}
                                             </div>
+
+                                            {/* Quiz Editor Section */}
+                                            {module.quiz && module.quiz.questions && (
+                                                <div style={{ marginTop: '20px', padding: '20px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '10px' }}>
+                                                        <h6 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '700', color: '#334155', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                            <span>✨ Quiz Editor</span>
+                                                            <span style={{ fontSize: '0.75rem', background: '#e2e8f0', color: '#475569', padding: '2px 8px', borderRadius: '12px' }}>
+                                                                {module.quiz.questions.length} Qs
+                                                            </span>
+                                                        </h6>
+                                                        <div style={{ display: 'flex', gap: '8px' }}>
+                                                            <button
+                                                                onClick={() => setShowQuizAnswers(!showQuizAnswers)}
+                                                                style={{ fontSize: '0.8rem', padding: '6px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', background: 'white', cursor: 'pointer' }}
+                                                            >
+                                                                {showQuizAnswers ? '👁️ Hide Answers' : '🙈 Show Answers'}
+                                                            </button>
+                                                            <button
+                                                                onClick={() => {
+                                                                    setChapters(prev => prev.map(c => c._id === chapter._id ? {
+                                                                        ...c, modules: c.modules.map(m => m._id === module._id ? {
+                                                                            ...m, quiz: { ...m.quiz, questions: [...m.quiz.questions, { question: "", options: ["", "", "", ""], correctAnswerIndex: 0 }] }
+                                                                        } : m)
+                                                                    } : c));
+                                                                }}
+                                                                style={{ fontSize: '0.8rem', padding: '6px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#eff6ff', color: '#1d4ed8', cursor: 'pointer' }}
+                                                            >
+                                                                + Add Question
+                                                            </button>
+                                                            <button
+                                                                onClick={async () => {
+                                                                    try {
+                                                                        // Save the current state of the quiz to backend
+                                                                        await axios.post(`${import.meta.env.VITE_API_URL}/api/courses/${currentCourseId}/chapters/${chapter._id}/modules/${module._id}/quiz`, module.quiz);
+                                                                        alert('Quiz saved and published successfully!');
+                                                                    } catch (err) {
+                                                                        console.error(err);
+                                                                        alert('Error saving quiz');
+                                                                    }
+                                                                }}
+                                                                style={{ fontSize: '0.8rem', padding: '6px 12px', borderRadius: '6px', border: 'none', background: '#22c55e', color: 'white', cursor: 'pointer', fontWeight: 'bold' }}
+                                                            >
+                                                                Save & Publish
+                                                            </button>
+                                                            <button
+                                                                onClick={async () => {
+                                                                    if (!window.confirm("Are you sure you want to delete this quiz?")) return;
+                                                                    try {
+                                                                        const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/courses/${currentCourseId}/chapters/${chapter._id}/modules/${module._id}/quiz`, {
+                                                                            questions: [],
+                                                                            passingScore: 70,
+                                                                            fastTrackScore: 85
+                                                                        });
+                                                                        setChapters(res.data.chapters);
+                                                                        alert('Quiz deleted successfully');
+                                                                    } catch (err) {
+                                                                        console.error(err);
+                                                                        alert('Error deleting quiz');
+                                                                    }
+                                                                }}
+                                                                style={{ fontSize: '0.8rem', padding: '6px 12px', borderRadius: '6px', border: '1px solid #fecaca', background: '#fff1f2', color: '#e11d48', cursor: 'pointer' }}
+                                                            >
+                                                                Delete
+                                                            </button>
+                                                        </div>
+                                                    </div>
+
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                                                        {module.quiz.questions.map((q, qIdx) => (
+                                                            <div key={qIdx} style={{ padding: '15px', background: 'white', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
+                                                                <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+                                                                    <span style={{ fontWeight: 'bold', color: '#64748b' }}>{qIdx + 1}.</span>
+                                                                    <textarea
+                                                                        value={q.question}
+                                                                        onChange={(e) => {
+                                                                            setChapters(prev => prev.map(c => c._id === chapter._id ? {
+                                                                                ...c, modules: c.modules.map(m => m._id === module._id ? {
+                                                                                    ...m, quiz: { ...m.quiz, questions: m.quiz.questions.map((qu, i) => i === qIdx ? { ...qu, question: e.target.value } : qu) }
+                                                                                } : m)
+                                                                            } : c));
+                                                                        }}
+                                                                        placeholder="Enter question text here..."
+                                                                        style={{ flex: 1, padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.9rem', minHeight: '60px', fontFamily: 'inherit' }}
+                                                                    />
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            if (!window.confirm("Delete this question?")) return;
+                                                                            setChapters(prev => prev.map(c => c._id === chapter._id ? {
+                                                                                ...c, modules: c.modules.map(m => m._id === module._id ? {
+                                                                                    ...m, quiz: { ...m.quiz, questions: m.quiz.questions.filter((_, i) => i !== qIdx) }
+                                                                                } : m)
+                                                                            } : c));
+                                                                        }}
+                                                                        style={{ height: '30px', width: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                                                                    >
+                                                                        🗑️
+                                                                    </button>
+                                                                </div>
+
+                                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+                                                                    {q.options.map((opt, oIdx) => (
+                                                                        <div key={oIdx} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                                            <span style={{ fontSize: '0.8rem', color: '#64748b', width: '15px' }}>{String.fromCharCode(65 + oIdx)}</span>
+                                                                            <input
+                                                                                type="text"
+                                                                                value={opt}
+                                                                                onChange={(e) => {
+                                                                                    setChapters(prev => prev.map(c => c._id === chapter._id ? {
+                                                                                        ...c, modules: c.modules.map(m => m._id === module._id ? {
+                                                                                            ...m, quiz: {
+                                                                                                ...m.quiz, questions: m.quiz.questions.map((qu, i) => i === qIdx ? {
+                                                                                                    ...qu, options: qu.options.map((o, j) => j === oIdx ? e.target.value : o)
+                                                                                                } : qu)
+                                                                                            }
+                                                                                        } : m)
+                                                                                    } : c));
+                                                                                }}
+                                                                                placeholder={`Option ${oIdx + 1}`}
+                                                                                style={{ flex: 1, padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
+                                                                            />
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+
+                                                                {showQuizAnswers && (
+                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.9rem', color: '#166534', background: '#dcfce7', padding: '8px', borderRadius: '6px' }}>
+                                                                        <span style={{ fontWeight: 'bold' }}>Correct Answer:</span>
+                                                                        <select
+                                                                            value={q.correctAnswerIndex}
+                                                                            onChange={(e) => {
+                                                                                setChapters(prev => prev.map(c => c._id === chapter._id ? {
+                                                                                    ...c, modules: c.modules.map(m => m._id === module._id ? {
+                                                                                        ...m, quiz: { ...m.quiz, questions: m.quiz.questions.map((qu, i) => i === qIdx ? { ...qu, correctAnswerIndex: Number(e.target.value) } : qu) }
+                                                                                    } : m)
+                                                                                } : c));
+                                                                            }}
+                                                                            style={{ padding: '4px', borderRadius: '4px', border: '1px solid #86efac', background: 'white' }}
+                                                                        >
+                                                                            {q.options.map((_, oIdx) => (
+                                                                                <option key={oIdx} value={oIdx}>Option {String.fromCharCode(65 + oIdx)}</option>
+                                                                            ))}
+                                                                        </select>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
 
                                             <ContentUploader onUpload={(file, data) => uploadContent(chapter._id, module._id, file, data)} />
 
