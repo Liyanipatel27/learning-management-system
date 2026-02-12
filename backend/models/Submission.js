@@ -27,7 +27,7 @@ const submissionSchema = new mongoose.Schema({
 
     status: {
         type: String,
-        enum: ['Pending', 'Graded'],
+        enum: ['Pending', 'Graded', 'Re-write'],
         default: 'Pending'
     },
     score: {

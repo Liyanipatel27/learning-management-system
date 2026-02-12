@@ -192,6 +192,25 @@ router.post('/submit', async (req, res) => {
     }
 });
 
+// Request Re-write (Teacher)
+router.put('/request-rewrite/:submissionId', async (req, res) => {
+    try {
+        const { feedback } = req.body;
+        const submission = await Submission.findByIdAndUpdate(
+            req.params.submissionId,
+            {
+                status: 'Re-write',
+                feedback: feedback || 'Please re-write this assignment due to high plagiarism detected.'
+            },
+            { new: true }
+        );
+        res.json(submission);
+    } catch (err) {
+        res.status(400).json({ message: err.message });
+    }
+});
+
+
 // Get submission for a student for a specific assignment
 router.get('/student/:studentId/assignment/:assignmentId', async (req, res) => {
     try {

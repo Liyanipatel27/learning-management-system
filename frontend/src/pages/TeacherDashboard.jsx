@@ -1278,6 +1278,18 @@ ${aiFeedback.detailedFeedback || ''}
         XLSX.writeFile(wb, `${assignment.title}_Submissions.xlsx`);
     };
 
+    const handleRequestRewrite = async (submissionId) => {
+        if (!confirm("Are you sure you want to request a re-write for this assignment?")) return;
+        try {
+            await axios.put(`${import.meta.env.VITE_API_URL}/api/assignments/request-rewrite/${submissionId}`, {});
+            alert("Re-write requested successfully.");
+            fetchSubmissions();
+        } catch (err) {
+            console.error(err);
+            alert("Failed to request re-write: " + (err.response?.data?.message || err.message));
+        }
+    };
+
     return (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
             <div style={{ background: 'white', padding: '32px', borderRadius: '24px', width: '100%', maxWidth: '900px', maxHeight: '90vh', overflowY: 'auto' }}>
@@ -1355,13 +1367,22 @@ ${aiFeedback.detailedFeedback || ''}
                                         )}
                                     </td>
                                     <td style={{ padding: '12px' }}>{sub.score !== null ? `${sub.score}/${assignment.maxPoints}` : '-'}</td>
-                                    <td style={{ padding: '12px' }}>
+                                    <td style={{ padding: '12px', display: 'flex', gap: '5px' }}>
                                         <button
                                             onClick={() => setGradingSubmission(sub)}
                                             style={{ padding: '6px 12px', background: '#6366f1', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem' }}
                                         >
                                             {sub.status === 'Graded' ? 'Edit Grade' : 'Grade'}
                                         </button>
+                                        {sub.plagiarismResult && sub.plagiarismResult.similarityPercentage > 25 && sub.status !== 'Re-write' && (
+                                            <button
+                                                onClick={() => handleRequestRewrite(sub._id)}
+                                                style={{ padding: '6px 12px', background: '#f59e0b', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem' }}
+                                                title="Request Re-write"
+                                            >
+                                                Re-write
+                                            </button>
+                                        )}
                                     </td>
                                 </tr>
                             ))}

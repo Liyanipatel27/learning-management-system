@@ -107,6 +107,7 @@ function StudentDashboard() {
     const [weekendHours, setWeekendHours] = useState(4);
     const [pendingAssignmentsCount, setPendingAssignmentsCount] = useState(0);
     const [pendingAssignments, setPendingAssignments] = useState([]);
+    const [rewriteRequests, setRewriteRequests] = useState([]);
     const [announcements, setAnnouncements] = useState([]);
 
 
@@ -215,9 +216,24 @@ function StudentDashboard() {
             const submittedAssignmentIds = new Set(subRes.data.map(s => String(s.assignment)));
 
             // Calculate pending: Assignment exists but ID is NOT in submitted set
-            const pending = allAsgns.filter(asgn => !submittedAssignmentIds.has(String(asgn._id)));
-            setPendingAssignmentsCount(pending.length);
-            setPendingAssignments(pending);
+            const pendingAsgns = allAsgns.filter(asgn => !submittedAssignmentIds.has(String(asgn._id)));
+            setPendingAssignmentsCount(pendingAsgns.length);
+            setPendingAssignments(pendingAsgns);
+
+            // Process Rewrite Requests
+            const rewrites = subRes.data
+                .filter(s => s.status === 'Re-write')
+                .map(s => {
+                    const asgn = allAsgns.find(a => String(a._id) === String(s.assignment));
+                    const crs = res.data.find(c => String(c._id) === String(s.course));
+                    return {
+                        ...s,
+                        assignmentTitle: asgn?.title,
+                        subject: crs?.subject,
+                        courseObj: crs
+                    };
+                });
+            setRewriteRequests(rewrites);
 
         } catch (err) {
             console.error('Error in fetchCourses:', err);
@@ -409,6 +425,8 @@ function StudentDashboard() {
                     <>
                         {/* Deadline Warnings */}
                         {/* Deadline Warnings - Condensed */}
+
+
 
                         <section className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
                             {/* Card 1 */}
@@ -1709,15 +1727,15 @@ const AssignmentsSection = ({ userId, courses }) => {
                                     style={{
                                         width: '100%',
                                         padding: '12px',
-                                        background: isSubmitted ? '#f8fafc' : '#6366f1',
-                                        color: isSubmitted ? '#4a5568' : 'white',
-                                        border: isSubmitted ? '1px solid #e2e8f0' : 'none',
+                                        background: sub?.status === 'Re-write' ? '#ea580c' : isSubmitted ? '#f8fafc' : '#6366f1',
+                                        color: sub?.status === 'Re-write' ? 'white' : isSubmitted ? '#4a5568' : 'white',
+                                        border: isSubmitted && sub?.status !== 'Re-write' ? '1px solid #e2e8f0' : 'none',
                                         borderRadius: '12px',
                                         fontWeight: 'bold',
                                         cursor: 'pointer'
                                     }}
                                 >
-                                    {isSubmitted ? 'View Submission' : 'Start Assignment'}
+                                    {sub?.status === 'Re-write' ? 'Resubmit Now' : isSubmitted ? 'View Submission' : 'Start Assignment'}
                                 </button>
                             </div>
                         );
@@ -1757,7 +1775,7 @@ const AssignmentsSection = ({ userId, courses }) => {
                             </div>
                         )}
 
-                        {submissions[activeAssignment._id] ? (
+                        {submissions[activeAssignment._id] && submissions[activeAssignment._id].status !== 'Re-write' ? (
                             <div style={{ maxHeight: '70vh', overflowY: 'auto' }}>
                                 {/* --- SUBMISSION PREVIEW --- */}
                                 <div style={{ marginBottom: '20px', padding: '15px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
@@ -1836,18 +1854,28 @@ const AssignmentsSection = ({ userId, courses }) => {
                             </div>
                         ) : (
                             <form onSubmit={handleSubmit}>
+                                {submissions[activeAssignment._id]?.status === 'Re-write' && (
+                                    <div style={{ marginBottom: '20px', padding: '15px', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '12px' }}>
+                                        <h4 style={{ color: '#c2410c', margin: '0 0 5px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <span>📝</span> Resubmission Requested
+                                        </h4>
+                                        <p style={{ margin: 0, color: '#9a3412', fontSize: '0.95rem' }}>
+                                            <strong>Instructor Feedback:</strong> {submissions[activeAssignment._id].feedback}
+                                        </p>
+                                    </div>
+                                )}
                                 {activeAssignment.type === 'file' ? (
                                     <div style={{ marginBottom: '24px' }}>
                                         <label style={{ display: 'block', marginBottom: '10px', fontWeight: 'bold' }}>Upload your file (PDF/Image/Doc)</label>
-                                        <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                             <input
                                                 ref={fileInputRef}
                                                 type="file"
-                                                disabled={!!submissions[activeAssignment._id]}
+                                                disabled={!!submissions[activeAssignment._id] && submissions[activeAssignment._id].status !== 'Re-write'}
                                                 onChange={(e) => setFile(e.target.files[0])}
-                                                style={{ border: '2px dashed #e2e8f0', padding: '20px', width: '100%', borderRadius: '12px', cursor: !!submissions[activeAssignment._id] ? 'not-allowed' : 'pointer', opacity: !!submissions[activeAssignment._id] ? 0.6 : 1 }}
+                                                style={{ border: '2px dashed #e2e8f0', padding: '20px', width: '100%', borderRadius: '12px', cursor: (!!submissions[activeAssignment._id] && submissions[activeAssignment._id].status !== 'Re-write') ? 'not-allowed' : 'pointer', opacity: (!!submissions[activeAssignment._id] && submissions[activeAssignment._id].status !== 'Re-write') ? 0.6 : 1 }}
                                             />
-                                            {file && !submissions[activeAssignment._id] && (
+                                            {file && (!submissions[activeAssignment._id] || submissions[activeAssignment._id].status === 'Re-write') && (
                                                 <button
                                                     type="button"
                                                     onClick={() => {
@@ -1855,26 +1883,25 @@ const AssignmentsSection = ({ userId, courses }) => {
                                                         if (fileInputRef.current) fileInputRef.current.value = '';
                                                     }}
                                                     style={{
-                                                        padding: '20px',
+                                                        width: '100%',
+                                                        padding: '12px',
                                                         background: '#fee2e2',
                                                         color: '#ef4444',
                                                         border: '1px solid #fecaca',
                                                         borderRadius: '12px',
                                                         cursor: 'pointer',
                                                         fontWeight: 'bold',
-                                                        whiteSpace: 'nowrap',
                                                         display: 'flex',
                                                         alignItems: 'center',
-                                                        gap: '5px'
+                                                        justifyContent: 'center',
+                                                        gap: '8px'
                                                     }}
                                                 >
-                                                    <span style={{ fontSize: '1.2rem', lineHeight: 0 }}>&times;</span> Cancel
+                                                    <span style={{ fontSize: '1.2rem', lineHeight: 0 }}>&times;</span> Cancel Selection
                                                 </button>
                                             )}
                                         </div>
-                                        {submissions[activeAssignment._id]?.fileUrl && (
-                                            <p style={{ fontSize: '0.8rem', color: '#10b981', marginTop: '10px' }}>Current file: {submissions[activeAssignment._id].fileUrl}</p>
-                                        )}
+
                                     </div>
                                 ) : (
                                     <div style={{ marginBottom: '24px' }}>
@@ -1897,7 +1924,7 @@ const AssignmentsSection = ({ userId, courses }) => {
                                         <div style={{ background: '#1a202c', padding: '15px', borderRadius: '15px' }}>
                                             <textarea
                                                 value={code}
-                                                readOnly={!!submissions[activeAssignment._id]}
+                                                readOnly={!!submissions[activeAssignment._id] && submissions[activeAssignment._id].status !== 'Re-write'}
                                                 onChange={(e) => setCode(e.target.value)}
                                                 onCopy={(e) => { e.preventDefault(); alert('Copying is disabled!'); }}
                                                 onPaste={(e) => { e.preventDefault(); alert('Pasting is disabled!'); }}
@@ -1913,7 +1940,7 @@ const AssignmentsSection = ({ userId, courses }) => {
                                                     fontSize: '1rem',
                                                     lineHeight: '1.5',
                                                     resize: 'vertical',
-                                                    cursor: !!submissions[activeAssignment._id] ? 'default' : 'text'
+                                                    cursor: (!!submissions[activeAssignment._id] && submissions[activeAssignment._id].status !== 'Re-write') ? 'default' : 'text'
                                                 }}
                                                 placeholder="Write your code here..."
                                             />
@@ -1921,7 +1948,7 @@ const AssignmentsSection = ({ userId, courses }) => {
                                                 <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', color: '#4a5568', marginBottom: '8px' }}>Input (Standard Input):</label>
                                                 <textarea
                                                     value={stdin}
-                                                    readOnly={!!submissions[activeAssignment._id]}
+                                                    readOnly={!!submissions[activeAssignment._id] && submissions[activeAssignment._id].status !== 'Re-write'}
                                                     onChange={(e) => setStdin(e.target.value)}
                                                     placeholder="Enter inputs here (e.g. 29 for prime check)..."
                                                     style={{
@@ -1935,7 +1962,7 @@ const AssignmentsSection = ({ userId, courses }) => {
                                                         fontFamily: 'monospace',
                                                         resize: 'none',
                                                         outline: 'none',
-                                                        cursor: !!submissions[activeAssignment._id] ? 'default' : 'text'
+                                                        cursor: (!!submissions[activeAssignment._id] && submissions[activeAssignment._id].status !== 'Re-write') ? 'default' : 'text'
                                                     }}
                                                 />
                                             </div>
@@ -2018,13 +2045,13 @@ const AssignmentsSection = ({ userId, courses }) => {
 
                                 <div style={{ display: 'flex', gap: '15px' }}>
                                     <button type="button" onClick={() => setActiveAssignment(null)} style={{ flex: 1, padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0', background: 'white', fontWeight: 'bold' }}>Close</button>
-                                    {!submissions[activeAssignment._id] && (
+                                    {(!submissions[activeAssignment._id] || submissions[activeAssignment._id].status === 'Re-write') && (
                                         <button
                                             disabled={submitting}
                                             type="submit"
                                             style={{ flex: 1, padding: '14px', borderRadius: '12px', border: 'none', background: '#6366f1', color: 'white', fontWeight: 'bold' }}
                                         >
-                                            {submitting ? 'Submitting...' : 'Submit Assignment'}
+                                            {submitting ? 'Submitting...' : submissions[activeAssignment._id]?.status === 'Re-write' ? 'Resubmit Assignment' : 'Submit Assignment'}
                                         </button>
                                     )}
                                 </div>
