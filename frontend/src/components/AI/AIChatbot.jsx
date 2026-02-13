@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { useChat } from '../../context/ChatContext';
+import ReactMarkdown from 'react-markdown';
 
 const AIChatbot = ({ studentName, performanceLevel, embedded = false }) => {
     const [isOpen, setIsOpen] = useState(embedded); // Default to open if embedded
@@ -224,7 +225,10 @@ const AIChatbot = ({ studentName, performanceLevel, embedded = false }) => {
                                     fontSize: '14px',
                                     lineHeight: '1.4'
                                 }}>
-                                    {msg.content}
+                                    {/* Enforce line breaks for long sentences */}
+                                    <ReactMarkdown>
+                                        {msg.content.replace(/([.?!])\s*(?=[A-Z])/g, "$1\n\n- ")}
+                                    </ReactMarkdown>
                                 </div>
                             </div>
                         ))}
