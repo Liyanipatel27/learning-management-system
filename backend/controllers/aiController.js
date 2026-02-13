@@ -1,6 +1,12 @@
 const aiService = require('../services/aiService');
 const Course = require('../models/Course');
 const Progress = require('../models/Progress');
+const { extractTextFromUrl } = require('../utils/contentProcessor');
+const { GoogleGenerativeAI } = require("@google/generative-ai");
+
+// Initialize Gemini for Quiz Generation (using specific key if available, or fallback)
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_QUIZ_GENERATOR_KEY || process.env.GEMINI_API_KEY);
+const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
 // 1. Generate Summary
 exports.getSummary = async (req, res) => {
@@ -159,7 +165,113 @@ exports.generateStudyNotes = async (req, res) => {
     }
 };
 
-// 6. Generate Quiz
+// Helper to fetch and prepare context from the database
+async function getCourseContext(courseId, moduleId) {
+    if (!courseId || !moduleId) return "";
+    try {
+        const course = await Course.findById(courseId);
+        if (!course) return "";
+
+        let context = "";
+        let contentUpdated = false;
+
+        // Find specific module
+        // We need to look through all chapters to find the module
+        let foundModule = null;
+        for (const chapter of course.chapters) {
+            const module = chapter.modules.id(moduleId);
+            if (module) {
+                foundModule = module;
+                break;
+            }
+        }
+
+        if (foundModule) {
+            for (const content of foundModule.contents) {
+                // Prioritize PDF content for context if available
+                context += `\nResource: ${content.title}\nDescription: ${content.description || 'N/A'}\nType: ${content.type}\n`;
+
+                if (content.extractedText) {
+                    context += `Content: ${content.extractedText.substring(0, 30000)}\n`;
+                } else if (content.type === 'pdf' && content.url) {
+                    // LAZY EXTRACTION LOGIC
+                    console.log(`[AI] Extracting text for: ${content.title}`);
+                    // Ensure the URL is absolute or accessible
+                    // refined logic for relative URLs if stored locally vs cloudinary
+                    const text = await extractTextFromUrl(content.url, 'application/pdf');
+
+                    if (text) {
+                        content.extractedText = text;
+                        context += `Content: ${text.substring(0, 30000)}\n`;
+                        contentUpdated = true;
+                    }
+                }
+            }
+        }
+
+        if (contentUpdated) await course.save(); // Save extracted text for next time
+        return context;
+    } catch (error) {
+        console.error("Context fetch error:", error);
+        return "";
+    }
+}
+
+exports.generateQuiz = async (req, res) => {
+    try {
+        const { topic, count = 5, courseId, moduleId } = req.body;
+
+        // 1. Get Context
+        let context = await getCourseContext(courseId, moduleId);
+
+        // 2. Construct Prompt
+        const prompt = `Create a quiz with ${count} multiple-choice questions (MCQs) based on the following context.
+        Topic: "${topic}"
+        Context: "${context ? context.substring(0, 50000) : "No specific context provided, generate based on topic."}"
+       
+        Return ONLY a JSON array of objects with this structure (no markdown, just raw JSON):
+        [
+            {
+                "question": "Question text",
+                "options": ["Option A", "Option B", "Option C", "Option D"],
+                "correctAnswer": 0, // Index (0-3)
+                "explanation": "Brief explanation of the answer",
+                "difficulty": "medium"
+            }
+        ]`;
+
+        // 3. Call AI
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        let text = response.text();
+
+        // 4. Clean and Parse
+        text = text.replace(/```json|```/g, "").trim();
+        // Sometimes AI adds extra text, try to find the array
+        const firstBracket = text.indexOf('[');
+        const lastBracket = text.lastIndexOf(']');
+        if (firstBracket !== -1 && lastBracket !== -1) {
+            text = text.substring(firstBracket, lastBracket + 1);
+        }
+
+        const quizData = JSON.parse(text);
+
+        // Map to ensure compatibility with our frontend expected structure if needed
+        // Our Course model expects 'correctAnswerIndex', User prompt says 'correctAnswer'
+        // Let's standarize to what our model expects: 'correctAnswerIndex'
+        const mappedQuizData = quizData.map(q => ({
+            ...q,
+            correctAnswerIndex: q.correctAnswer !== undefined ? q.correctAnswer : 0 // Handle both
+        }));
+
+        res.json({ success: true, data: mappedQuizData });
+    } catch (error) {
+        console.error("Quiz generation error:", error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// 6. Generate Quiz (Legacy/General)
 exports.createQuiz = async (req, res) => {
     try {
         const { subject, topic, difficulty, content, fileUrl } = req.body;

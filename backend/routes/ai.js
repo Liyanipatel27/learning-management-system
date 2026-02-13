@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const aiController = require('../controllers/aiController');
+const { verifyToken } = require('../middleware/authMiddleware');
 
 // 1. Subject & Video Summary
 router.post('/summary', aiController.getSummary);
@@ -23,8 +24,11 @@ router.post('/chat', aiController.chatWithAI);
 // 5. Grade-Based Notes
 router.post('/notes', aiController.generateStudyNotes);
 
-// 6. Quiz Generator
+// 6. Quiz Generator (Legacy)
 router.post('/quiz', aiController.createQuiz);
+
+// 6b. Generate Quiz with Context (New)
+router.post('/generate-quiz', verifyToken, aiController.generateQuiz);
 
 // ============ TEACHER DASHBOARD ROUTES ============
 router.post('/teacher/feedback', aiController.getAssignmentFeedback);

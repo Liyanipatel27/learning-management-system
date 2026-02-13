@@ -10,7 +10,101 @@ const CourseBuilder = ({ teacherId, onCourseCreated, initialCourse }) => {
     const [chapters, setChapters] = useState(initialCourse ? initialCourse.chapters : []);
     const [currentCourseId, setCurrentCourseId] = useState(initialCourse ? initialCourse._id : null);
     const [editingQuiz, setEditingQuiz] = useState(null);
-    const [showQuizAnswers, setShowQuizAnswers] = useState(true);
+    const [showQuizAnswers, setShowQuizAnswers] = useState(false);
+
+    // --- AI QUIZ GENERATION STATE (Moved from QuizEditor) ---
+    const [aiModalTarget, setAiModalTarget] = useState(null); // { chapterId, moduleId }
+    const [isAiGenerating, setIsAiGenerating] = useState(false);
+    const [aiTopic, setAiTopic] = useState('');
+    const [aiCount, setAiCount] = useState(5);
+    const [generatedQuestions, setGeneratedQuestions] = useState([]);
+    const [selectedGenerated, setSelectedGenerated] = useState({});
+    const [aiViewMode, setAiViewMode] = useState('input'); // 'input' vs 'review'
+
+    const handleAiGenerate = async () => {
+        if (!aiTopic) return alert('Please enter a topic');
+        if (!aiModalTarget) return;
+
+        const token = localStorage.getItem('token'); // FIXED: Use localStorage
+        if (!token) {
+            alert("You are not logged in. Please log in to generate quizzes.");
+            return;
+        }
+
+        setIsAiGenerating(true);
+        try {
+            const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/ai/generate-quiz`, {
+                topic: aiTopic,
+                count: aiCount,
+                courseId: currentCourseId,
+                moduleId: aiModalTarget.moduleId
+            }, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+
+            if (res.data.success) {
+                const newQs = res.data.data.map(q => ({
+                    question: q.question,
+                    options: q.options,
+                    correctAnswerIndex: q.correctAnswerIndex !== undefined ? q.correctAnswerIndex : 0,
+                    explanation: q.explanation,
+                    difficulty: q.difficulty || 'medium'
+                }));
+
+                setGeneratedQuestions(newQs);
+                const initialSelection = {};
+                newQs.forEach((_, i) => initialSelection[i] = true);
+                setSelectedGenerated(initialSelection);
+                setAiViewMode('review');
+            }
+        } catch (err) {
+            console.error(err);
+            if (err.response && (err.response.status === 401 || err.response.status === 403)) {
+                alert("Session expired or invalid token. Please log out and log in again.");
+            } else {
+                alert('Error generating quiz: ' + (err.response?.data?.message || err.message));
+            }
+        } finally {
+            setIsAiGenerating(false);
+        }
+    };
+
+    const confirmAiSelection = () => {
+        const toAdd = generatedQuestions.filter((_, i) => selectedGenerated[i]);
+        if (toAdd.length === 0) return alert('Select at least one question.');
+
+        // Update the module's quiz directly in chapters state
+        setChapters(prev => prev.map(c => {
+            if (c._id === aiModalTarget.chapterId) {
+                return {
+                    ...c,
+                    modules: c.modules.map(m => {
+                        if (m._id === aiModalTarget.moduleId) {
+                            // Initialize quiz if not exists
+                            const existingQuestions = m.quiz?.questions || [];
+                            return {
+                                ...m,
+                                quiz: {
+                                    ...m.quiz,
+                                    questions: [...existingQuestions, ...toAdd],
+                                    passingScore: m.quiz?.passingScore || 70,
+                                    fastTrackScore: m.quiz?.fastTrackScore || 85
+                                }
+                            };
+                        }
+                        return m;
+                    })
+                };
+            }
+            return c;
+        }));
+
+        setAiModalTarget(null);
+        setGeneratedQuestions([]);
+        setAiViewMode('input');
+        setAiTopic('');
+        alert(`Added ${toAdd.length} questions! You can edit them in the Quiz Editor.`);
+    };
 
     useEffect(() => {
         if (initialCourse) {
@@ -269,75 +363,40 @@ const CourseBuilder = ({ teacherId, onCourseCreated, initialCourse }) => {
                                                 {/* AI Quiz Generator Button */}
                                                 {module.contents.some(c => c.type === 'pdf') && (
                                                     <button
-                                                        onClick={async () => {
-                                                            if (!window.confirm("Generate a new quiz from the PDF? This will overwrite any existing quiz for this module.")) return;
-
-                                                            // Find button to show loading state (simple UI hack or use state if refactoring)
-                                                            // ideally use local state, but for quick insertion:
-                                                            const btn = document.getElementById(`gen-btn-${module._id}`);
-                                                            if (btn) { btn.disabled = true; btn.innerText = "Generating... 🤖"; }
-
-                                                            try {
-                                                                const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/courses/${currentCourseId}/chapters/${chapter._id}/modules/${module._id}/generate-quiz`);
-                                                                alert("Quiz Generated Successfully!");
-                                                                // Refresh chapters
-                                                                // We need to fetch the course again or update local state logic
-                                                                // Since we don't have the full course response from this specific endpoint easily mapped to replace just the module without full refresh logic in this component's current structure...
-                                                                // actually the route returns { message, quiz }.
-                                                                // We should probably just refresh the whole course or manually update.
-                                                                // Let's try to just reload the course (CourseBuilder structure is a bit monolithic).
-                                                                // Or simpler: The backend returns "updated course" usually? 
-                                                                // Wait, my new route returns { message, quiz }. 
-                                                                // Let's rely on a full refresh or just update the chapters via a fetch.
-                                                                // Simplest: trigger a parent refresh or fetch course. 
-                                                                // But here we can just fetch the course again.
-                                                                // Re-fetch course:
-                                                                // courseController 'create' returns course. 
-                                                                // let's just use the addChapter endpoint style which returns the updated course? 
-                                                                // No, let's just manually fetch or update state.
-                                                                // Best approach: Update the specific module in state.
-                                                                console.log("Quiz generated successfully based on response:", res.data);
-                                                                const updatedQuiz = res.data.quiz;
-
-                                                                if (!updatedQuiz || !updatedQuiz.questions || updatedQuiz.questions.length === 0) {
-                                                                    console.warn("Received empty quiz from backend:", updatedQuiz);
-                                                                    alert("Quiz generation completed but no questions were returned. Please try again with different content.");
-                                                                    return;
-                                                                }
-
-                                                                setChapters(prevChapters => {
-                                                                    const newChapters = prevChapters.map(c => {
-                                                                        if (c._id === chapter._id) {
-                                                                            return {
-                                                                                ...c,
-                                                                                modules: c.modules.map(m => {
-                                                                                    if (m._id === module._id) {
-                                                                                        console.log("Updating module with quiz:", module._id, updatedQuiz);
-                                                                                        return { ...m, quiz: updatedQuiz };
-                                                                                    }
-                                                                                    return m;
-                                                                                })
-                                                                            };
-                                                                        }
-                                                                        return c;
-                                                                    });
-                                                                    return newChapters;
-                                                                });
-                                                                alert(`Quiz Generated Successfully! (${updatedQuiz.questions.length} questions added)`);
-
-                                                            } catch (err) {
-                                                                console.error(err);
-                                                                alert("Failed to generate quiz: " + (err.response?.data?.message || err.message));
-                                                            } finally {
-                                                                if (btn) { btn.disabled = false; btn.innerText = "Generate Quiz 🤖"; }
-                                                            }
+                                                        onClick={() => {
+                                                            alert("This feature is being updated. please use the new 'Generate Quiz with AI' button below.");
                                                         }}
-                                                        id={`gen-btn-${module._id}`}
-                                                        style={{ padding: '8px 16px', background: '#e0e7ff', color: '#4338ca', border: '1px solid #c7d2fe', borderRadius: '10px', fontSize: '0.85rem', fontWeight: 'bold', cursor: 'pointer' }}
+                                                        style={{ padding: '8px 16px', background: '#ccc', color: '#666', border: '1px solid #999', borderRadius: '10px', fontSize: '0.85rem', fontWeight: 'bold', cursor: 'pointer' }}
                                                     >
-                                                        Generate Quiz 🤖
+                                                        Legacy Gen
                                                     </button>
                                                 )}
+                                            </div>
+                                            <div style={{ marginTop: '15px' }}>
+                                                {/* New AI Button on Module Card */}
+                                                <button
+                                                    onClick={() => {
+                                                        console.log("AI Button Clicked for module:", module.title);
+                                                        setAiModalTarget({ chapterId: chapter._id, moduleId: module._id });
+                                                        setAiTopic(module.title); // Pre-fill topic with module title
+                                                    }}
+                                                    style={{
+                                                        padding: '8px 16px',
+                                                        background: '#7c3aed',
+                                                        color: 'white',
+                                                        border: 'none',
+                                                        borderRadius: '8px',
+                                                        fontWeight: 'bold',
+                                                        cursor: 'pointer',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '8px',
+                                                        fontSize: '0.85rem',
+                                                        boxShadow: '0 2px 4px rgba(124, 58, 237, 0.2)'
+                                                    }}
+                                                >
+                                                    ✨ Generate Quiz with AI
+                                                </button>
                                             </div>
 
                                             {/* Quiz Editor Section */}
@@ -554,23 +613,141 @@ const CourseBuilder = ({ teacherId, onCourseCreated, initialCourse }) => {
                         />
                     )}
 
-                    <div style={{ marginTop: '40px', textAlign: 'center' }}>
-                        <button
-                            onClick={async () => {
-                                try {
-                                    await axios.put(`${import.meta.env.VITE_API_URL}/api/courses/${currentCourseId}/publish`, { isPublished: true });
-                                    alert('Course published successfully!');
-                                    onCourseCreated();
-                                } catch (err) {
-                                    console.error(err);
-                                    alert('Error publishing course');
-                                }
-                            }}
-                            style={{ padding: '14px 40px', background: '#10b981', color: 'white', border: 'none', borderRadius: '12px', fontWeight: '700', fontSize: '1rem', cursor: 'pointer', boxShadow: '0 4px 6px rgba(16, 185, 129, 0.2)' }}
-                        >
-                            Complete Course & Publish
-                        </button>
-                    </div>
+                    {/* AI Quiz Generator Modal */}
+                    {aiModalTarget && (
+                        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+                            <div style={{ background: 'white', padding: '32px', borderRadius: '24px', width: '100%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                                    <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                        <span>✨ Generate Quiz</span>
+                                    </h2>
+                                    <button
+                                        onClick={() => {
+                                            setAiModalTarget(null);
+                                            setGeneratedQuestions([]);
+                                            setAiViewMode('input');
+                                        }}
+                                        style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }}
+                                    >
+                                        &times;
+                                    </button>
+                                </div>
+
+                                {aiViewMode === 'input' ? (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                                        <div>
+                                            <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px', color: '#4a5568' }}>Topic / Context</label>
+                                            <input
+                                                type="text"
+                                                value={aiTopic}
+                                                onChange={(e) => setAiTopic(e.target.value)}
+                                                placeholder="e.g. Introduction to React Hooks"
+                                                style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '1rem' }}
+                                            />
+                                            <p style={{ fontSize: '0.85rem', color: '#718096', marginTop: '6px' }}>
+                                                The AI will generate questions based on this topic.
+                                            </p>
+                                        </div>
+
+                                        <div>
+                                            <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px', color: '#4a5568' }}>Number of Questions</label>
+                                            <select
+                                                value={aiCount}
+                                                onChange={(e) => setAiCount(Number(e.target.value))}
+                                                style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '1rem', background: 'white' }}
+                                            >
+                                                <option value={3}>3 Questions</option>
+                                                <option value={5}>5 Questions</option>
+                                                <option value={10}>10 Questions</option>
+                                            </select>
+                                        </div>
+
+                                        <button
+                                            onClick={handleAiGenerate}
+                                            disabled={isAiGenerating}
+                                            style={{
+                                                padding: '14px',
+                                                background: isAiGenerating ? '#a5b4fc' : '#6366f1',
+                                                color: 'white',
+                                                border: 'none',
+                                                borderRadius: '12px',
+                                                fontWeight: 'bold',
+                                                fontSize: '1rem',
+                                                marginTop: '10px',
+                                                cursor: isAiGenerating ? 'not-allowed' : 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                gap: '10px'
+                                            }}
+                                        >
+                                            {isAiGenerating ? (
+                                                <>
+                                                    <div style={{ width: '20px', height: '20px', border: '2px solid white', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+                                                    Generating...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <span>✨ Generate Questions</span>
+                                                </>
+                                            )}
+                                        </button>
+                                        <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+                                    </div>
+                                ) : (
+                                    /* REVIEW MODE */
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                                        <p style={{ color: '#4a5568', margin: 0 }}>
+                                            Review the generated questions below. Uncheck any you don't want to include.
+                                        </p>
+
+                                        <div style={{ maxHeight: '400px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '15px', paddingRight: '5px' }}>
+                                            {generatedQuestions.map((q, idx) => (
+                                                <div key={idx} style={{ padding: '15px', border: '1px solid #e2e8f0', borderRadius: '12px', background: selectedGenerated[idx] ? '#f8fafc' : 'white', opacity: selectedGenerated[idx] ? 1 : 0.6 }}>
+                                                    <div style={{ display: 'flex', gap: '10px', marginBottom: '8px' }}>
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={!!selectedGenerated[idx]}
+                                                            onChange={(e) => setSelectedGenerated(prev => ({ ...prev, [idx]: e.target.checked }))}
+                                                            style={{ width: '18px', height: '18px', marginTop: '4px', cursor: 'pointer' }}
+                                                        />
+                                                        <div style={{ flex: 1 }}>
+                                                            <div style={{ fontWeight: 'bold', color: '#1e293b', marginBottom: '4px' }}>{idx + 1}. {q.question}</div>
+                                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '0.9rem', color: '#64748b' }}>
+                                                                {q.options.map((opt, oIdx) => (
+                                                                    <div key={oIdx} style={{ color: oIdx === q.correctAnswerIndex ? '#16a34a' : 'inherit', fontWeight: oIdx === q.correctAnswerIndex ? 'bold' : 'normal' }}>
+                                                                        {String.fromCharCode(65 + oIdx)}. {opt}
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                            <div style={{ marginTop: '8px', fontSize: '0.85rem', color: '#6366f1', fontStyle: 'italic' }}>
+                                                                Explanation: {q.explanation}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                                            <button
+                                                onClick={() => setAiViewMode('input')}
+                                                style={{ flex: 1, padding: '12px', background: 'white', color: '#4a5568', border: '1px solid #e2e8f0', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' }}
+                                            >
+                                                Back
+                                            </button>
+                                            <button
+                                                onClick={confirmAiSelection}
+                                                style={{ flex: 2, padding: '12px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' }}
+                                            >
+                                                Add Selected Questions
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
         </div>
@@ -679,8 +856,10 @@ const QuizEditor = ({ currentCourseId, chapterId, moduleId, quiz, quizConfig, on
     const [showExplanation, setShowExplanation] = useState({}); // Track which explanation is visible
 
     // AI Analysis State
-    const [analyzingQuestion, setAnalyzingQuestion] = useState({}); // { [index]: boolean }
-    const [questionAnalysis, setQuestionAnalysis] = useState({}); // { [index]: AnalysisObject }
+    const [analyzingQuestion, setAnalyzingQuestion] = useState({}); // {[index]: boolean }
+    const [questionAnalysis, setQuestionAnalysis] = useState({}); // {[index]: AnalysisObject }
+
+
 
     const handleQuestionChange = (index, field, value) => {
         const newQuestions = [...questions];
@@ -733,75 +912,7 @@ const QuizEditor = ({ currentCourseId, chapterId, moduleId, quiz, quizConfig, on
                     <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }}>&times;</button>
                 </div>
 
-                <div style={{ marginBottom: '20px', padding: '15px', background: '#f0f9ff', borderRadius: '12px', border: '1px solid #bae6fd', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div>
-                        <h4 style={{ margin: '0 0 5px 0', color: '#0369a1' }}>🤖 AI Quiz Generator</h4>
-                        <p style={{ margin: 0, fontSize: '0.9rem', color: '#0c4a6e' }}>Upload a PDF to automatically generate questions.</p>
-                    </div>
-                    <div>
-                        <input
-                            type="file"
-                            accept="application/pdf"
-                            id="quiz-pdf-upload"
-                            style={{ display: 'none' }}
-                            onChange={async (e) => {
-                                const file = e.target.files[0];
-                                if (!file) return;
 
-                                if (!window.confirm("This will replace current questions with AI generated ones. Continue?")) {
-                                    e.target.value = '';
-                                    return;
-                                }
-
-                                const formData = new FormData();
-                                formData.append('file', file);
-
-                                // Show loading (simple alert/text update or state)
-                                // Ideally we'd have a loading state, but for now we'll use a temp method or alert
-                                const btn = document.getElementById('ai-gen-btn');
-                                if (btn) { btn.innerText = 'Generating...'; btn.disabled = true; }
-
-                                try {
-                                    const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/courses/${currentCourseId}/chapters/${chapterId}/modules/${moduleId}/generate-quiz-from-file`, formData, {
-                                        headers: { 'Content-Type': 'multipart/form-data' }
-                                    });
-
-                                    if (res.data.questions && res.data.questions.length > 0) {
-                                        setQuestions(res.data.questions);
-                                        alert(`Success! Generated ${res.data.questions.length} questions.`);
-                                    } else {
-                                        alert("No questions could be generated from this file.");
-                                    }
-
-                                } catch (err) {
-                                    console.error(err);
-                                    alert("Failed to generate quiz: " + (err.response?.data?.message || err.message));
-                                } finally {
-                                    if (btn) { btn.innerText = '✨ Import from PDF'; btn.disabled = false; }
-                                    e.target.value = '';
-                                }
-                            }}
-                        />
-                        <button
-                            id="ai-gen-btn"
-                            onClick={() => document.getElementById('quiz-pdf-upload').click()}
-                            style={{
-                                padding: '10px 20px',
-                                background: '#0ea5e9',
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: '8px',
-                                fontWeight: 'bold',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '8px'
-                            }}
-                        >
-                            ✨ Import from PDF
-                        </button>
-                    </div>
-                </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '15px', marginBottom: '32px' }}>
                     <div>
