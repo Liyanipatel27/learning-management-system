@@ -129,6 +129,7 @@ class AIService {
     async getTextFromPDF(url) {
         try {
             let dataBuffer;
+            let mimeType = "application/pdf"; // Default
 
             // Check if it's a local file URL (e.g., /uploads/...) or localhost URL
             const isLocalUpload = url.includes('/uploads/');
@@ -156,11 +157,67 @@ class AIService {
                 dataBuffer = response.data;
             }
 
-            const data = await pdfParse(dataBuffer);
-            return data.text;
+            // 1. Try Standard Text Extraction (pdf-parse)
+            try {
+                const data = await pdfParse(dataBuffer);
+                const text = data.text.trim();
+
+                // If text is sufficient, return it
+                if (text.length > 50) {
+                    return text;
+                }
+                console.log("PDF parsed text is empty or too short. Falling back to Gemini OCR.");
+            } catch (pdfError) {
+                console.warn("pdf-parse failed:", pdfError.message);
+            }
+
+            // 2. Fallback to Gemini 1.5 Flash (OCR)
+            return await this.extractTextWithGemini(dataBuffer, mimeType);
+
         } catch (error) {
             console.error("Error extracting text from PDF:", error.message);
+            // Return empty string instead of throwing, so the process doesn't crash? 
+            // Better to throw so the caller knows it failed, or return empty string and handle upstream?
+            // Existing implementation threw error, so let's keep it consistent but maybe add a specific message.
             throw new Error(`Failed to extract text from PDF: ${error.message}`);
+        }
+    }
+
+    async extractTextWithGemini(buffer, mimeType) {
+        try {
+            console.log("Starting Gemini OCR extraction...");
+            // Encode buffer to base64
+            const base64Data = buffer.toString('base64');
+
+            // Use Gemini 1.5 Flash for speed and efficiency
+            const model = this._getGenerativeModel(0, this.geminiKeys); // Uses default keys
+            if (!model) throw new Error("No Gemini keys available for OCR.");
+
+            const result = await model.generateContent([
+                {
+                    inlineData: {
+                        data: base64Data,
+                        mimeType: mimeType
+                    }
+                },
+                {
+                    text: "Extract all text from this document. Return ONLY the extracted text, preserving structure where possible. Do not add any introductory or concluding remarks."
+                }
+            ]);
+
+            const response = await result.response;
+            const text = response.text();
+            console.log("Gemini OCR extraction successful.");
+            console.log("--- GEMINI OCR EXTRACTED TEXT START ---");
+            console.log(text);
+            console.log("--- GEMINI OCR EXTRACTED TEXT END ---");
+            return text;
+
+        } catch (error) {
+            console.error("Gemini OCR failed:", error.message);
+            // If this fails, we really can't get text.
+            // Return empty string implies "no text found".
+            return "";
         }
     }
 

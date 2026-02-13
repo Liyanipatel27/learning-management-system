@@ -15,6 +15,7 @@ const https = require('https'); // To download file for parsing if needed, but p
 // We need to download it to a buffer to parse it.
 
 const upload = multer({ storage: storage });
+const aiService = require('../services/aiService');
 
 // Single file upload endpoint for assignments
 router.post('/upload', upload.single('file'), (req, res) => {
@@ -98,6 +99,70 @@ router.delete('/:id', async (req, res) => {
     }
 });
 
+// Manual Plagiarism Check for ALL submissions of an assignment
+router.post('/:id/check-plagiarism', async (req, res) => {
+    try {
+        const assignmentId = req.params.id;
+        const assignment = await Assignment.findById(assignmentId);
+        if (!assignment) return res.status(404).json({ message: 'Assignment not found' });
+
+        // 1. Fetch ALL submissions for this assignment that have text
+        const submissions = await Submission.find({
+            assignment: assignmentId,
+            extractedText: { $exists: true, $ne: '' } // Only check submissions with text
+        });
+
+        if (submissions.length < 2) {
+            return res.json({ message: 'Not enough submissions to check for plagiarism (minimum 2 required).' });
+        }
+
+        let updatedCount = 0;
+
+        // 2. Iterate through EACH submission and check against OTHERS
+        for (const currentSub of submissions) {
+            // Create corpus from ALL OTHER submissions
+            const others = submissions.filter(s => s._id.toString() !== currentSub._id.toString());
+
+            if (others.length === 0) continue;
+
+            const corpus = others.map(sub => ({
+                id: sub.student.toString(),
+                submissionId: sub._id.toString(),
+                text: sub.extractedText
+            }));
+
+            try {
+                // Call AI Service (Python)
+                const aiResponse = await axios.post('http://127.0.0.1:8001/plagiarism/check', {
+                    target_text: currentSub.extractedText,
+                    corpus: corpus
+                });
+
+                if (aiResponse.data) {
+                    currentSub.plagiarismResult = {
+                        similarityPercentage: aiResponse.data.highest_similarity,
+                        riskLevel: aiResponse.data.risk_level,
+                        matchedWith: aiResponse.data.matches,
+                        isAiVerified: aiResponse.data.is_ai_verified,
+                        checkedAt: new Date()
+                    };
+                    await currentSub.save();
+                    updatedCount++;
+                }
+            } catch (aiErr) {
+                console.error(`Plagiarism check failed for submission ${currentSub._id}:`, aiErr.message);
+                // Continue to next submission even if one fails
+            }
+        }
+
+        res.json({ message: `Plagiarism check completed. Updated ${updatedCount} submissions.` });
+
+    } catch (err) {
+        console.error('Manual plagiarism check error:', err);
+        res.status(500).json({ message: err.message });
+    }
+});
+
 // --- SUBMISSIONS ---
 
 // Submit an assignment (Student)
@@ -111,12 +176,10 @@ router.post('/submit', async (req, res) => {
             extractedText = code;
         } else if (fileUrl && fileUrl.endsWith('.pdf')) {
             try {
-                // Fetch PDF from URL
-                const response = await axios.get(fileUrl, { responseType: 'arraybuffer' });
-                const data = await pdfParse(response.data);
-                extractedText = data.text;
+                // Use aiService for text extraction (supports OCR fallback)
+                extractedText = await aiService.getTextFromPDF(fileUrl);
             } catch (pdfErr) {
-                console.error('Error extracting text from PDF:', pdfErr);
+                console.error('Error extracting text from PDF:', pdfErr.message);
                 // Continue without text extraction (plagiarism check will be skipped for this sub)
             }
         }
@@ -135,7 +198,11 @@ router.post('/submit', async (req, res) => {
         };
 
         // 3. Perform Plagiarism Check (if text exists)
-        if (extractedText && extractedText.length > 50) { // Min length check
+        if (extractedText && extractedText.length > 20) { // Min length check (Lowered to 20 for testing)
+            console.log('--- EXTRACTED TEXT START ---');
+            console.log(extractedText);
+            console.log('--- EXTRACTED TEXT END ---');
+
             try {
                 // Fetch previous submissions for this assignment (excluding this student's previous attempts if any, but actually we compare with EVERYONE else)
                 const previousSubmissions = await Submission.find({
@@ -144,6 +211,8 @@ router.post('/submit', async (req, res) => {
                     extractedText: { $exists: true, $ne: '' }
                 }).select('student extractedText turnedInAt');
 
+                console.log(`Found ${previousSubmissions.length} previous submissions for comparison.`);
+
                 if (previousSubmissions.length > 0) {
                     const corpus = previousSubmissions.map(sub => ({
                         id: sub.student.toString(),
@@ -151,11 +220,13 @@ router.post('/submit', async (req, res) => {
                         text: sub.extractedText
                     }));
 
+                    console.log('Calling AI Service for Plagiarism Check...');
                     // Call AI Service
                     const aiResponse = await axios.post('http://127.0.0.1:8001/plagiarism/check', {
                         target_text: extractedText,
                         corpus: corpus
                     });
+
 
                     if (aiResponse.data) {
                         submissionData.plagiarismResult = {
@@ -171,6 +242,8 @@ router.post('/submit', async (req, res) => {
                 console.error('Plagiarism check failed:', aiErr.message);
                 // Fail silently, don't block submission
             }
+        } else {
+            console.log(`Skipping Plagiarism Check: Text too short (${extractedText ? extractedText.length : 0} chars).`);
         }
 
         // 4. Save/Update Submission

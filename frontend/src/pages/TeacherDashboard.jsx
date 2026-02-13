@@ -762,6 +762,7 @@ const AssignmentsSection = ({ teacherId, courses }) => {
     const [editingAssignment, setEditingAssignment] = useState(null);
     const [viewSubmissionsFor, setViewSubmissionsFor] = useState(null);
     const [loading, setLoading] = useState(false);
+    const [checkingPlagiarismId, setCheckingPlagiarismId] = useState(null);
 
     const [newAssignment, setNewAssignment] = useState({
         title: '',
@@ -786,6 +787,20 @@ const AssignmentsSection = ({ teacherId, courses }) => {
         } catch (err) {
             console.error('Error deleting assignment:', err);
             alert('Failed to delete assignment');
+        }
+    };
+
+    const handleCheckPlagiarism = async (assignmentId) => {
+        if (!window.confirm('Run plagiarism check for ALL current submissions? This may take a moment.')) return;
+        setCheckingPlagiarismId(assignmentId);
+        try {
+            const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/assignments/${assignmentId}/check-plagiarism`);
+            alert(res.data.message);
+        } catch (err) {
+            console.error('Plagiarism check error:', err);
+            alert('Failed to run plagiarism check: ' + (err.response?.data?.message || err.message));
+        } finally {
+            setCheckingPlagiarismId(null);
         }
     };
 
@@ -949,6 +964,25 @@ const AssignmentsSection = ({ teacherId, courses }) => {
                                 title="Delete Assignment"
                             >
                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                            </button>
+                            <button
+                                onClick={() => handleCheckPlagiarism(asgn._id)}
+                                disabled={checkingPlagiarismId === asgn._id}
+                                style={{
+                                    padding: '10px',
+                                    background: checkingPlagiarismId === asgn._id ? '#e2e8f0' : 'rgba(236, 72, 153, 0.1)',
+                                    border: 'none',
+                                    borderRadius: '10px',
+                                    color: checkingPlagiarismId === asgn._id ? '#94a3b8' : '#ec4899',
+                                    cursor: checkingPlagiarismId === asgn._id ? 'wait' : 'pointer'
+                                }}
+                                title="Run Plagiarism Checker"
+                            >
+                                {checkingPlagiarismId === asgn._id ? (
+                                    <span style={{ fontSize: '0.8rem' }}>Running...</span>
+                                ) : (
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                                )}
                             </button>
                         </div>
                     </div>
