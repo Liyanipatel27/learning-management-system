@@ -544,6 +544,7 @@ const CourseBuilder = ({ teacherId, onCourseCreated, initialCourse }) => {
 
                     {editingQuiz && (
                         <QuizEditor
+                            currentCourseId={currentCourseId}
                             chapterId={editingQuiz.chapterId}
                             moduleId={editingQuiz.moduleId}
                             quiz={editingQuiz.quiz}
@@ -659,7 +660,7 @@ const ContentUploader = ({ onUpload }) => {
     );
 };
 
-const QuizEditor = ({ chapterId, moduleId, quiz, quizConfig, onSave, onClose }) => {
+const QuizEditor = ({ currentCourseId, chapterId, moduleId, quiz, quizConfig, onSave, onClose }) => {
     const [questions, setQuestions] = useState(quiz?.questions || [{
         question: '',
         options: ['', '', '', ''],
@@ -730,6 +731,76 @@ const QuizEditor = ({ chapterId, moduleId, quiz, quizConfig, onSave, onClose }) 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
                     <h2 style={{ margin: 0 }}>Module Quiz Editor</h2>
                     <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }}>&times;</button>
+                </div>
+
+                <div style={{ marginBottom: '20px', padding: '15px', background: '#f0f9ff', borderRadius: '12px', border: '1px solid #bae6fd', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div>
+                        <h4 style={{ margin: '0 0 5px 0', color: '#0369a1' }}>🤖 AI Quiz Generator</h4>
+                        <p style={{ margin: 0, fontSize: '0.9rem', color: '#0c4a6e' }}>Upload a PDF to automatically generate questions.</p>
+                    </div>
+                    <div>
+                        <input
+                            type="file"
+                            accept="application/pdf"
+                            id="quiz-pdf-upload"
+                            style={{ display: 'none' }}
+                            onChange={async (e) => {
+                                const file = e.target.files[0];
+                                if (!file) return;
+
+                                if (!window.confirm("This will replace current questions with AI generated ones. Continue?")) {
+                                    e.target.value = '';
+                                    return;
+                                }
+
+                                const formData = new FormData();
+                                formData.append('file', file);
+
+                                // Show loading (simple alert/text update or state)
+                                // Ideally we'd have a loading state, but for now we'll use a temp method or alert
+                                const btn = document.getElementById('ai-gen-btn');
+                                if (btn) { btn.innerText = 'Generating...'; btn.disabled = true; }
+
+                                try {
+                                    const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/courses/${currentCourseId}/chapters/${chapterId}/modules/${moduleId}/generate-quiz-from-file`, formData, {
+                                        headers: { 'Content-Type': 'multipart/form-data' }
+                                    });
+
+                                    if (res.data.questions && res.data.questions.length > 0) {
+                                        setQuestions(res.data.questions);
+                                        alert(`Success! Generated ${res.data.questions.length} questions.`);
+                                    } else {
+                                        alert("No questions could be generated from this file.");
+                                    }
+
+                                } catch (err) {
+                                    console.error(err);
+                                    alert("Failed to generate quiz: " + (err.response?.data?.message || err.message));
+                                } finally {
+                                    if (btn) { btn.innerText = '✨ Import from PDF'; btn.disabled = false; }
+                                    e.target.value = '';
+                                }
+                            }}
+                        />
+                        <button
+                            id="ai-gen-btn"
+                            onClick={() => document.getElementById('quiz-pdf-upload').click()}
+                            style={{
+                                padding: '10px 20px',
+                                background: '#0ea5e9',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '8px',
+                                fontWeight: 'bold',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px'
+                            }}
+                        >
+                            ✨ Import from PDF
+                        </button>
+                    </div>
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '15px', marginBottom: '32px' }}>

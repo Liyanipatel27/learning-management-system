@@ -13,6 +13,16 @@ const User = require('../models/User');
 
 const upload = multer({ storage: storage });
 
+const uploadMiddleware = (req, res, next) => {
+    upload.single('file')(req, res, (err) => {
+        if (err) {
+            console.error('Multer/Cloudinary Upload Error:', err);
+            return res.status(500).json({ message: 'File Upload Failed', error: err.message, stack: err.stack });
+        }
+        next();
+    });
+};
+
 // Get all courses (for students/public) - ONLY PUBLISHED
 router.get('/', async (req, res) => {
     try {
@@ -266,13 +276,20 @@ router.post('/:courseId/chapters/:chapterId/modules/:moduleId/generate-quiz', as
         const data = await pdfParse(buffer);
         const extractedText = data.text;
 
-        if (!extractedText || extractedText.length < 50) {
-            return res.status(400).json({ message: 'Could not extract sufficient text from the PDF.' });
+        console.log(`[DEBUG MODULE QUIZ] Module: ${module.title}`);
+        console.log(`[DEBUG MODULE QUIZ] PDF URL: ${pdfContent.url}`);
+        console.log(`[DEBUG MODULE QUIZ] Extracted Text Length: ${extractedText?.length}`);
+        console.log(`[DEBUG MODULE QUIZ] Preview: ${extractedText?.substring(0, 200)}`);
+
+        if (!extractedText || extractedText.trim().length < 50) {
+            return res.status(400).json({ message: 'Could not extract sufficient text from the PDF. It might be scanned.' });
         }
 
         // Generate Quiz
         const aiService = require('../services/aiService');
         const quizData = await aiService.generateQuizFromPDF(extractedText);
+
+        console.log(`[DEBUG MODULE QUIZ] Generated ${quizData.questions?.length} questions.`);
 
         // Update Module
         module.quiz = {
@@ -288,6 +305,71 @@ router.post('/:courseId/chapters/:chapterId/modules/:moduleId/generate-quiz', as
 
     } catch (err) {
         console.error('Quiz Generation Route Error:', err);
+        res.status(500).json({ message: 'Failed to generate quiz: ' + err.message });
+    }
+});
+
+// Generate Quiz from Uploaded File (Directly)
+router.post('/:courseId/chapters/:chapterId/modules/:moduleId/generate-quiz-from-file', uploadMiddleware, async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ message: 'No file uploaded' });
+        }
+
+        console.log(`Generating quiz from uploaded file: ${req.file.originalname}`);
+
+        // Extract Text using pdf-parse directly from file buffer or path
+        // Multer with Cloudinary storage puts file in req.file.path (URL) or we might need to download it if it's not local buffer.
+        // Wait, the 'storage' config imports from '../config/cloudinary'. 
+        // Usually, cloudinary storage uploads immediately and gives a URL. 
+        // If we want to process it, we have to download it back OR configure multer to store locally/memory for this route.
+        // BUT, 'uploadMiddleware' uses the imported 'upload' which uses 'storage' (Cloudinary).
+        // So req.file.path will be a Cloudinary URL.
+
+        let extractedText = '';
+
+        // Download from Cloudinary URL to process
+        const response = await axios.get(req.file.path, { responseType: 'arraybuffer' });
+        const buffer = Buffer.from(response.data, 'binary');
+
+        const data = await pdfParse(buffer);
+        extractedText = data.text;
+
+        console.log(`[DEBUG] Extracted Text Length: ${extractedText?.length}`);
+        console.log(`[DEBUG] Extracted Text Preview: ${extractedText?.substring(0, 200)}`);
+
+        if (!extractedText || extractedText.trim().length < 50) {
+            // Cleanup: Delete the raw file from Cloudinary since it's just for generation
+            try {
+                await deleteFile(req.file.path);
+            } catch (e) { console.warn("Failed to cleanup temp quiz file", e); }
+
+            return res.status(400).json({ message: 'Could not extract sufficient text from the PDF. It might be a scanned image.' });
+        }
+
+        // Generate Quiz
+        const aiService = require('../services/aiService');
+        const quizData = await aiService.generateQuizFromPDF(extractedText);
+
+        // We do NOT save to module.quiz here automatically? 
+        // The plan said "Returns the generated JSON".
+        // The frontend will receive it and populate the form.
+
+        // Optional: Delete the file from Cloudinary after processing since we don't need to store it?
+        // The user just wanted to generate a quiz. 
+        // Let's keep it simple and delete it to avoid clutter, or leave it. 
+        // I'll leave it for now or delete it. Better to delete as it's a "tool" operation.
+        // Importing 'deleteFile' from '../utils/cloudinaryHelper' (it is already imported at top).
+
+        try {
+            await deleteFile(req.file.path);
+        } catch (e) { console.warn("Failed to cleanup temp quiz file", e); }
+
+
+        res.json({ questions: quizData.questions });
+
+    } catch (err) {
+        console.error('Quiz Generation File Route Error:', err);
         res.status(500).json({ message: 'Failed to generate quiz: ' + err.message });
     }
 });
@@ -350,15 +432,7 @@ router.post('/:courseId/chapters/:chapterId/modules', async (req, res) => {
 });
 
 // Upload Content
-const uploadMiddleware = (req, res, next) => {
-    upload.single('file')(req, res, (err) => {
-        if (err) {
-            console.error('Multer/Cloudinary Upload Error:', err);
-            return res.status(500).json({ message: 'File Upload Failed', error: err.message, stack: err.stack });
-        }
-        next();
-    });
-};
+
 
 router.post('/:courseId/chapters/:chapterId/modules/:moduleId/content', uploadMiddleware, async (req, res) => {
     try {

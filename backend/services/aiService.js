@@ -943,9 +943,9 @@ class AIService {
         // Use Quiz Generator Key
         let keys = [process.env.GEMINI_QUIZ_GENERATOR_KEY];
 
-        const prompt = `Generate a quiz based on the following content.
+        const prompt = `Generate a quiz strictly based on the following content context. Do not use any external knowledge.
         
-        Content: ${text.substring(0, 50000)}... (truncated if too long)
+        Content: "${text.substring(0, 50000)}..."
         
         Requirements:
         1. Total Questions: ${numQuestions}
