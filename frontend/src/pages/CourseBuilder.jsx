@@ -360,17 +360,7 @@ const CourseBuilder = ({ teacherId, onCourseCreated, initialCourse }) => {
                                                     {module.quiz?.questions?.length > 0 ? `Edit Quiz (${module.quiz.questions.length} Qs)` : '+ Add Quiz'}
                                                 </button>
 
-                                                {/* AI Quiz Generator Button */}
-                                                {module.contents.some(c => c.type === 'pdf') && (
-                                                    <button
-                                                        onClick={() => {
-                                                            alert("This feature is being updated. please use the new 'Generate Quiz with AI' button below.");
-                                                        }}
-                                                        style={{ padding: '8px 16px', background: '#ccc', color: '#666', border: '1px solid #999', borderRadius: '10px', fontSize: '0.85rem', fontWeight: 'bold', cursor: 'pointer' }}
-                                                    >
-                                                        Legacy Gen
-                                                    </button>
-                                                )}
+
                                             </div>
                                             <div style={{ marginTop: '15px' }}>
                                                 {/* New AI Button on Module Card */}
