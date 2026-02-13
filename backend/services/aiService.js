@@ -257,8 +257,8 @@ class AIService {
             if (this[currentIndexName] === undefined) this[currentIndexName] = 0;
         }
 
-        // Rotate Key
-        this[currentIndexName] = (this[currentIndexName] + 1) % keys.length;
+        // Rotate Key - REMOVED for Sticky Session (Only rotate on failure)
+        // this[currentIndexName] = (this[currentIndexName] + 1) % keys.length;
 
         this[callCountName] = (this[callCountName] || 0) + 1;
         console.log(`[Gemini ${keyType} Usage] Call #${this[callCountName]} | Initial Key Index: ${this[currentIndexName]} (Key ending: ...${keys[this[currentIndexName]].slice(-4)})`);
@@ -286,6 +286,7 @@ class AIService {
 
                 // Rotate to next key on error
                 currentTryIndex = (currentTryIndex + 1) % keys.length;
+                this[currentIndexName] = currentTryIndex; // Update global index to stick to new key
                 attempts++;
                 console.log(`Retrying with ${keyType} Key Index: ${currentTryIndex}`);
 
