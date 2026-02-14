@@ -10,6 +10,101 @@ const CourseBuilder = ({ teacherId, onCourseCreated, initialCourse }) => {
     const [chapters, setChapters] = useState(initialCourse ? initialCourse.chapters : []);
     const [currentCourseId, setCurrentCourseId] = useState(initialCourse ? initialCourse._id : null);
     const [editingQuiz, setEditingQuiz] = useState(null);
+    const [showQuizAnswers, setShowQuizAnswers] = useState(false);
+
+    // --- AI QUIZ GENERATION STATE (Moved from QuizEditor) ---
+    const [aiModalTarget, setAiModalTarget] = useState(null); // { chapterId, moduleId }
+    const [isAiGenerating, setIsAiGenerating] = useState(false);
+    const [aiTopic, setAiTopic] = useState('');
+    const [aiCount, setAiCount] = useState(5);
+    const [generatedQuestions, setGeneratedQuestions] = useState([]);
+    const [selectedGenerated, setSelectedGenerated] = useState({});
+    const [aiViewMode, setAiViewMode] = useState('input'); // 'input' vs 'review'
+
+    const handleAiGenerate = async () => {
+        if (!aiTopic) return alert('Please enter a topic');
+        if (!aiModalTarget) return;
+
+        const token = localStorage.getItem('token'); // FIXED: Use localStorage
+        if (!token) {
+            alert("You are not logged in. Please log in to generate quizzes.");
+            return;
+        }
+
+        setIsAiGenerating(true);
+        try {
+            const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/ai/generate-quiz`, {
+                topic: aiTopic,
+                count: aiCount,
+                courseId: currentCourseId,
+                moduleId: aiModalTarget.moduleId
+            }, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+
+            if (res.data.success) {
+                const newQs = res.data.data.map(q => ({
+                    question: q.question,
+                    options: q.options,
+                    correctAnswerIndex: q.correctAnswerIndex !== undefined ? q.correctAnswerIndex : 0,
+                    explanation: q.explanation,
+                    difficulty: q.difficulty || 'medium'
+                }));
+
+                setGeneratedQuestions(newQs);
+                const initialSelection = {};
+                newQs.forEach((_, i) => initialSelection[i] = true);
+                setSelectedGenerated(initialSelection);
+                setAiViewMode('review');
+            }
+        } catch (err) {
+            console.error(err);
+            if (err.response && (err.response.status === 401 || err.response.status === 403)) {
+                alert("Session expired or invalid token. Please log out and log in again.");
+            } else {
+                alert('Error generating quiz: ' + (err.response?.data?.message || err.message));
+            }
+        } finally {
+            setIsAiGenerating(false);
+        }
+    };
+
+    const confirmAiSelection = () => {
+        const toAdd = generatedQuestions.filter((_, i) => selectedGenerated[i]);
+        if (toAdd.length === 0) return alert('Select at least one question.');
+
+        // Update the module's quiz directly in chapters state
+        setChapters(prev => prev.map(c => {
+            if (c._id === aiModalTarget.chapterId) {
+                return {
+                    ...c,
+                    modules: c.modules.map(m => {
+                        if (m._id === aiModalTarget.moduleId) {
+                            // Initialize quiz if not exists
+                            const existingQuestions = m.quiz?.questions || [];
+                            return {
+                                ...m,
+                                quiz: {
+                                    ...m.quiz,
+                                    questions: [...existingQuestions, ...toAdd],
+                                    passingScore: m.quiz?.passingScore || 70,
+                                    fastTrackScore: m.quiz?.fastTrackScore || 85
+                                }
+                            };
+                        }
+                        return m;
+                    })
+                };
+            }
+            return c;
+        }));
+
+        setAiModalTarget(null);
+        setGeneratedQuestions([]);
+        setAiViewMode('input');
+        setAiTopic('');
+        alert(`Added ${toAdd.length} questions! You can edit them in the Quiz Editor.`);
+    };
 
     useEffect(() => {
         if (initialCourse) {
@@ -250,7 +345,7 @@ const CourseBuilder = ({ teacherId, onCourseCreated, initialCourse }) => {
                                                 </div>
                                             </div>
 
-                                            <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
+                                            <div style={{ display: 'flex', gap: '10px', marginTop: '16px', flexWrap: 'wrap' }}>
                                                 <button
                                                     onClick={() => {
                                                         const questions = module.quiz?.questions || [];
@@ -264,7 +359,185 @@ const CourseBuilder = ({ teacherId, onCourseCreated, initialCourse }) => {
                                                 >
                                                     {module.quiz?.questions?.length > 0 ? `Edit Quiz (${module.quiz.questions.length} Qs)` : '+ Add Quiz'}
                                                 </button>
+
+
                                             </div>
+                                            <div style={{ marginTop: '15px' }}>
+                                                {/* New AI Button on Module Card */}
+                                                <button
+                                                    onClick={() => {
+                                                        console.log("AI Button Clicked for module:", module.title);
+                                                        setAiModalTarget({ chapterId: chapter._id, moduleId: module._id });
+                                                        setAiTopic(module.title); // Pre-fill topic with module title
+                                                    }}
+                                                    style={{
+                                                        padding: '8px 16px',
+                                                        background: '#7c3aed',
+                                                        color: 'white',
+                                                        border: 'none',
+                                                        borderRadius: '8px',
+                                                        fontWeight: 'bold',
+                                                        cursor: 'pointer',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '8px',
+                                                        fontSize: '0.85rem',
+                                                        boxShadow: '0 2px 4px rgba(124, 58, 237, 0.2)'
+                                                    }}
+                                                >
+                                                    ✨ Generate Quiz with AI
+                                                </button>
+                                            </div>
+
+                                            {/* Quiz Editor Section */}
+                                            {module.quiz && module.quiz.questions && (
+                                                <div style={{ marginTop: '20px', padding: '20px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '10px' }}>
+                                                        <h6 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '700', color: '#334155', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                            <span>✨ Quiz Editor</span>
+                                                            <span style={{ fontSize: '0.75rem', background: '#e2e8f0', color: '#475569', padding: '2px 8px', borderRadius: '12px' }}>
+                                                                {module.quiz.questions.length} Qs
+                                                            </span>
+                                                        </h6>
+                                                        <div style={{ display: 'flex', gap: '8px' }}>
+                                                            <button
+                                                                onClick={() => setShowQuizAnswers(!showQuizAnswers)}
+                                                                style={{ fontSize: '0.8rem', padding: '6px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', background: 'white', cursor: 'pointer' }}
+                                                            >
+                                                                {showQuizAnswers ? '👁️ Hide Answers' : '🙈 Show Answers'}
+                                                            </button>
+                                                            <button
+                                                                onClick={() => {
+                                                                    setChapters(prev => prev.map(c => c._id === chapter._id ? {
+                                                                        ...c, modules: c.modules.map(m => m._id === module._id ? {
+                                                                            ...m, quiz: { ...m.quiz, questions: [...m.quiz.questions, { question: "", options: ["", "", "", ""], correctAnswerIndex: 0 }] }
+                                                                        } : m)
+                                                                    } : c));
+                                                                }}
+                                                                style={{ fontSize: '0.8rem', padding: '6px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#eff6ff', color: '#1d4ed8', cursor: 'pointer' }}
+                                                            >
+                                                                + Add Question
+                                                            </button>
+                                                            <button
+                                                                onClick={async () => {
+                                                                    try {
+                                                                        // Save the current state of the quiz to backend
+                                                                        await axios.post(`${import.meta.env.VITE_API_URL}/api/courses/${currentCourseId}/chapters/${chapter._id}/modules/${module._id}/quiz`, module.quiz);
+                                                                        alert('Quiz saved and published successfully!');
+                                                                    } catch (err) {
+                                                                        console.error(err);
+                                                                        alert('Error saving quiz');
+                                                                    }
+                                                                }}
+                                                                style={{ fontSize: '0.8rem', padding: '6px 12px', borderRadius: '6px', border: 'none', background: '#22c55e', color: 'white', cursor: 'pointer', fontWeight: 'bold' }}
+                                                            >
+                                                                Save & Publish
+                                                            </button>
+                                                            <button
+                                                                onClick={async () => {
+                                                                    if (!window.confirm("Are you sure you want to delete this quiz?")) return;
+                                                                    try {
+                                                                        const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/courses/${currentCourseId}/chapters/${chapter._id}/modules/${module._id}/quiz`, {
+                                                                            questions: [],
+                                                                            passingScore: 70,
+                                                                            fastTrackScore: 85
+                                                                        });
+                                                                        setChapters(res.data.chapters);
+                                                                        alert('Quiz deleted successfully');
+                                                                    } catch (err) {
+                                                                        console.error(err);
+                                                                        alert('Error deleting quiz');
+                                                                    }
+                                                                }}
+                                                                style={{ fontSize: '0.8rem', padding: '6px 12px', borderRadius: '6px', border: '1px solid #fecaca', background: '#fff1f2', color: '#e11d48', cursor: 'pointer' }}
+                                                            >
+                                                                Delete
+                                                            </button>
+                                                        </div>
+                                                    </div>
+
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                                                        {module.quiz.questions.map((q, qIdx) => (
+                                                            <div key={qIdx} style={{ padding: '15px', background: 'white', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
+                                                                <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+                                                                    <span style={{ fontWeight: 'bold', color: '#64748b' }}>{qIdx + 1}.</span>
+                                                                    <textarea
+                                                                        value={q.question}
+                                                                        onChange={(e) => {
+                                                                            setChapters(prev => prev.map(c => c._id === chapter._id ? {
+                                                                                ...c, modules: c.modules.map(m => m._id === module._id ? {
+                                                                                    ...m, quiz: { ...m.quiz, questions: m.quiz.questions.map((qu, i) => i === qIdx ? { ...qu, question: e.target.value } : qu) }
+                                                                                } : m)
+                                                                            } : c));
+                                                                        }}
+                                                                        placeholder="Enter question text here..."
+                                                                        style={{ flex: 1, padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.9rem', minHeight: '60px', fontFamily: 'inherit' }}
+                                                                    />
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            if (!window.confirm("Delete this question?")) return;
+                                                                            setChapters(prev => prev.map(c => c._id === chapter._id ? {
+                                                                                ...c, modules: c.modules.map(m => m._id === module._id ? {
+                                                                                    ...m, quiz: { ...m.quiz, questions: m.quiz.questions.filter((_, i) => i !== qIdx) }
+                                                                                } : m)
+                                                                            } : c));
+                                                                        }}
+                                                                        style={{ height: '30px', width: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                                                                    >
+                                                                        🗑️
+                                                                    </button>
+                                                                </div>
+
+                                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+                                                                    {q.options.map((opt, oIdx) => (
+                                                                        <div key={oIdx} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                                            <span style={{ fontSize: '0.8rem', color: '#64748b', width: '15px' }}>{String.fromCharCode(65 + oIdx)}</span>
+                                                                            <input
+                                                                                type="text"
+                                                                                value={opt}
+                                                                                onChange={(e) => {
+                                                                                    setChapters(prev => prev.map(c => c._id === chapter._id ? {
+                                                                                        ...c, modules: c.modules.map(m => m._id === module._id ? {
+                                                                                            ...m, quiz: {
+                                                                                                ...m.quiz, questions: m.quiz.questions.map((qu, i) => i === qIdx ? {
+                                                                                                    ...qu, options: qu.options.map((o, j) => j === oIdx ? e.target.value : o)
+                                                                                                } : qu)
+                                                                                            }
+                                                                                        } : m)
+                                                                                    } : c));
+                                                                                }}
+                                                                                placeholder={`Option ${oIdx + 1}`}
+                                                                                style={{ flex: 1, padding: '6px', borderRadius: '4px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
+                                                                            />
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+
+                                                                {showQuizAnswers && (
+                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.9rem', color: '#166534', background: '#dcfce7', padding: '8px', borderRadius: '6px' }}>
+                                                                        <span style={{ fontWeight: 'bold' }}>Correct Answer:</span>
+                                                                        <select
+                                                                            value={q.correctAnswerIndex}
+                                                                            onChange={(e) => {
+                                                                                setChapters(prev => prev.map(c => c._id === chapter._id ? {
+                                                                                    ...c, modules: c.modules.map(m => m._id === module._id ? {
+                                                                                        ...m, quiz: { ...m.quiz, questions: m.quiz.questions.map((qu, i) => i === qIdx ? { ...qu, correctAnswerIndex: Number(e.target.value) } : qu) }
+                                                                                    } : m)
+                                                                                } : c));
+                                                                            }}
+                                                                            style={{ padding: '4px', borderRadius: '4px', border: '1px solid #86efac', background: 'white' }}
+                                                                        >
+                                                                            {q.options.map((_, oIdx) => (
+                                                                                <option key={oIdx} value={oIdx}>Option {String.fromCharCode(65 + oIdx)}</option>
+                                                                            ))}
+                                                                        </select>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
 
                                             <ContentUploader onUpload={(file, data) => uploadContent(chapter._id, module._id, file, data)} />
 
@@ -320,6 +593,7 @@ const CourseBuilder = ({ teacherId, onCourseCreated, initialCourse }) => {
 
                     {editingQuiz && (
                         <QuizEditor
+                            currentCourseId={currentCourseId}
                             chapterId={editingQuiz.chapterId}
                             moduleId={editingQuiz.moduleId}
                             quiz={editingQuiz.quiz}
@@ -329,23 +603,141 @@ const CourseBuilder = ({ teacherId, onCourseCreated, initialCourse }) => {
                         />
                     )}
 
-                    <div style={{ marginTop: '40px', textAlign: 'center' }}>
-                        <button
-                            onClick={async () => {
-                                try {
-                                    await axios.put(`${import.meta.env.VITE_API_URL}/api/courses/${currentCourseId}/publish`, { isPublished: true });
-                                    alert('Course published successfully!');
-                                    onCourseCreated();
-                                } catch (err) {
-                                    console.error(err);
-                                    alert('Error publishing course');
-                                }
-                            }}
-                            style={{ padding: '14px 40px', background: '#10b981', color: 'white', border: 'none', borderRadius: '12px', fontWeight: '700', fontSize: '1rem', cursor: 'pointer', boxShadow: '0 4px 6px rgba(16, 185, 129, 0.2)' }}
-                        >
-                            Complete Course & Publish
-                        </button>
-                    </div>
+                    {/* AI Quiz Generator Modal */}
+                    {aiModalTarget && (
+                        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+                            <div style={{ background: 'white', padding: '32px', borderRadius: '24px', width: '100%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                                    <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                        <span>✨ Generate Quiz</span>
+                                    </h2>
+                                    <button
+                                        onClick={() => {
+                                            setAiModalTarget(null);
+                                            setGeneratedQuestions([]);
+                                            setAiViewMode('input');
+                                        }}
+                                        style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }}
+                                    >
+                                        &times;
+                                    </button>
+                                </div>
+
+                                {aiViewMode === 'input' ? (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                                        <div>
+                                            <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px', color: '#4a5568' }}>Topic / Context</label>
+                                            <input
+                                                type="text"
+                                                value={aiTopic}
+                                                onChange={(e) => setAiTopic(e.target.value)}
+                                                placeholder="e.g. Introduction to React Hooks"
+                                                style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '1rem' }}
+                                            />
+                                            <p style={{ fontSize: '0.85rem', color: '#718096', marginTop: '6px' }}>
+                                                The AI will generate questions based on this topic.
+                                            </p>
+                                        </div>
+
+                                        <div>
+                                            <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px', color: '#4a5568' }}>Number of Questions</label>
+                                            <select
+                                                value={aiCount}
+                                                onChange={(e) => setAiCount(Number(e.target.value))}
+                                                style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '1rem', background: 'white' }}
+                                            >
+                                                <option value={3}>3 Questions</option>
+                                                <option value={5}>5 Questions</option>
+                                                <option value={10}>10 Questions</option>
+                                            </select>
+                                        </div>
+
+                                        <button
+                                            onClick={handleAiGenerate}
+                                            disabled={isAiGenerating}
+                                            style={{
+                                                padding: '14px',
+                                                background: isAiGenerating ? '#a5b4fc' : '#6366f1',
+                                                color: 'white',
+                                                border: 'none',
+                                                borderRadius: '12px',
+                                                fontWeight: 'bold',
+                                                fontSize: '1rem',
+                                                marginTop: '10px',
+                                                cursor: isAiGenerating ? 'not-allowed' : 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                gap: '10px'
+                                            }}
+                                        >
+                                            {isAiGenerating ? (
+                                                <>
+                                                    <div style={{ width: '20px', height: '20px', border: '2px solid white', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+                                                    Generating...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <span>✨ Generate Questions</span>
+                                                </>
+                                            )}
+                                        </button>
+                                        <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+                                    </div>
+                                ) : (
+                                    /* REVIEW MODE */
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                                        <p style={{ color: '#4a5568', margin: 0 }}>
+                                            Review the generated questions below. Uncheck any you don't want to include.
+                                        </p>
+
+                                        <div style={{ maxHeight: '400px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '15px', paddingRight: '5px' }}>
+                                            {generatedQuestions.map((q, idx) => (
+                                                <div key={idx} style={{ padding: '15px', border: '1px solid #e2e8f0', borderRadius: '12px', background: selectedGenerated[idx] ? '#f8fafc' : 'white', opacity: selectedGenerated[idx] ? 1 : 0.6 }}>
+                                                    <div style={{ display: 'flex', gap: '10px', marginBottom: '8px' }}>
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={!!selectedGenerated[idx]}
+                                                            onChange={(e) => setSelectedGenerated(prev => ({ ...prev, [idx]: e.target.checked }))}
+                                                            style={{ width: '18px', height: '18px', marginTop: '4px', cursor: 'pointer' }}
+                                                        />
+                                                        <div style={{ flex: 1 }}>
+                                                            <div style={{ fontWeight: 'bold', color: '#1e293b', marginBottom: '4px' }}>{idx + 1}. {q.question}</div>
+                                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '0.9rem', color: '#64748b' }}>
+                                                                {q.options.map((opt, oIdx) => (
+                                                                    <div key={oIdx} style={{ color: oIdx === q.correctAnswerIndex ? '#16a34a' : 'inherit', fontWeight: oIdx === q.correctAnswerIndex ? 'bold' : 'normal' }}>
+                                                                        {String.fromCharCode(65 + oIdx)}. {opt}
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                            <div style={{ marginTop: '8px', fontSize: '0.85rem', color: '#6366f1', fontStyle: 'italic' }}>
+                                                                Explanation: {q.explanation}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                                            <button
+                                                onClick={() => setAiViewMode('input')}
+                                                style={{ flex: 1, padding: '12px', background: 'white', color: '#4a5568', border: '1px solid #e2e8f0', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' }}
+                                            >
+                                                Back
+                                            </button>
+                                            <button
+                                                onClick={confirmAiSelection}
+                                                style={{ flex: 2, padding: '12px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' }}
+                                            >
+                                                Add Selected Questions
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
         </div>
@@ -435,7 +827,7 @@ const ContentUploader = ({ onUpload }) => {
     );
 };
 
-const QuizEditor = ({ chapterId, moduleId, quiz, quizConfig, onSave, onClose }) => {
+const QuizEditor = ({ currentCourseId, chapterId, moduleId, quiz, quizConfig, onSave, onClose }) => {
     const [questions, setQuestions] = useState(quiz?.questions || [{
         question: '',
         options: ['', '', '', ''],
@@ -450,7 +842,14 @@ const QuizEditor = ({ chapterId, moduleId, quiz, quizConfig, onSave, onClose }) 
         questionsPerAttemptStandard: quizConfig?.questionsPerAttemptStandard || quizConfig?.questionsPerAttempt || 10,
         questionsPerAttemptFastTrack: quizConfig?.questionsPerAttemptFastTrack || quizConfig?.questionsPerAttempt || 5
     });
+
     const [showExplanation, setShowExplanation] = useState({}); // Track which explanation is visible
+
+    // AI Analysis State
+    const [analyzingQuestion, setAnalyzingQuestion] = useState({}); // {[index]: boolean }
+    const [questionAnalysis, setQuestionAnalysis] = useState({}); // {[index]: AnalysisObject }
+
+
 
     const handleQuestionChange = (index, field, value) => {
         const newQuestions = [...questions];
@@ -472,6 +871,29 @@ const QuizEditor = ({ chapterId, moduleId, quiz, quizConfig, onSave, onClose }) 
         setQuestions(questions.filter((_, i) => i !== index));
     };
 
+    const handleAnalyzeQuestion = async (index) => {
+        const q = questions[index];
+        if (!q.question || q.question.length < 5) return alert("Please enter a valid question first.");
+
+        setAnalyzingQuestion(prev => ({ ...prev, [index]: true }));
+        setQuestionAnalysis(prev => ({ ...prev, [index]: null }));
+
+        try {
+            const correctAnswer = q.options[q.correctAnswerIndex] || "Not Specified";
+            const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/ai/teacher/question-analysis`, {
+                question: q.question,
+                options: q.options,
+                correctAnswer: correctAnswer
+            });
+            setQuestionAnalysis(prev => ({ ...prev, [index]: res.data }));
+        } catch (err) {
+            console.error(err);
+            alert("Analysis failed: " + (err.response?.data?.message || err.message));
+        } finally {
+            setAnalyzingQuestion(prev => ({ ...prev, [index]: false }));
+        }
+    };
+
     return (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
             <div style={{ background: 'white', padding: '32px', borderRadius: '24px', width: '100%', maxWidth: '800px', maxHeight: '90vh', overflowY: 'auto' }}>
@@ -479,6 +901,8 @@ const QuizEditor = ({ chapterId, moduleId, quiz, quizConfig, onSave, onClose }) 
                     <h2 style={{ margin: 0 }}>Module Quiz Editor</h2>
                     <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }}>&times;</button>
                 </div>
+
+
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '15px', marginBottom: '32px' }}>
                     <div>
@@ -562,6 +986,45 @@ const QuizEditor = ({ chapterId, moduleId, quiz, quizConfig, onSave, onClose }) 
                                     </div>
                                 )}
                             </div>
+
+
+                            {/* AI Analysis Result Display */}
+                            <div style={{ marginTop: '15px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                    <button
+                                        onClick={() => handleAnalyzeQuestion(qIdx)}
+                                        disabled={analyzingQuestion[qIdx]}
+                                        style={{
+                                            background: '#8b5cf6',
+                                            color: 'white',
+                                            border: 'none',
+                                            padding: '8px 16px',
+                                            borderRadius: '8px',
+                                            fontSize: '0.85rem',
+                                            fontWeight: 'bold',
+                                            cursor: analyzingQuestion[qIdx] ? 'wait' : 'pointer',
+                                            display: 'flex', alignItems: 'center', gap: '5px'
+                                        }}
+                                    >
+                                        {analyzingQuestion[qIdx] ? 'Analyzing...' : '🔍 Analyze Question Quality'}
+                                    </button>
+                                </div>
+                                {questionAnalysis[qIdx] && (
+                                    <div style={{ marginTop: '10px', padding: '15px', background: 'white', border: '1px solid #ddd6fe', borderRadius: '12px', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '10px' }}>
+                                            <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#5b21b6' }}>Difficulty: {questionAnalysis[qIdx].difficultyLevel}</span>
+                                            <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#5b21b6' }}>Bloom's: {questionAnalysis[qIdx].bloomsTaxonomy}</span>
+                                            <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#5b21b6' }}>Quality: {questionAnalysis[qIdx].qualityScore}/10</span>
+                                        </div>
+                                        <div style={{ fontSize: '0.85rem', color: '#4c1d95' }}>
+                                            <strong>Suggestions:</strong>
+                                            <ul style={{ margin: '5px 0 0 20px', padding: 0 }}>
+                                                {questionAnalysis[qIdx].suggestions?.map((s, i) => <li key={i}>{s}</li>)}
+                                            </ul>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     ))}
                 </div>
@@ -582,8 +1045,8 @@ const QuizEditor = ({ chapterId, moduleId, quiz, quizConfig, onSave, onClose }) 
                         Save Quiz
                     </button>
                 </div>
-            </div>
-        </div>
+            </div >
+        </div >
     );
 };
 

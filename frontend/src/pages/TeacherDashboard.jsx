@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import * as XLSX from 'xlsx';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line } from 'recharts';
 import CourseBuilder from './CourseBuilder';
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-
+import StudentRiskAnalysis from './StudentRiskAnalysis';
 
 
 function TeacherDashboard() {
@@ -230,7 +230,7 @@ function TeacherDashboard() {
                 ) : activeTab === 'student-grades' ? (
                     <StudentGradesSection teacherId={user.id || user._id} allPublishedCourses={publishedCourses} />
                 ) : activeTab === 'student-reports' ? (
-                    <StudentProgressSection />
+                    <StudentAnalyticsSection teacherId={user.id || user._id} />
                 ) : activeTab === 'profile' ? (
                     <ProfileSection userId={user.id || user._id} />
                 ) : activeTab === 'announcements' ? (
@@ -499,10 +499,9 @@ const LiveClassSection = ({ teacherId, teacherName }) => {
     );
 };
 
-
 const StudentGradesSection = ({ teacherId, allPublishedCourses }) => {
-    const [gradesData, setGradesData] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [gradesData, setGradesData] = useState([]);
     const [selectedCourseId, setSelectedCourseId] = useState('all');
 
     useEffect(() => {
@@ -666,7 +665,6 @@ const StudentGradesSection = ({ teacherId, allPublishedCourses }) => {
         </div>
     );
 };
-
 const StudentProgressSection = () => {
     const [report, setReport] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -753,85 +751,7 @@ const StudentProgressSection = () => {
 
 
 // --- NEW SECTION: Students Directory ---
-const StudentsSection = () => {
-    const [students, setStudents] = useState([]);
-    const [loading, setLoading] = useState(true);
 
-    const fetchStudents = async () => {
-        setLoading(true);
-        try {
-            const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/auth/students`);
-            setStudents(res.data);
-        } catch (err) {
-            console.error('Error fetching students:', err);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        fetchStudents();
-    }, []);
-
-    if (loading) return <div style={{ textAlign: 'center', padding: '50px' }}>Loading students...</div>;
-
-    return (
-        <div style={{ background: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#1a202c', margin: 0 }}>Registered Students</h2>
-                <button
-                    onClick={fetchStudents}
-                    style={{ padding: '8px 16px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem' }}
-                >
-                    🔄 Refresh List
-                </button>
-            </div>
-            <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                    <thead>
-                        <tr style={{ background: '#f8fafc', borderBottom: '1px solid #edf2f7' }}>
-                            <th style={{ padding: '15px 20px', textAlign: 'left', color: '#718096' }}>Student Name</th>
-                            <th style={{ padding: '15px 20px', textAlign: 'left', color: '#718096' }}>Enrollment</th>
-                            <th style={{ padding: '15px 20px', textAlign: 'left', color: '#718096' }}>Branch</th>
-                            <th style={{ padding: '15px 20px', textAlign: 'left', color: '#718096' }}>Email</th>
-                            <th style={{ padding: '15px 20px', textAlign: 'left', color: '#718096' }}>Joined Date</th>
-                            <th style={{ padding: '15px 20px', textAlign: 'center', color: '#718096' }}>Account Status</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {students.length === 0 ? (
-                            <tr>
-                                <td colSpan="4" style={{ padding: '40px', textAlign: 'center', color: '#a0aec0' }}>No students registered yet.</td>
-                            </tr>
-                        ) : (
-                            students.map(student => (
-                                <tr key={student._id} style={{ borderBottom: '1px solid #f8fafc' }}>
-                                    <td style={{ padding: '15px 20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                        <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#6366f1', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '600' }}>
-                                            {student.name.charAt(0).toUpperCase()}
-                                        </div>
-                                        <span style={{ fontWeight: '600', color: '#2d3748' }}>{student.name}</span>
-                                    </td>
-                                    <td style={{ padding: '15px 20px', color: '#4a5568', fontWeight: '600' }}>{student.enrollment || 'N/A'}</td>
-                                    <td style={{ padding: '15px 20px', color: '#4a5568' }}>{student.branch || 'N/A'}</td>
-                                    <td style={{ padding: '15px 20px', color: '#4a5568' }}>{student.email}</td>
-                                    <td style={{ padding: '15px 20px', color: '#718096' }}>
-                                        {student.createdAt ? new Date(student.createdAt).toLocaleDateString('en-GB') : 'N/A'}
-                                    </td>
-                                    <td style={{ padding: '15px 20px', textAlign: 'center' }}>
-                                        <span style={{ padding: '4px 12px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: '700', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}>
-                                            ACTIVE
-                                        </span>
-                                    </td>
-                                </tr>
-                            ))
-                        )}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    );
-};
 
 // --- NEW SECTION: Profile View ---
 // --- NEW SECTION: Assignments Management ---
@@ -842,6 +762,7 @@ const AssignmentsSection = ({ teacherId, courses }) => {
     const [editingAssignment, setEditingAssignment] = useState(null);
     const [viewSubmissionsFor, setViewSubmissionsFor] = useState(null);
     const [loading, setLoading] = useState(false);
+    const [checkingPlagiarismId, setCheckingPlagiarismId] = useState(null);
 
     const [newAssignment, setNewAssignment] = useState({
         title: '',
@@ -866,6 +787,20 @@ const AssignmentsSection = ({ teacherId, courses }) => {
         } catch (err) {
             console.error('Error deleting assignment:', err);
             alert('Failed to delete assignment');
+        }
+    };
+
+    const handleCheckPlagiarism = async (assignmentId) => {
+        if (!window.confirm('Run plagiarism check for ALL current submissions? This may take a moment.')) return;
+        setCheckingPlagiarismId(assignmentId);
+        try {
+            const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/assignments/${assignmentId}/check-plagiarism`);
+            alert(res.data.message);
+        } catch (err) {
+            console.error('Plagiarism check error:', err);
+            alert('Failed to run plagiarism check: ' + (err.response?.data?.message || err.message));
+        } finally {
+            setCheckingPlagiarismId(null);
         }
     };
 
@@ -1029,6 +964,25 @@ const AssignmentsSection = ({ teacherId, courses }) => {
                                 title="Delete Assignment"
                             >
                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                            </button>
+                            <button
+                                onClick={() => handleCheckPlagiarism(asgn._id)}
+                                disabled={checkingPlagiarismId === asgn._id}
+                                style={{
+                                    padding: '10px',
+                                    background: checkingPlagiarismId === asgn._id ? '#e2e8f0' : 'rgba(236, 72, 153, 0.1)',
+                                    border: 'none',
+                                    borderRadius: '10px',
+                                    color: checkingPlagiarismId === asgn._id ? '#94a3b8' : '#ec4899',
+                                    cursor: checkingPlagiarismId === asgn._id ? 'wait' : 'pointer'
+                                }}
+                                title="Run Plagiarism Checker"
+                            >
+                                {checkingPlagiarismId === asgn._id ? (
+                                    <span style={{ fontSize: '0.8rem' }}>Running...</span>
+                                ) : (
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                                )}
                             </button>
                         </div>
                     </div>
@@ -1240,7 +1194,12 @@ const SubmissionsModal = ({ assignment, onClose }) => {
     const [gradingSubmission, setGradingSubmission] = useState(null);
     const [executingCode, setExecutingCode] = useState(false);
     const [stdin, setStdin] = useState('');
+
     const [executionResult, setExecutionResult] = useState(null);
+
+    // AI Feedback State
+    const [generatingFeedback, setGeneratingFeedback] = useState(false);
+    const [aiFeedback, setAiFeedback] = useState(null);
 
     useEffect(() => {
         fetchSubmissions();
@@ -1279,9 +1238,60 @@ const SubmissionsModal = ({ assignment, onClose }) => {
         try {
             await axios.put(`${import.meta.env.VITE_API_URL}/api/assignments/grade/${gradingSubmission._id}`, { score, feedback });
             setGradingSubmission(null);
+            setAiFeedback(null); // Reset AI feedback
             fetchSubmissions();
         } catch (err) {
             alert('Error grading submission');
+        }
+    };
+
+    const handleGenerateAiFeedback = async () => {
+        if (!assignment.description) return alert("Assignment has no description/question to analyze.");
+
+        const answer = assignment.type === 'coding' ? gradingSubmission.code : "File submission (Text extraction not supported yet)";
+
+        if (!answer || answer.length < 10) return alert("Student answer is too short for AI analysis.");
+
+        const plagiarismScore = gradingSubmission.plagiarismResult?.similarityPercentage || 0;
+
+        setGeneratingFeedback(true);
+        setAiFeedback(null);
+        try {
+            const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/ai/teacher/feedback`, {
+                question: assignment.description,
+                answer: answer,
+                plagiarismScore: plagiarismScore
+            });
+            setAiFeedback(res.data);
+        } catch (err) {
+            console.error(err);
+            alert("Failed to generate AI feedback: " + (err.response?.data?.message || err.message));
+        } finally {
+            setGeneratingFeedback(false);
+        }
+    };
+
+    const applyAiFeedback = () => {
+        if (!aiFeedback) return;
+
+        // Update the form inputs
+        const scoreInput = document.getElementById('grade-score');
+        const feedbackInput = document.getElementById('grade-feedback');
+
+        if (scoreInput) scoreInput.value = aiFeedback.score || '';
+        if (feedbackInput) {
+            const structuredFeedback = `
+[AI Generated Feedback]
+Strengths:
+- ${aiFeedback.strengths?.join('\n- ') || 'N/A'}
+
+Areas for Improvement:
+- ${aiFeedback.areasForImprovement?.join('\n- ') || 'N/A'}
+
+Detailed:
+${aiFeedback.detailedFeedback || ''}
+            `.trim();
+            feedbackInput.value = structuredFeedback;
         }
     };
 
@@ -1300,6 +1310,18 @@ const SubmissionsModal = ({ assignment, onClose }) => {
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Submissions");
         XLSX.writeFile(wb, `${assignment.title}_Submissions.xlsx`);
+    };
+
+    const handleRequestRewrite = async (submissionId) => {
+        if (!confirm("Are you sure you want to request a re-write for this assignment?")) return;
+        try {
+            await axios.put(`${import.meta.env.VITE_API_URL}/api/assignments/request-rewrite/${submissionId}`, {});
+            alert("Re-write requested successfully.");
+            fetchSubmissions();
+        } catch (err) {
+            console.error(err);
+            alert("Failed to request re-write: " + (err.response?.data?.message || err.message));
+        }
     };
 
     return (
@@ -1336,6 +1358,7 @@ const SubmissionsModal = ({ assignment, onClose }) => {
                                 <th style={{ padding: '12px' }}>Enrollment</th>
                                 <th style={{ padding: '12px' }}>Submitted At</th>
                                 <th style={{ padding: '12px' }}>Status</th>
+                                <th style={{ padding: '12px' }}>Plagiarism</th>
                                 <th style={{ padding: '12px' }}>Score</th>
                                 <th style={{ padding: '12px' }}>Action</th>
                             </tr>
@@ -1355,14 +1378,58 @@ const SubmissionsModal = ({ assignment, onClose }) => {
                                             color: sub.status === 'Graded' ? '#065f46' : '#92400e'
                                         }}>{sub.status}</span>
                                     </td>
-                                    <td style={{ padding: '12px' }}>{sub.score !== null ? `${sub.score}/${assignment.maxPoints}` : '-'}</td>
                                     <td style={{ padding: '12px' }}>
+                                        {sub.plagiarismResult ? (
+                                            (() => {
+                                                const pct = sub.plagiarismResult.similarityPercentage;
+                                                let color = '#10b981'; // Green (No Risk / Safe)
+                                                let label = 'No Risk';
+
+                                                if (pct > 50) {
+                                                    color = '#ef4444'; // Red
+                                                    label = 'High Risk';
+                                                } else if (pct > 25) {
+                                                    color = '#f59e0b'; // Yellow
+                                                    label = 'Low Risk';
+                                                } else if (pct > 0) {
+                                                    color = '#10b981'; // Green
+                                                    label = 'Safe';
+                                                } else {
+                                                    label = 'No Risk';
+                                                }
+
+                                                return (
+                                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                        <span style={{ fontWeight: 'bold', color: color }}>
+                                                            {pct}%
+                                                        </span>
+                                                        <span style={{ fontSize: '0.7rem', color: color }}>
+                                                            {label}
+                                                        </span>
+                                                    </div>
+                                                );
+                                            })()
+                                        ) : (
+                                            <span style={{ color: '#cbd5e0', fontSize: '0.8rem' }}>Not Analyzed</span>
+                                        )}
+                                    </td>
+                                    <td style={{ padding: '12px' }}>{sub.score !== null ? `${sub.score}/${assignment.maxPoints}` : '-'}</td>
+                                    <td style={{ padding: '12px', display: 'flex', gap: '5px' }}>
                                         <button
                                             onClick={() => setGradingSubmission(sub)}
                                             style={{ padding: '6px 12px', background: '#6366f1', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem' }}
                                         >
                                             {sub.status === 'Graded' ? 'Edit Grade' : 'Grade'}
                                         </button>
+                                        {sub.plagiarismResult && sub.plagiarismResult.similarityPercentage > 25 && sub.status !== 'Re-write' && (
+                                            <button
+                                                onClick={() => handleRequestRewrite(sub._id)}
+                                                style={{ padding: '6px 12px', background: '#f59e0b', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem' }}
+                                                title="Request Re-write"
+                                            >
+                                                Re-write
+                                            </button>
+                                        )}
                                     </td>
                                 </tr>
                             ))}
@@ -1438,6 +1505,47 @@ const SubmissionsModal = ({ assignment, onClose }) => {
                                 )}
                             </div>
 
+
+
+                            {/* AI Feedback Section */}
+                            <div style={{ marginBottom: '20px', padding: '15px', background: '#f0f9ff', borderRadius: '12px', border: '1px solid #bae6fd' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                                    <h4 style={{ margin: 0, color: '#0369a1', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        🤖 AI Assistant
+                                    </h4>
+                                    <button
+                                        onClick={handleGenerateAiFeedback}
+                                        disabled={generatingFeedback}
+                                        style={{
+                                            padding: '6px 12px',
+                                            background: '#0ea5e9',
+                                            color: 'white',
+                                            border: 'none',
+                                            borderRadius: '8px',
+                                            cursor: generatingFeedback ? 'wait' : 'pointer',
+                                            fontSize: '0.8rem',
+                                            fontWeight: 'bold'
+                                        }}
+                                    >
+                                        {generatingFeedback ? 'Analyzing...' : 'Generate Feedback'}
+                                    </button>
+                                </div>
+                                {aiFeedback && (
+                                    <div style={{ background: 'white', padding: '15px', borderRadius: '8px', border: '1px solid #e0f2fe' }}>
+                                        <div style={{ marginBottom: '10px', display: 'flex', justifyContent: 'space-between' }}>
+                                            <span style={{ fontWeight: 'bold', color: '#0369a1' }}>Suggested Score: {aiFeedback.score}</span>
+                                            <button onClick={applyAiFeedback} style={{ fontSize: '0.8rem', color: '#0284c7', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
+                                                Apply to Grade
+                                            </button>
+                                        </div>
+                                        <div style={{ fontSize: '0.9rem', color: '#334155' }}>
+                                            <strong>Strengths:</strong> {aiFeedback.strengths?.join(', ')}<br />
+                                            <strong>Improvement:</strong> {aiFeedback.areasForImprovement?.join(', ')}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
                             <div style={{ marginBottom: '15px' }}>
                                 <label style={{ display: 'block', marginBottom: '5px' }}>Score (Out of {assignment.maxPoints})</label>
                                 <input
@@ -1489,11 +1597,332 @@ const SubmissionsModal = ({ assignment, onClose }) => {
                             </div>
                         </div>
                     </div>
-                )}
+                )
+                }
+            </div >
+        </div >
+    );
+}
+
+const StudentsSection = () => {
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const [students, setStudents] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [riskData, setRiskData] = useState({});
+    const [analyzingRisk, setAnalyzingRisk] = useState({});
+
+    useEffect(() => {
+        const fetchStudentData = async () => {
+            try {
+                const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/courses/grades/teacher/${user.id || user._id}`);
+
+                // Aggregate students across courses
+                const studentMap = new Map();
+                res.data.forEach(course => {
+                    course.students.forEach(s => {
+                        if (!studentMap.has(s.studentId)) {
+                            studentMap.set(s.studentId, {
+                                id: s.studentId,
+                                name: s.studentName,
+                                email: s.studentEmail,
+                                courses: [],
+                                quizzesTaken: 0,
+                                avgScore: 0
+                            });
+                        }
+                        const existing = studentMap.get(s.studentId);
+                        existing.courses.push(course.courseName);
+
+                        const scores = s.quizzes.map(q => q.score).filter(sc => sc !== null);
+                        if (scores.length > 0) {
+                            const sum = scores.reduce((a, b) => a + b, 0);
+                            const totalQuizzes = existing.quizzesTaken + scores.length;
+                            const currentTotalScore = (existing.avgScore * existing.quizzesTaken) + sum;
+                            existing.avgScore = Math.round(currentTotalScore / totalQuizzes);
+                            existing.quizzesTaken = totalQuizzes;
+                        }
+                    });
+                });
+                setStudents(Array.from(studentMap.values()));
+            } catch (err) {
+                console.error("Error fetching students:", err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchStudentData();
+    }, []);
+
+    const handleAnalyzeRisk = async (student) => {
+        setAnalyzingRisk(prev => ({ ...prev, [student.id]: true }));
+        try {
+            const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/ai/teacher/risk-prediction`, {
+                studentId: student.id
+            });
+            setRiskData(prev => ({ ...prev, [student.id]: res.data }));
+        } catch (err) {
+            console.error(err);
+            console.error(err);
+            const errorMsg = err.response?.data?.message || err.message || "Unknown error";
+            alert(`Risk prediction failed: ${errorMsg}`);
+        } finally {
+            setAnalyzingRisk(prev => ({ ...prev, [student.id]: false }));
+        }
+    };
+
+    if (loading) return <div>Loading students...</div>;
+
+    return (
+        <div style={{ background: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 4px 6px rgba(0,0,0,0.02)' }}>
+            <h2 style={{ fontSize: '1.5rem', marginBottom: '20px' }}>Student Directory & Risk Analysis</h2>
+            <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                        <tr style={{ background: '#f8fafc', textAlign: 'left' }}>
+                            <th style={{ padding: '15px' }}>Name</th>
+                            <th style={{ padding: '15px' }}>Email</th>
+                            <th style={{ padding: '15px' }}>Enrolled Courses</th>
+                            <th style={{ padding: '15px' }}>Avg Score</th>
+
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {students.map(student => (
+                            <React.Fragment key={student.id}>
+                                <tr style={{ borderBottom: '1px solid #edf2f7' }}>
+                                    <td style={{ padding: '15px', fontWeight: 'bold', color: '#2d3748' }}>{student.name}</td>
+                                    <td style={{ padding: '15px', color: '#718096' }}>{student.email}</td>
+                                    <td style={{ padding: '15px' }}>
+                                        <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                                            {student.courses.map((c, i) => (
+                                                <span key={i} style={{ fontSize: '0.75rem', background: '#e0e7ff', color: '#4338ca', padding: '2px 8px', borderRadius: '4px' }}>{c}</span>
+                                            ))}
+                                        </div>
+                                    </td>
+                                    <td style={{ padding: '15px', fontWeight: 'bold' }}>{student.avgScore}%</td>
+
+                                </tr>
+
+                            </React.Fragment>
+                        ))}
+                    </tbody>
+                </table>
             </div>
         </div>
     );
-}
+};
+
+const StudentAnalyticsSection = ({ teacherId }) => {
+    const [gradesData, setGradesData] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    // AI Class Insights State
+    const [classInsights, setClassInsights] = useState(null);
+    const [generatingInsights, setGeneratingInsights] = useState(false);
+    const [showInsightsModal, setShowInsightsModal] = useState(false);
+
+    const handleGenerateClassInsights = async () => {
+        setGeneratingInsights(true);
+        try {
+            const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/ai/teacher/class-insights`, {
+                teacherId: teacherId
+            });
+            setClassInsights(res.data);
+            setShowInsightsModal(true);
+        } catch (err) {
+            console.error(err);
+            alert("Failed to generate Class Insights. Please try again.");
+        } finally {
+            setGeneratingInsights(false);
+        }
+    };
+
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/courses/grades/teacher/${teacherId}`);
+                // Process for charts
+                // Chart 1: Course Averages
+                const processed = res.data.map(course => {
+                    if (course.students.length === 0) return null;
+                    const totalScore = course.students.reduce((acc, s) => {
+                        const sTotal = s.quizzes.reduce((sum, q) => sum + (q.score || 0), 0);
+                        return acc + (s.quizzes.length ? sTotal / s.quizzes.length : 0);
+                    }, 0);
+                    return {
+                        name: course.courseName,
+                        average: Math.round(totalScore / course.students.length),
+                        students: course.students.length
+                    };
+                }).filter(Boolean);
+
+                setGradesData(processed);
+            } catch (err) {
+                console.error(err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchData();
+    }, [teacherId]);
+
+    if (loading) return <div>Loading analytics...</div>;
+
+    return (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px', paddingBottom: '50px' }}>
+            <div style={{ background: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 4px 6px rgba(0,0,0,0.02)' }}>
+                <h3 style={{ color: '#2d3748', marginBottom: '20px' }}>Course Performance Averages</h3>
+                <div style={{ height: '300px' }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={gradesData}>
+                            <XAxis dataKey="name" stroke="#718096" fontSize={12} />
+                            <YAxis stroke="#718096" fontSize={12} />
+                            <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '10px', padding: '10px' }} />
+                            <Bar dataKey="average" fill="#6366f1" radius={[8, 8, 0, 0]} barSize={40} name="Avg Score %" />
+                        </BarChart>
+                    </ResponsiveContainer>
+                </div>
+            </div>
+
+            <div style={{ background: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 4px 6px rgba(0,0,0,0.02)' }}>
+                <h3 style={{ color: '#2d3748', marginBottom: '20px' }}>Student Enrollment Distribution</h3>
+                <div style={{ height: '300px' }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                            <Pie
+                                data={gradesData}
+                                cx="50%"
+                                cy="50%"
+                                innerRadius={60}
+                                outerRadius={80}
+                                paddingAngle={5}
+                                dataKey="students"
+                                nameKey="name"
+                            >
+                                {gradesData.map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={['#6366f1', '#10b981', '#f59e0b', '#ef4444'][index % 4]} />
+                                ))}
+                            </Pie>
+                            <Tooltip contentStyle={{ borderRadius: '10px', padding: '10px' }} />
+                            <Legend layout="vertical" verticalAlign="middle" align="right" />
+                        </PieChart>
+                    </ResponsiveContainer>
+                </div>
+            </div>
+
+            {/* AI Performance Summary */}
+            <div style={{ gridColumn: '1 / -1', background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)', padding: '30px', borderRadius: '20px', color: 'white' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                        <h3 style={{ fontSize: '1.5rem', marginBottom: '10px' }}>🤖 AI Class Insights</h3>
+                        <p style={{ color: '#a5b4fc', maxWidth: '600px', margin: 0 }}>
+                            Generate a comprehensive report on class performance, identifying learning gaps and suggesting curriculum improvements.
+                        </p>
+                    </div>
+                    <button
+                        onClick={handleGenerateClassInsights}
+                        disabled={generatingInsights}
+                        style={{
+                            padding: '12px 24px',
+                            background: generatingInsights ? '#a5b4fc' : 'white',
+                            color: generatingInsights ? 'white' : '#312e81',
+                            border: 'none',
+                            borderRadius: '10px',
+                            fontWeight: 'bold',
+                            cursor: generatingInsights ? 'not-allowed' : 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px'
+                        }}>
+                        {generatingInsights ? 'Analyzing Data...' : 'Generate New Report'}
+                    </button>
+                </div>
+            </div>
+
+            {/* Insights Modal */}
+            {showInsightsModal && classInsights && (
+                <div style={{
+                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                    background: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000
+                }}>
+                    <div style={{
+                        background: 'white', width: '900px', maxHeight: '90vh', overflowY: 'auto',
+                        borderRadius: '20px', padding: '40px', position: 'relative'
+                    }}>
+                        <button
+                            onClick={() => setShowInsightsModal(false)}
+                            style={{ position: 'absolute', top: '20px', right: '20px', background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }}>
+                            ✖
+                        </button>
+
+                        <div style={{ textAlign: 'center', marginBottom: '30px' }}>
+                            <h2 style={{ fontSize: '2rem', color: '#1e1b4b', margin: '0 0 10px 0' }}>Class Performance Insights</h2>
+                            <p style={{ color: '#6b7280' }}>Generated by AI • {new Date().toLocaleDateString()}</p>
+                        </div>
+
+                        <div style={{ marginBottom: '30px', padding: '20px', background: '#f0f9ff', borderRadius: '15px', borderLeft: '5px solid #0ea5e9' }}>
+                            <h3 style={{ color: '#0369a1', margin: '0 0 10px 0' }}>📊 Executive Summary</h3>
+                            <p style={{ margin: 0, color: '#334155', lineHeight: '1.6' }}>{classInsights.overview}</p>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px', marginBottom: '30px' }}>
+                            <div style={{ padding: '20px', background: '#fff1f2', borderRadius: '15px', border: '1px solid #ffe4e6' }}>
+                                <h4 style={{ color: '#be123c', margin: '0 0 15px 0', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    ⚠️ Learning Gaps
+                                </h4>
+                                <ul style={{ margin: 0, paddingLeft: '20px', color: '#881337' }}>
+                                    {classInsights.learningGaps?.map((gap, i) => (
+                                        <li key={i} style={{ marginBottom: '8px' }}>{gap}</li>
+                                    ))}
+                                </ul>
+                            </div>
+                            <div style={{ padding: '20px', background: '#f0fdf4', borderRadius: '15px', border: '1px solid #dcfce7' }}>
+                                <h4 style={{ color: '#15803d', margin: '0 0 15px 0', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    💡 Recommendations
+                                </h4>
+                                <ul style={{ margin: 0, paddingLeft: '20px', color: '#14532d' }}>
+                                    {classInsights.recommendations?.map((rec, i) => (
+                                        <li key={i} style={{ marginBottom: '8px' }}>{rec}</li>
+                                    ))}
+                                </ul>
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px', marginBottom: '30px' }}>
+                            <div style={{ padding: '20px', background: '#fefce8', borderRadius: '15px', border: '1px solid #fef9c3' }}>
+                                <h4 style={{ color: '#a16207', margin: '0 0 10px 0' }}>🏆 Top Performing Courses</h4>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                                    {classInsights.topPerformingCourses?.map((course, i) => (
+                                        <span key={i} style={{ background: 'white', padding: '5px 12px', borderRadius: '20px', fontSize: '0.9rem', border: '1px solid #fde047', color: '#854d0e' }}>
+                                            {course}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                            <div style={{ padding: '20px', background: '#fef2f2', borderRadius: '15px', border: '1px solid #fee2e2' }}>
+                                <h4 style={{ color: '#b91c1c', margin: '0 0 10px 0' }}>🚨 Needs Attention</h4>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                                    {classInsights.needsAttentionCourses?.map((course, i) => (
+                                        <span key={i} style={{ background: 'white', padding: '5px 12px', borderRadius: '20px', fontSize: '0.9rem', border: '1px solid #fecaca', color: '#991b1b' }}>
+                                            {course}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style={{ padding: '20px', background: '#f8fafc', borderRadius: '15px', border: '1px solid #e2e8f0' }}>
+                            <h4 style={{ color: '#475569', margin: '0 0 10px 0' }}>📈 Engagement Analysis</h4>
+                            <p style={{ margin: 0, color: '#64748b', lineHeight: '1.6' }}>{classInsights.engagementAnalysis}</p>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+
 
 const ProfileSection = ({ userId }) => {
     const sessionUser = JSON.parse(localStorage.getItem('user') || '{}');

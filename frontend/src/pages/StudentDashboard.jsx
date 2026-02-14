@@ -3,12 +3,16 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
+
+import SummaryWidget from '../components/AI/SummaryWidget';
+
 import ReactMarkdown from 'react-markdown';
 import signatureImg from '../assets/signature.png';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 
 import AIAssistantSidebar from '../components/AIAssistantSidebar'; // Import the new component
+import StudentAIHub from './StudentAIHub';
 
 const formatTime = (seconds) => {
     if (seconds <= 0) return '0s';
@@ -16,6 +20,78 @@ const formatTime = (seconds) => {
     const s = seconds % 60;
     if (m === 0) return `${s}s`;
     return `${m}m ${s}s`;
+};
+
+
+const FeedbackReadMore = ({ feedback }) => {
+    const [isExpanded, setIsExpanded] = useState(false);
+
+    if (!feedback) return null;
+
+    // Helper to parse feedback into points
+    const parseFeedback = (text) => {
+        if (!text) return [];
+        let lines = text.split('\n').map(l => l.trim()).filter(l => l);
+
+        if (lines.length === 1 || lines.length < 3) {
+            const parts = text.split(/(?:^|\s)- /).map(p => p.trim()).filter(p => p);
+            if (parts.length > 1) return parts;
+        }
+        return lines;
+    };
+
+    if (isExpanded) {
+        const points = parseFeedback(feedback);
+
+        return (
+            <div style={{ margin: '5px 0 0 0', fontSize: '0.8rem', color: '#15803d' }}>
+                <strong style={{ fontWeight: 'bold' }}>Feedback: </strong>
+                <ul style={{ paddingLeft: '20px', margin: '5px 0', listStyleType: 'disc' }}>
+                    {points.map((point, idx) => {
+                        const isHeader = /^(Strengths|Areas for Improvement|Detailed|Conclusion):/i.test(point);
+                        return (
+                            <li key={idx} style={{ marginBottom: '4px', listStyle: isHeader ? 'none' : 'disc', fontWeight: isHeader ? 'bold' : 'normal', marginLeft: isHeader ? '-20px' : '0' }}>
+                                {point}
+                            </li>
+                        );
+                    })}
+                </ul>
+                <span
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setIsExpanded(false);
+                    }}
+                    style={{ cursor: 'pointer', color: '#166534', fontWeight: 'bold', textDecoration: 'underline', display: 'inline-block', marginTop: '5px' }}
+                >
+                    (read less)
+                </span>
+            </div>
+        );
+    }
+
+    const words = feedback.split(' ');
+    // Handle short feedback gracefully
+    const truncated = words.length > 2 ? words.slice(0, 2).join(' ') : words.join(' ');
+    const shouldShowReadMore = words.length > 2;
+
+    return (
+        <p style={{ margin: '5px 0 0 0', fontSize: '0.8rem', color: '#15803d' }}>
+            <strong style={{ fontWeight: 'bold' }}>Feedback: </strong>
+            {truncated}
+            {shouldShowReadMore && '...'}
+            {shouldShowReadMore && (
+                <span
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setIsExpanded(true);
+                    }}
+                    style={{ cursor: 'pointer', color: '#166534', fontWeight: 'bold', marginLeft: '5px', textDecoration: 'underline' }}
+                >
+                    read more
+                </span>
+            )}
+        </p>
+    );
 };
 
 function StudentDashboard() {
@@ -31,6 +107,7 @@ function StudentDashboard() {
     const [weekendHours, setWeekendHours] = useState(4);
     const [pendingAssignmentsCount, setPendingAssignmentsCount] = useState(0);
     const [pendingAssignments, setPendingAssignments] = useState([]);
+    const [rewriteRequests, setRewriteRequests] = useState([]);
     const [announcements, setAnnouncements] = useState([]);
 
 
@@ -40,7 +117,7 @@ function StudentDashboard() {
     }, []);
 
     useEffect(() => {
-        if (['dashboard', 'my-courses', 'ai-roadmap', 'certificates', 'grades', 'announcements'].includes(activeTab)) {
+        if (['dashboard', 'my-courses', 'ai-hub', 'certificates', 'grades', 'announcements'].includes(activeTab)) {
             fetchCourses();
             fetchAllProgress();
             fetchAnnouncements();
@@ -139,9 +216,24 @@ function StudentDashboard() {
             const submittedAssignmentIds = new Set(subRes.data.map(s => String(s.assignment)));
 
             // Calculate pending: Assignment exists but ID is NOT in submitted set
-            const pending = allAsgns.filter(asgn => !submittedAssignmentIds.has(String(asgn._id)));
-            setPendingAssignmentsCount(pending.length);
-            setPendingAssignments(pending);
+            const pendingAsgns = allAsgns.filter(asgn => !submittedAssignmentIds.has(String(asgn._id)));
+            setPendingAssignmentsCount(pendingAsgns.length);
+            setPendingAssignments(pendingAsgns);
+
+            // Process Rewrite Requests
+            const rewrites = subRes.data
+                .filter(s => s.status === 'Re-write')
+                .map(s => {
+                    const asgn = allAsgns.find(a => String(a._id) === String(s.assignment));
+                    const crs = res.data.find(c => String(c._id) === String(s.course));
+                    return {
+                        ...s,
+                        assignmentTitle: asgn?.title,
+                        subject: crs?.subject,
+                        courseObj: crs
+                    };
+                });
+            setRewriteRequests(rewrites);
 
         } catch (err) {
             console.error('Error in fetchCourses:', err);
@@ -176,12 +268,16 @@ function StudentDashboard() {
                         <div className={`nav-item ${activeTab === 'dashboard' && !selectedCourse ? 'active' : ''}`} onClick={() => { setActiveTab('dashboard'); setSelectedCourse(null); }}>Dashboard</div>
                         <div className={`nav-item ${activeTab === 'my-courses' ? 'active' : ''}`} onClick={() => { setActiveTab('my-courses'); setSelectedCourse(null); }}>My Courses</div>
                         <div className={`nav-item ${activeTab === 'certificates' ? 'active' : ''}`} onClick={() => { setActiveTab('certificates'); setSelectedCourse(null); }}>Certificates</div>
-                        <div className={`nav-item ${activeTab === 'ai-roadmap' ? 'active' : ''}`} onClick={() => { setActiveTab('ai-roadmap'); setSelectedCourse(null); }}>AI Career Roadmap</div>
+
+                        <div className={`nav-item ${activeTab === 'ai-hub' ? 'active' : ''}`} onClick={() => { setActiveTab('ai-hub'); setSelectedCourse(null); }}>🤖 AI Learning Hub</div>
+
+
                         <div className={`nav-item ${activeTab === 'assignments' ? 'active' : ''}`} onClick={() => { setActiveTab('assignments'); setSelectedCourse(null); }}>Assignments</div>
                         <div className={`nav-item ${activeTab === 'grades' ? 'active' : ''}`} onClick={() => { setActiveTab('grades'); setSelectedCourse(null); }}>Grades</div>
                         <div className={`nav-item ${activeTab === 'announcements' ? 'active' : ''}`} onClick={() => { setActiveTab('announcements'); setSelectedCourse(null); }}>Announcements</div>
                         <div className={`nav-item ${activeTab === 'live-class' ? 'active' : ''}`} onClick={() => { setActiveTab('live-class'); setSelectedCourse(null); }}>📺 Live Class</div>
                         <div className={`nav-item ${activeTab === 'profile' ? 'active' : ''}`} onClick={() => { setActiveTab('profile'); setSelectedCourse(null); }}>Profile</div>
+
                         <div
                             className="nav-item"
                             onClick={handleLogout}
@@ -189,9 +285,10 @@ function StudentDashboard() {
                         >
                             Logout
                         </div>
-                    </nav>
-                </aside>
-            )}
+                    </nav >
+                </aside >
+            )
+            }
 
             <main className="main-content" style={{ flex: 1, padding: '40px' }}>
                 {!isCinemaMode && (
@@ -226,7 +323,8 @@ function StudentDashboard() {
                                     <h1 style={{ fontSize: '2rem', color: '#2D3748', margin: 0 }}>
                                         {activeTab === 'dashboard' ? 'Dashboard' :
                                             activeTab === 'my-courses' ? 'My Courses' :
-                                                activeTab === 'ai-roadmap' ? 'AI Roadmap' :
+                                                activeTab === 'ai-hub' ? 'AI Learning Hub' :
+
                                                     activeTab === 'assignments' ? 'Assignments' :
                                                         activeTab === 'announcements' ? 'Announcements' :
                                                             activeTab === 'live-class' ? 'Live Classes' :
@@ -236,10 +334,11 @@ function StudentDashboard() {
                                     <p style={{ color: '#718096', margin: 0 }}>
                                         {activeTab === 'dashboard' ? `Welcome back, ${user.name}!` :
                                             activeTab === 'my-courses' ? 'Track your learning progress' :
-                                                activeTab === 'assignments' ? 'Complete and submit your tasks' :
-                                                    activeTab === 'announcements' ? 'Stay updated with latest news' :
-                                                        activeTab === 'grades' ? 'View your quiz and assignment scores' :
-                                                            'Download your earned certifications'}
+                                                activeTab === 'ai-hub' ? 'Supercharge your learning with AI' :
+                                                    activeTab === 'assignments' ? 'Complete and submit your tasks' :
+                                                        activeTab === 'announcements' ? 'Stay updated with latest news' :
+                                                            activeTab === 'grades' ? 'View your quiz and assignment scores' :
+                                                                'Download your earned certifications'}
                                     </p>
                                 </div>
                             )}
@@ -326,6 +425,8 @@ function StudentDashboard() {
                     <>
                         {/* Deadline Warnings */}
                         {/* Deadline Warnings - Condensed */}
+
+
 
                         <section className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
                             {/* Card 1 */}
@@ -462,10 +563,9 @@ function StudentDashboard() {
                         allProgress={allProgress}
                         onSelectCourse={(course) => setSelectedCourse(course)}
                     />
-                ) : activeTab === 'ai-roadmap' ? (
-                    <RoadmapSection
-                        courses={courses}
-                        allProgress={allProgress}
+                ) : activeTab === 'ai-hub' ? (
+                    <StudentAIHub
+                        user={user}
                         dailyHours={dailyHours}
                         setDailyHours={setDailyHours}
                         weekendHours={weekendHours}
@@ -494,59 +594,61 @@ function StudentDashboard() {
             </main>
 
             {/* Premium Study Reminder Toast */}
-            {showStudyReminder && (
-                <div style={{
-                    position: 'fixed',
-                    bottom: '30px',
-                    right: '30px',
-                    background: 'white',
-                    padding: '20px',
-                    borderRadius: '16px',
-                    boxShadow: '0 15px 35px rgba(0,0,0,0.15)',
-                    border: '1px solid #edf2f7',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '12px',
-                    minWidth: '320px',
-                    zIndex: 9999,
-                    animation: 'slideInRight 0.5s ease-out'
-                }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <span style={{ fontSize: '1.5rem' }}>🎯</span>
-                            <h4 style={{ margin: 0, color: '#2d3748', fontSize: '1rem' }}>Study Goal Reminder</h4>
+            {
+                showStudyReminder && (
+                    <div style={{
+                        position: 'fixed',
+                        bottom: '30px',
+                        right: '30px',
+                        background: 'white',
+                        padding: '20px',
+                        borderRadius: '16px',
+                        boxShadow: '0 15px 35px rgba(0,0,0,0.15)',
+                        border: '1px solid #edf2f7',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '12px',
+                        minWidth: '320px',
+                        zIndex: 9999,
+                        animation: 'slideInRight 0.5s ease-out'
+                    }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <span style={{ fontSize: '1.5rem' }}>🎯</span>
+                                <h4 style={{ margin: 0, color: '#2d3748', fontSize: '1rem' }}>Study Goal Reminder</h4>
+                            </div>
+                            <button onClick={() => setShowStudyReminder(null)} style={{ border: 'none', background: 'none', color: '#a0aec0', cursor: 'pointer', fontSize: '1.2rem' }}>&times;</button>
                         </div>
-                        <button onClick={() => setShowStudyReminder(null)} style={{ border: 'none', background: 'none', color: '#a0aec0', cursor: 'pointer', fontSize: '1.2rem' }}>&times;</button>
-                    </div>
-                    <div>
-                        <p style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: '#718096', lineHeight: '1.4' }}>
-                            You're doing great! You still need **{showStudyReminder.remaining} mins** more to reach your daily activity target.
-                        </p>
-                        <div style={{ height: '8px', background: '#edf2f7', borderRadius: '4px', overflow: 'hidden' }}>
-                            <div style={{
-                                height: '100%',
-                                width: `${Math.round(((showStudyReminder.goal - showStudyReminder.remaining) / showStudyReminder.goal) * 100)}%`,
-                                background: 'linear-gradient(90deg, #F6AD55, #ED8936)',
-                                borderRadius: '4px'
-                            }}></div>
+                        <div>
+                            <p style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: '#718096', lineHeight: '1.4' }}>
+                                You're doing great! You still need **{showStudyReminder.remaining} mins** more to reach your daily activity target.
+                            </p>
+                            <div style={{ height: '8px', background: '#edf2f7', borderRadius: '4px', overflow: 'hidden' }}>
+                                <div style={{
+                                    height: '100%',
+                                    width: `${Math.round(((showStudyReminder.goal - showStudyReminder.remaining) / showStudyReminder.goal) * 100)}%`,
+                                    background: 'linear-gradient(90deg, #F6AD55, #ED8936)',
+                                    borderRadius: '4px'
+                                }}></div>
+                            </div>
                         </div>
-                    </div>
-                    <button
-                        onClick={() => setShowStudyReminder(null)}
-                        style={{ background: '#6C63FF', color: 'white', border: 'none', padding: '8px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem' }}
-                    >
-                        Keep Studying (Got it!)
-                    </button>
+                        <button
+                            onClick={() => setShowStudyReminder(null)}
+                            style={{ background: '#6C63FF', color: 'white', border: 'none', padding: '8px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem' }}
+                        >
+                            Keep Studying (Got it!)
+                        </button>
 
-                    <style>{`
+                        <style>{`
                         @keyframes slideInRight {
                             from { transform: translateX(100%); opacity: 0; }
                             to { transform: translateX(0); opacity: 1; }
                         }
                     `}</style>
-                </div>
-            )}
-        </div>
+                    </div>
+                )
+            }
+        </div >
     );
 }
 
@@ -1106,31 +1208,78 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
                                     </div>
 
 
+                                    {
+                                        !isTabActive && !isTimeRequirementMet && (
+                                            <div style={{
+                                                padding: '8px',
+                                                background: '#FFF5F5',
+                                                color: '#C53030',
+                                                borderRadius: '8px',
+                                                marginBottom: '10px',
+                                                textAlign: 'center',
+                                                fontSize: '0.8rem',
+                                                fontWeight: 'bold',
+                                                border: '1px solid #FC8181'
+                                            }}>
+                                                ⚠️ Timer Paused: Please stay on this tab to continue your study time.
+                                            </div>
+                                        )
+                                    }
+                                    <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <div>
+                                            <h2 style={{ margin: 0, fontSize: '1.25rem', color: '#2d3748' }}>{selectedContent.title}</h2>
+                                            <span style={{ fontSize: '0.8rem', color: '#718096' }}>Type: {selectedContent.type.toUpperCase()}</span>
+
+                                        </div>
+                                        {selectedContent.type === 'link' && isTimeRequirementMet && (
+                                            <a
+                                                href={selectedContent.url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                style={{ padding: '8px 16px', background: '#6C63FF', color: 'white', borderRadius: '8px', textDecoration: 'none', fontSize: '0.85rem', fontWeight: 'bold' }}
+                                            >
+                                                Open Link
+                                            </a>
+                                        )}
+                                        {selectedContent.type !== 'link' && isTimeRequirementMet && (
+                                            <a
+                                                href={getContentUrl(selectedContent.url)}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                style={{ padding: '8px 16px', background: '#6C63FF', color: 'white', borderRadius: '8px', textDecoration: 'none', fontSize: '0.85rem', fontWeight: 'bold' }}
+                                            >
+                                                Open In New Tab
+                                            </a>
+                                        )}
+                                    </div>
+
 
                                     {/* Study Requirement Bar */}
-                                    {selectedContent.minTime > 0 && (
-                                        <div style={{ flex: 1, padding: '12px', background: isTimeRequirementMet ? '#C6F6D5' : '#EBF8FF', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                            <div style={{ fontSize: '1rem' }}>{isTimeRequirementMet ? '✅' : '⏳'}</div>
-                                            <div style={{ flex: 1 }}>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
-                                                    <span style={{ fontSize: '0.75rem', fontWeight: '700', color: isTimeRequirementMet ? '#22543D' : '#2A4365', display: 'flex', gap: '8px' }}>
-                                                        {isTimeRequirementMet ? '✅ Requirement Met' : (
-                                                            <>
-                                                                <span>⏱️ Spent: {formatTime(timeSpent)}</span>
-                                                                <span style={{ opacity: 0.6 }}>|</span>
-                                                                <span>⏳ Left: {formatTime(Math.max(0, selectedContent.minTime - timeSpent))}</span>
-                                                            </>
-                                                        )}
-                                                    </span>
-                                                    <span style={{ fontSize: '0.75rem', color: '#718096' }}>{Math.min(100, Math.round((timeSpent / selectedContent.minTime) * 100))}%</span>
-                                                </div>
-                                                <div style={{ height: '6px', background: 'rgba(0,0,0,0.1)', borderRadius: '3px', overflow: 'hidden' }}>
-                                                    <div style={{ height: '100%', width: `${Math.min(100, (timeSpent / selectedContent.minTime) * 100)}%`, background: isTimeRequirementMet ? '#38A169' : '#3182CE', transition: 'width 0.3s' }}></div>
+                                    {
+                                        selectedContent.minTime > 0 && (
+                                            <div style={{ flex: 1, padding: '12px', background: isTimeRequirementMet ? '#C6F6D5' : '#EBF8FF', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                <div style={{ fontSize: '1rem' }}>{isTimeRequirementMet ? '✅' : '⏳'}</div>
+                                                <div style={{ flex: 1 }}>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
+                                                        <span style={{ fontSize: '0.75rem', fontWeight: '700', color: isTimeRequirementMet ? '#22543D' : '#2A4365', display: 'flex', gap: '8px' }}>
+                                                            {isTimeRequirementMet ? '✅ Requirement Met' : (
+                                                                <>
+                                                                    <span>⏱️ Spent: {formatTime(timeSpent)}</span>
+                                                                    <span style={{ opacity: 0.6 }}>|</span>
+                                                                    <span>⏳ Left: {formatTime(Math.max(0, selectedContent.minTime - timeSpent))}</span>
+                                                                </>
+                                                            )}
+                                                        </span>
+                                                        <span style={{ fontSize: '0.75rem', color: '#718096' }}>{Math.min(100, Math.round((timeSpent / selectedContent.minTime) * 100))}%</span>
+                                                    </div>
+                                                    <div style={{ height: '6px', background: 'rgba(0,0,0,0.1)', borderRadius: '3px', overflow: 'hidden' }}>
+                                                        <div style={{ height: '100%', width: `${Math.min(100, (timeSpent / selectedContent.minTime) * 100)}%`, background: isTimeRequirementMet ? '#38A169' : '#3182CE', transition: 'width 0.3s' }}></div>
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    )}
-                                </div>
+                                        )
+                                    }
+                                </div >
 
                                 {!isTabActive && !isTimeRequirementMet && (
                                     <div style={{
@@ -1170,7 +1319,7 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
                                                 boxShadow: '0 2px 4px rgba(108, 99, 255, 0.3)'
                                             }}
                                         >
-                                            📝 Summary
+                                            ✨ AI Summary
                                         </button>
                                         <button
                                             onClick={() => setActiveAIFeature(activeAIFeature === 'quiz' ? null : 'quiz')}
@@ -1335,7 +1484,7 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
                                         </div>
                                     )}
                                 </div>
-                            </div>
+                            </div >
                         ) : (
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#a0aec0' }}>
                                 <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: '20px' }}>
@@ -1344,8 +1493,8 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
                                 <p>Select a lesson from the sidebar to start learning</p>
                             </div>
                         )}
-                    </div>
-                </div>
+                    </div >
+                </div >
 
                 {activeAIFeature && selectedContent && (
                     <div style={{ flex: 0.3, background: 'white', borderRadius: '15px', border: '1px solid #edf2f7', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
@@ -1359,8 +1508,8 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
                         />
                     </div>
                 )}
-            </div>
-        </div>
+            </div >
+        </div >
     );
 };
 
@@ -1376,6 +1525,7 @@ const AssignmentsSection = ({ userId, courses }) => {
     const [submitting, setSubmitting] = useState(false);
     const [code, setCode] = useState('');
     const [file, setFile] = useState(null);
+    const fileInputRef = useRef(null);
     const [stdin, setStdin] = useState('');
     const [executionResult, setExecutionResult] = useState(null);
     const [isExecuting, setIsExecuting] = useState(false);
@@ -1564,7 +1714,7 @@ const AssignmentsSection = ({ userId, courses }) => {
                                 {isGraded && (
                                     <div style={{ background: '#f0fdf4', padding: '12px', borderRadius: '12px', marginBottom: '15px', border: '1px solid #dcfce7' }}>
                                         <p style={{ margin: 0, fontWeight: 'bold', color: '#166534', fontSize: '0.9rem' }}>Score: {sub.score}/{asgn.maxPoints}</p>
-                                        <p style={{ margin: '5px 0 0 0', fontSize: '0.8rem', color: '#15803d' }}>Feedback: {sub.feedback}</p>
+                                        <FeedbackReadMore feedback={sub.feedback} />
                                     </div>
                                 )}
 
@@ -1577,15 +1727,15 @@ const AssignmentsSection = ({ userId, courses }) => {
                                     style={{
                                         width: '100%',
                                         padding: '12px',
-                                        background: isSubmitted ? '#f8fafc' : '#6366f1',
-                                        color: isSubmitted ? '#4a5568' : 'white',
-                                        border: isSubmitted ? '1px solid #e2e8f0' : 'none',
+                                        background: sub?.status === 'Re-write' ? '#ea580c' : isSubmitted ? '#f8fafc' : '#6366f1',
+                                        color: sub?.status === 'Re-write' ? 'white' : isSubmitted ? '#4a5568' : 'white',
+                                        border: isSubmitted && sub?.status !== 'Re-write' ? '1px solid #e2e8f0' : 'none',
                                         borderRadius: '12px',
                                         fontWeight: 'bold',
                                         cursor: 'pointer'
                                     }}
                                 >
-                                    {isSubmitted ? 'View Submission' : 'Start Assignment'}
+                                    {sub?.status === 'Re-write' ? 'Resubmit Now' : isSubmitted ? 'View Submission' : 'Start Assignment'}
                                 </button>
                             </div>
                         );
@@ -1625,7 +1775,7 @@ const AssignmentsSection = ({ userId, courses }) => {
                             </div>
                         )}
 
-                        {submissions[activeAssignment._id] ? (
+                        {submissions[activeAssignment._id] && submissions[activeAssignment._id].status !== 'Re-write' ? (
                             <div style={{ maxHeight: '70vh', overflowY: 'auto' }}>
                                 {/* --- SUBMISSION PREVIEW --- */}
                                 <div style={{ marginBottom: '20px', padding: '15px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
@@ -1704,18 +1854,54 @@ const AssignmentsSection = ({ userId, courses }) => {
                             </div>
                         ) : (
                             <form onSubmit={handleSubmit}>
+                                {submissions[activeAssignment._id]?.status === 'Re-write' && (
+                                    <div style={{ marginBottom: '20px', padding: '15px', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '12px' }}>
+                                        <h4 style={{ color: '#c2410c', margin: '0 0 5px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <span>📝</span> Resubmission Requested
+                                        </h4>
+                                        <p style={{ margin: 0, color: '#9a3412', fontSize: '0.95rem' }}>
+                                            <strong>Instructor Feedback:</strong> {submissions[activeAssignment._id].feedback}
+                                        </p>
+                                    </div>
+                                )}
                                 {activeAssignment.type === 'file' ? (
                                     <div style={{ marginBottom: '24px' }}>
                                         <label style={{ display: 'block', marginBottom: '10px', fontWeight: 'bold' }}>Upload your file (PDF/Image/Doc)</label>
-                                        <input
-                                            type="file"
-                                            disabled={!!submissions[activeAssignment._id]}
-                                            onChange={(e) => setFile(e.target.files[0])}
-                                            style={{ border: '2px dashed #e2e8f0', padding: '20px', width: '100%', borderRadius: '12px', cursor: !!submissions[activeAssignment._id] ? 'not-allowed' : 'pointer', opacity: !!submissions[activeAssignment._id] ? 0.6 : 1 }}
-                                        />
-                                        {submissions[activeAssignment._id]?.fileUrl && (
-                                            <p style={{ fontSize: '0.8rem', color: '#10b981', marginTop: '10px' }}>Current file: {submissions[activeAssignment._id].fileUrl}</p>
-                                        )}
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                            <input
+                                                ref={fileInputRef}
+                                                type="file"
+                                                disabled={!!submissions[activeAssignment._id] && submissions[activeAssignment._id].status !== 'Re-write'}
+                                                onChange={(e) => setFile(e.target.files[0])}
+                                                style={{ border: '2px dashed #e2e8f0', padding: '20px', width: '100%', borderRadius: '12px', cursor: (!!submissions[activeAssignment._id] && submissions[activeAssignment._id].status !== 'Re-write') ? 'not-allowed' : 'pointer', opacity: (!!submissions[activeAssignment._id] && submissions[activeAssignment._id].status !== 'Re-write') ? 0.6 : 1 }}
+                                            />
+                                            {file && (!submissions[activeAssignment._id] || submissions[activeAssignment._id].status === 'Re-write') && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setFile(null);
+                                                        if (fileInputRef.current) fileInputRef.current.value = '';
+                                                    }}
+                                                    style={{
+                                                        width: '100%',
+                                                        padding: '12px',
+                                                        background: '#fee2e2',
+                                                        color: '#ef4444',
+                                                        border: '1px solid #fecaca',
+                                                        borderRadius: '12px',
+                                                        cursor: 'pointer',
+                                                        fontWeight: 'bold',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        gap: '8px'
+                                                    }}
+                                                >
+                                                    <span style={{ fontSize: '1.2rem', lineHeight: 0 }}>&times;</span> Cancel Selection
+                                                </button>
+                                            )}
+                                        </div>
+
                                     </div>
                                 ) : (
                                     <div style={{ marginBottom: '24px' }}>
@@ -1738,7 +1924,7 @@ const AssignmentsSection = ({ userId, courses }) => {
                                         <div style={{ background: '#1a202c', padding: '15px', borderRadius: '15px' }}>
                                             <textarea
                                                 value={code}
-                                                readOnly={!!submissions[activeAssignment._id]}
+                                                readOnly={!!submissions[activeAssignment._id] && submissions[activeAssignment._id].status !== 'Re-write'}
                                                 onChange={(e) => setCode(e.target.value)}
                                                 onCopy={(e) => { e.preventDefault(); alert('Copying is disabled!'); }}
                                                 onPaste={(e) => { e.preventDefault(); alert('Pasting is disabled!'); }}
@@ -1754,7 +1940,7 @@ const AssignmentsSection = ({ userId, courses }) => {
                                                     fontSize: '1rem',
                                                     lineHeight: '1.5',
                                                     resize: 'vertical',
-                                                    cursor: !!submissions[activeAssignment._id] ? 'default' : 'text'
+                                                    cursor: (!!submissions[activeAssignment._id] && submissions[activeAssignment._id].status !== 'Re-write') ? 'default' : 'text'
                                                 }}
                                                 placeholder="Write your code here..."
                                             />
@@ -1762,7 +1948,7 @@ const AssignmentsSection = ({ userId, courses }) => {
                                                 <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 'bold', color: '#4a5568', marginBottom: '8px' }}>Input (Standard Input):</label>
                                                 <textarea
                                                     value={stdin}
-                                                    readOnly={!!submissions[activeAssignment._id]}
+                                                    readOnly={!!submissions[activeAssignment._id] && submissions[activeAssignment._id].status !== 'Re-write'}
                                                     onChange={(e) => setStdin(e.target.value)}
                                                     placeholder="Enter inputs here (e.g. 29 for prime check)..."
                                                     style={{
@@ -1776,7 +1962,7 @@ const AssignmentsSection = ({ userId, courses }) => {
                                                         fontFamily: 'monospace',
                                                         resize: 'none',
                                                         outline: 'none',
-                                                        cursor: !!submissions[activeAssignment._id] ? 'default' : 'text'
+                                                        cursor: (!!submissions[activeAssignment._id] && submissions[activeAssignment._id].status !== 'Re-write') ? 'default' : 'text'
                                                     }}
                                                 />
                                             </div>
@@ -1859,13 +2045,13 @@ const AssignmentsSection = ({ userId, courses }) => {
 
                                 <div style={{ display: 'flex', gap: '15px' }}>
                                     <button type="button" onClick={() => setActiveAssignment(null)} style={{ flex: 1, padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0', background: 'white', fontWeight: 'bold' }}>Close</button>
-                                    {!submissions[activeAssignment._id] && (
+                                    {(!submissions[activeAssignment._id] || submissions[activeAssignment._id].status === 'Re-write') && (
                                         <button
                                             disabled={submitting}
                                             type="submit"
                                             style={{ flex: 1, padding: '14px', borderRadius: '12px', border: 'none', background: '#6366f1', color: 'white', fontWeight: 'bold' }}
                                         >
-                                            {submitting ? 'Submitting...' : 'Submit Assignment'}
+                                            {submitting ? 'Submitting...' : submissions[activeAssignment._id]?.status === 'Re-write' ? 'Resubmit Assignment' : 'Submit Assignment'}
                                         </button>
                                     )}
                                 </div>
@@ -2832,345 +3018,4 @@ const QuizViewer = ({ quiz, isFastTrack, alreadyPassed, savedScore, onSubmit, on
     );
 };
 
-const RoadmapSection = ({
-    courses = [],
-    allProgress = [],
-    dailyHours,
-    setDailyHours,
-    weekendHours,
-    setWeekendHours
-}) => {
-    const [goal, setGoal] = useState('');
-    const [selectedCourseIds, setSelectedCourseIds] = useState([]);
-    const [roadmap, setRoadmap] = useState('');
-    const [loading, setLoading] = useState(false);
-    const [revisionMode, setRevisionMode] = useState(false);
-    const [showGapModal, setShowGapModal] = useState(false);
-    const [missedDaysCount, setMissedDaysCount] = useState(0);
 
-    const checkStudyGap = () => {
-        if (allProgress.length === 0 || selectedCourseIds.length === 0) return;
-
-        // Check activity for "Yesterday"
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
-        const dateStr = yesterday.toISOString().split('T')[0];
-        const dayOfWeek = yesterday.getDay(); // 0 is Sunday, 6 is Saturday
-        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-
-        const targetHours = isWeekend ? weekendHours : dailyHours;
-        const thresholdMinutes = targetHours * 60 * 0.5;
-
-        // Sum minutes from all selected courses for yesterday
-        let totalMinutesYesterday = 0;
-        selectedCourseIds.forEach(courseId => {
-            const progress = allProgress.find(p => p.course.toString() === courseId.toString());
-            const yesterdayActivity = progress?.dailyActivity?.find(a => a.date === dateStr);
-            if (yesterdayActivity) {
-                totalMinutesYesterday += yesterdayActivity.minutes;
-            }
-        });
-
-        if (totalMinutesYesterday < thresholdMinutes) {
-            setMissedDaysCount(1); // For now, we just track yesterday. Could be expanded.
-            setShowGapModal(true);
-        } else {
-            generateRoadmapInternal(0);
-        }
-    };
-
-    const generateRoadmap = async () => {
-        console.log('[Roadmap] Generate button clicked');
-        console.log('[Roadmap] Goal:', goal);
-        console.log('[Roadmap] Selected Courses:', selectedCourseIds);
-
-        if (!goal.trim()) {
-            alert('Please enter a career goal or topic!');
-            return;
-        }
-        if (selectedCourseIds.length === 0) {
-            alert('Please select at least one course!');
-            return;
-        }
-
-        console.log('[Roadmap] Validation passed, checking study gap...');
-        // Trigger Gap Check first
-        checkStudyGap();
-    };
-
-    const generateRoadmapInternal = async (missed = 0) => {
-        console.log('[Roadmap] Starting internal generation with missed days:', missed);
-        setLoading(true);
-        try {
-            const token = localStorage.getItem('token');
-            console.log('[Roadmap] Token found:', token ? 'Yes' : 'No');
-
-            if (!token) {
-                alert('Session expired. Please log in again.');
-                setLoading(false);
-                return;
-            }
-
-            // Extract progress for all selected courses
-            const courseProgressData = selectedCourseIds.map(courseId => {
-                const progress = allProgress.find(p => p.course.toString() === courseId.toString());
-                return {
-                    courseId,
-                    completedModules: progress?.completedModules?.map(m => m.moduleId.toString()) || []
-                };
-            });
-
-            console.log('[Roadmap] Sending request to API...');
-            const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/ai/generate-roadmap`,
-                {
-                    goal,
-                    courseIds: selectedCourseIds,
-                    revisionMode,
-                    dailyHours,
-                    weekendHours,
-                    courseProgressData,
-                    missedDays: missed
-                },
-                { headers: { Authorization: `Bearer ${token}` } }
-            );
-            console.log('[Roadmap] Received response:', res.data);
-            setRoadmap(res.data.data);
-        } catch (err) {
-            console.error('[Roadmap] Error details:', err);
-            console.error('[Roadmap] Error response:', err.response);
-
-            if (err.response?.status === 401) {
-                alert('Your session has expired. Please log out and log in again.');
-            } else {
-                alert(`Failed to generate roadmap: ${err.response?.data?.message || err.message}`);
-            }
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    return (
-        <div style={{ background: 'white', padding: '30px', borderRadius: '15px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
-            <div style={{ textAlign: 'center', marginBottom: '40px' }}>
-                <div style={{ fontSize: '3rem', marginBottom: '15px' }}>🚀</div>
-                <h2 style={{ fontSize: '1.8rem', color: '#2D3748', marginBottom: '10px' }}>AI Career Roadmap Generator</h2>
-                <p style={{ color: '#718096' }}>Tell AI your dream job or topic, and we'll build your learning path.</p>
-            </div>
-
-            <div style={{ maxWidth: '800px', margin: '0 auto', display: 'flex', gap: '20px', marginBottom: '40px', flexDirection: 'column' }}>
-                <div style={{ background: '#f8fafc', padding: '25px', borderRadius: '15px', border: '1px solid #edf2f7' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                        <h3 style={{ fontSize: '1.2rem', margin: 0, color: '#2d3748' }}>📚 Select Subjects to Include</h3>
-                        <div style={{ display: 'flex', gap: '10px' }}>
-                            <button
-                                onClick={() => setSelectedCourseIds(courses.map(c => c._id))}
-                                style={{ background: 'white', border: '1px solid #6C63FF', color: '#6C63FF', padding: '5px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}
-                            >
-                                Select All
-                            </button>
-                            <button
-                                onClick={() => setSelectedCourseIds([])}
-                                style={{ background: 'white', border: '1px solid #e53e3e', color: '#e53e3e', padding: '5px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}
-                            >
-                                Clear All
-                            </button>
-                        </div>
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '12px' }}>
-                        {courses.map(course => (
-                            <label key={course._id} style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '10px',
-                                padding: '10px 15px',
-                                background: selectedCourseIds.includes(course._id) ? '#EEF2FF' : 'white',
-                                border: `1px solid ${selectedCourseIds.includes(course._id) ? '#6C63FF' : '#edf2f7'}`,
-                                borderRadius: '10px',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s'
-                            }}>
-                                <input
-                                    type="checkbox"
-                                    checked={selectedCourseIds.includes(course._id)}
-                                    onChange={(e) => {
-                                        if (e.target.checked) {
-                                            setSelectedCourseIds([...selectedCourseIds, course._id]);
-                                        } else {
-                                            setSelectedCourseIds(selectedCourseIds.filter(id => id !== course._id));
-                                        }
-                                    }}
-                                    style={{ width: '18px', height: '18px' }}
-                                />
-                                <span style={{ fontSize: '0.9rem', fontWeight: '600', color: selectedCourseIds.includes(course._id) ? '#4338CA' : '#4A5568' }}>
-                                    {course.subject}
-                                </span>
-                            </label>
-                        ))}
-                    </div>
-                    {courses.length === 0 && <p style={{ color: '#a0aec0', fontSize: '0.9rem' }}>No courses available to select.</p>}
-                </div>
-
-                <div style={{ width: '100%' }}>
-                    <label style={{ fontSize: '0.9rem', fontWeight: 'bold', display: 'block', marginBottom: '8px', color: '#4a5568' }}>🚀 Your Career Goal or Target</label>
-                    <input
-                        type="text"
-                        placeholder="e.g. Master these subjects for upcoming finals in 2 weeks"
-                        value={goal}
-                        onChange={(e) => setGoal(e.target.value)}
-                        style={{ width: '100%', padding: '15px', borderRadius: '12px', border: '2px solid #edf2f7', fontSize: '1rem', outline: 'none' }}
-                    />
-                </div>
-
-                <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '15px', border: '1px solid #edf2f7', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                    {/* Time Inputs Row - Always Visible */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                        <div>
-                            <label style={{ fontSize: '0.85rem', fontWeight: '700', display: 'block', marginBottom: '8px', color: '#4a5568' }}>📅 Weekday Study (Hours)</label>
-                            <input
-                                type="number"
-                                min="1"
-                                max="24"
-                                value={dailyHours}
-                                onChange={(e) => setDailyHours(Number(e.target.value))}
-                                style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '2px solid #edf2f7', outline: 'none', transition: 'border-color 0.2s' }}
-                            />
-                        </div>
-                        <div>
-                            <label style={{ fontSize: '0.85rem', fontWeight: '700', display: 'block', marginBottom: '8px', color: '#4a5568' }}>🎉 Weekend Study (Hours)</label>
-                            <input
-                                type="number"
-                                min="1"
-                                max="24"
-                                value={weekendHours}
-                                onChange={(e) => setWeekendHours(Number(e.target.value))}
-                                style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '2px solid #edf2f7', outline: 'none', transition: 'border-color 0.2s' }}
-                            />
-                        </div>
-                    </div>
-
-                    {/* Revision Toggle Row - Only if Courses Selected */}
-                    {selectedCourseIds.length > 0 && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: '#f0f4ff', padding: '12px 15px', borderRadius: '10px', border: '1px solid #d1d9ff' }}>
-                            <input
-                                type="checkbox"
-                                id="revisionToggle"
-                                checked={revisionMode}
-                                onChange={(e) => setRevisionMode(e.target.checked)}
-                                style={{ width: '18px', height: '18px', cursor: 'pointer' }}
-                            />
-                            <label htmlFor="revisionToggle" style={{ cursor: 'pointer', fontWeight: '600', color: '#4c51bf', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem' }}>
-                                🎓 Revision Mode (Includes completed modules for exam prep)
-                            </label>
-                        </div>
-                    )}
-                </div>
-                <button
-                    onClick={generateRoadmap}
-                    disabled={loading}
-                    style={{ padding: '15px 25px', background: '#6C63FF', color: 'white', border: 'none', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s' }}
-                >
-                    {loading ? 'Generating...' : 'Build Path'}
-                </button>
-            </div>
-
-            {/* Gap Detection Modal */}
-            {showGapModal && (
-                <div style={{
-                    position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
-                    background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center',
-                    justifyContent: 'center', zIndex: 9999, backdropFilter: 'blur(5px)'
-                }}>
-                    <div style={{
-                        background: 'white', padding: '40px', borderRadius: '20px',
-                        maxWidth: '500px', width: '90%', textAlign: 'center',
-                        boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)'
-                    }}>
-                        <div style={{ fontSize: '3rem', marginBottom: '20px' }}>🕒</div>
-                        <h2 style={{ color: '#2d3748', marginBottom: '15px' }}>Study Gap Detected</h2>
-                        <p style={{ color: '#718096', marginBottom: '30px', lineHeight: '1.6' }}>
-                            We noticed your activity yesterday was below your 50% study target.
-                            Did you miss your scheduled study time, or did you study offline using your notes?
-                        </p>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                            <button
-                                onClick={() => {
-                                    setShowGapModal(false);
-                                    generateRoadmapInternal(missedDaysCount);
-                                }}
-                                style={{
-                                    background: '#6C63FF', color: 'white', padding: '15px',
-                                    borderRadius: '10px', border: 'none', fontWeight: 'bold', cursor: 'pointer'
-                                }}
-                            >
-                                ❗ Yes, I missed it (Readjust Plan)
-                            </button>
-                            <button
-                                onClick={() => {
-                                    setShowGapModal(false);
-                                    generateRoadmapInternal(0);
-                                }}
-                                style={{
-                                    background: '#EDF2FF', color: '#4338CA', padding: '15px',
-                                    borderRadius: '10px', border: 'none', fontWeight: 'bold', cursor: 'pointer'
-                                }}
-                            >
-                                📝 No, I studied offline
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {roadmap && (
-                <div style={{ marginTop: '40px', background: 'white', borderRadius: '20px', border: '1px solid #edf2f7', overflow: 'hidden', boxShadow: '0 10px 25px rgba(0,0,0,0.05)' }}>
-                    <div style={{ padding: '25px 35px', background: 'linear-gradient(135deg, #6C63FF, #4834d4)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'white' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                            <span style={{ fontSize: '1.8rem' }}>🗺️</span>
-                            <h3 style={{ margin: 0, fontSize: '1.4rem', fontWeight: '800' }}>Your Personalized Learning Path</h3>
-                        </div>
-                        <button
-                            onClick={() => window.print()}
-                            style={{
-                                background: 'rgba(255,255,255,0.2)',
-                                border: '1px solid rgba(255,255,255,0.4)',
-                                color: 'white',
-                                padding: '8px 18px',
-                                borderRadius: '10px',
-                                cursor: 'pointer',
-                                fontWeight: 'bold',
-                                fontSize: '0.9rem',
-                                transition: 'all 0.2s',
-                                backdropFilter: 'blur(5px)'
-                            }}
-                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.3)'}
-                            onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
-                        >
-                            ⎙ Print Roadmap
-                        </button>
-                    </div>
-
-                    <div className="markdown-container" style={{ padding: '40px', color: '#2d3748', fontSize: '1.05rem', lineHeight: '1.7' }}>
-                        <ReactMarkdown
-                            components={{
-                                h1: ({ node, ...props }) => <h1 style={{ color: '#2d3748', borderBottom: '2px solid #edf2f7', paddingBottom: '10px', marginTop: '30px' }} {...props} />,
-                                h2: ({ node, ...props }) => <h2 style={{ color: '#4a5568', marginTop: '25px' }} {...props} />,
-                                h3: ({ node, ...props }) => <h3 style={{ color: '#6C63FF', marginTop: '20px' }} {...props} />,
-                                strong: ({ node, ...props }) => <strong style={{ color: '#2d3748', fontWeight: '800' }} {...props} />,
-                                ul: ({ node, ...props }) => <ul style={{ paddingLeft: '20px', listStyleType: 'none' }} {...props} />,
-                                li: ({ node, ...props }) => (
-                                    <li style={{ marginBottom: '10px', position: 'relative', paddingLeft: '25px' }} {...props}>
-                                        <span style={{ position: 'absolute', left: 0, color: '#6C63FF' }}>•</span>
-                                        {props.children}
-                                    </li>
-                                ),
-                                p: ({ node, ...props }) => <p style={{ marginBottom: '15px' }} {...props} />
-                            }}
-                        >
-                            {roadmap}
-                        </ReactMarkdown>
-                    </div>
-                </div>
-            )}
-        </div>
-    );
-};

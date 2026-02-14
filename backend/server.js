@@ -22,11 +22,7 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// Debug Middleware: Log all requests
-app.use((req, res, next) => {
-    console.log(`[DEBUG] Received ${req.method} request for: ${req.url}`);
-    next();
-});
+
 
 // Database Connection
 const MONGO_URI = process.env.MONGO_URI;
@@ -42,6 +38,8 @@ app.use('/api/auth', authRoutes);
 console.log('Mounting /api/courses routes...');
 app.use('/api/courses', require('./routes/course'));
 
+app.use('/api/ai', require('./routes/ai')); // [NEW] AI Routes
+
 console.log('Mounting /api/assignments routes...');
 app.use('/api/assignments', require('./routes/assignment'));
 
@@ -53,7 +51,6 @@ app.use('/api/announcements', require('./routes/announcement'));
 
 console.log('Mounting /api/live-class routes...');
 app.use('/api/live-class', require('./routes/liveClass'));
-
 app.use('/uploads', express.static('uploads'));
 
 console.log('Mounting /api/ai routes...');

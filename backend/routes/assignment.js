@@ -7,8 +7,15 @@ const { deleteFile } = require('../utils/cloudinaryHelper');
 const cloudinary = require('cloudinary').v2;
 const multer = require('multer');
 const { storage } = require('../config/cloudinary');
+const pdfParse = require('pdf-parse');
+const fs = require('fs');
+const https = require('https'); // To download file for parsing if needed, but pdf-parse can handle buffers.
+// We need to fetch the file from the URL if it's a file upload.
+// Since the file is uploaded to Cloudinary, we have a URL.
+// We need to download it to a buffer to parse it.
 
 const upload = multer({ storage: storage });
+const aiService = require('../services/aiService');
 
 // Single file upload endpoint for assignments
 router.post('/upload', upload.single('file'), (req, res) => {
@@ -43,7 +50,6 @@ router.get('/', async (req, res) => {
 
 // Get all assignments for a course
 router.get('/course/:courseId', async (req, res) => {
-    console.log('GET /course/:courseId hit with ID:', req.params.courseId);
     try {
         const assignments = await Assignment.find({ course: req.params.courseId }).sort({ createdAt: -1 });
         res.json(assignments);
@@ -93,6 +99,70 @@ router.delete('/:id', async (req, res) => {
     }
 });
 
+// Manual Plagiarism Check for ALL submissions of an assignment
+router.post('/:id/check-plagiarism', async (req, res) => {
+    try {
+        const assignmentId = req.params.id;
+        const assignment = await Assignment.findById(assignmentId);
+        if (!assignment) return res.status(404).json({ message: 'Assignment not found' });
+
+        // 1. Fetch ALL submissions for this assignment that have text
+        const submissions = await Submission.find({
+            assignment: assignmentId,
+            extractedText: { $exists: true, $ne: '' } // Only check submissions with text
+        });
+
+        if (submissions.length < 2) {
+            return res.json({ message: 'Not enough submissions to check for plagiarism (minimum 2 required).' });
+        }
+
+        let updatedCount = 0;
+
+        // 2. Iterate through EACH submission and check against OTHERS
+        for (const currentSub of submissions) {
+            // Create corpus from ALL OTHER submissions
+            const others = submissions.filter(s => s._id.toString() !== currentSub._id.toString());
+
+            if (others.length === 0) continue;
+
+            const corpus = others.map(sub => ({
+                id: sub.student.toString(),
+                submissionId: sub._id.toString(),
+                text: sub.extractedText
+            }));
+
+            try {
+                // Call AI Service (Python)
+                const aiResponse = await axios.post('http://127.0.0.1:8001/plagiarism/check', {
+                    target_text: currentSub.extractedText,
+                    corpus: corpus
+                });
+
+                if (aiResponse.data) {
+                    currentSub.plagiarismResult = {
+                        similarityPercentage: aiResponse.data.highest_similarity,
+                        riskLevel: aiResponse.data.risk_level,
+                        matchedWith: aiResponse.data.matches,
+                        isAiVerified: aiResponse.data.is_ai_verified,
+                        checkedAt: new Date()
+                    };
+                    await currentSub.save();
+                    updatedCount++;
+                }
+            } catch (aiErr) {
+                console.error(`Plagiarism check failed for submission ${currentSub._id}:`, aiErr.message);
+                // Continue to next submission even if one fails
+            }
+        }
+
+        res.json({ message: `Plagiarism check completed. Updated ${updatedCount} submissions.` });
+
+    } catch (err) {
+        console.error('Manual plagiarism check error:', err);
+        res.status(500).json({ message: err.message });
+    }
+});
+
 // --- SUBMISSIONS ---
 
 // Submit an assignment (Student)
@@ -100,32 +170,122 @@ router.post('/submit', async (req, res) => {
     try {
         const { assignmentId, studentId, courseId, fileUrl, code, language } = req.body;
 
-        // Check if already submitted
-        const existing = await Submission.findOne({ assignment: assignmentId, student: studentId });
-        if (existing) {
-            // Update existing submission
-            existing.fileUrl = fileUrl;
-            existing.code = code;
-            existing.language = language;
-            existing.submittedAt = Date.now();
-            await existing.save();
-            return res.json(existing);
+        // 1. Extract Text
+        let extractedText = '';
+        if (code) {
+            extractedText = code;
+        } else if (fileUrl && fileUrl.endsWith('.pdf')) {
+            try {
+                // Use aiService for text extraction (supports OCR fallback)
+                extractedText = await aiService.getTextFromPDF(fileUrl);
+            } catch (pdfErr) {
+                console.error('Error extracting text from PDF:', pdfErr.message);
+                // Continue without text extraction (plagiarism check will be skipped for this sub)
+            }
         }
 
-        const submission = new Submission({
+        // 2. Prepare Submission Data
+        const submissionData = {
             assignment: assignmentId,
             student: studentId,
             course: courseId,
             fileUrl,
             code,
-            language
-        });
-        await submission.save();
+            language,
+            extractedText,
+            submittedAt: Date.now(),
+            status: 'Pending'
+        };
+
+        // 3. Perform Plagiarism Check (if text exists)
+        if (extractedText && extractedText.length > 20) { // Min length check (Lowered to 20 for testing)
+            console.log('--- EXTRACTED TEXT START ---');
+            console.log(extractedText);
+            console.log('--- EXTRACTED TEXT END ---');
+
+            try {
+                // Fetch previous submissions for this assignment (excluding this student's previous attempts if any, but actually we compare with EVERYONE else)
+                const previousSubmissions = await Submission.find({
+                    assignment: assignmentId,
+                    student: { $ne: studentId }, // Don't compare with self
+                    extractedText: { $exists: true, $ne: '' }
+                }).select('student extractedText turnedInAt');
+
+                console.log(`Found ${previousSubmissions.length} previous submissions for comparison.`);
+
+                if (previousSubmissions.length > 0) {
+                    const corpus = previousSubmissions.map(sub => ({
+                        id: sub.student.toString(),
+                        submissionId: sub._id.toString(),
+                        text: sub.extractedText
+                    }));
+
+                    console.log('Calling AI Service for Plagiarism Check...');
+                    // Call AI Service
+                    const aiResponse = await axios.post('http://127.0.0.1:8001/plagiarism/check', {
+                        target_text: extractedText,
+                        corpus: corpus
+                    });
+
+
+                    if (aiResponse.data) {
+                        submissionData.plagiarismResult = {
+                            similarityPercentage: aiResponse.data.highest_similarity,
+                            riskLevel: aiResponse.data.risk_level,
+                            matchedWith: aiResponse.data.matches, // Expecting array of { studentId, similarity }
+                            isAiVerified: aiResponse.data.is_ai_verified,
+                            checkedAt: new Date()
+                        };
+                    }
+                }
+            } catch (aiErr) {
+                console.error('Plagiarism check failed:', aiErr.message);
+                // Fail silently, don't block submission
+            }
+        } else {
+            console.log(`Skipping Plagiarism Check: Text too short (${extractedText ? extractedText.length : 0} chars).`);
+        }
+
+        // 4. Save/Update Submission
+        let submission = await Submission.findOne({ assignment: assignmentId, student: studentId });
+        if (submission) {
+            // Update existing
+            Object.assign(submission, submissionData);
+            await submission.save();
+        } else {
+            // Create new
+            submission = new Submission(submissionData);
+            await submission.save();
+        }
+
         res.status(201).json(submission);
+    } catch (err) {
+        console.error("Submission error:", err);
+        res.status(400).json({ message: err.message });
+    }
+});
+
+// Request Re-write (Teacher)
+router.put('/request-rewrite/:submissionId', async (req, res) => {
+    try {
+        const { feedback } = req.body;
+        const submission = await Submission.findByIdAndUpdate(
+            req.params.submissionId,
+            {
+                $set: {
+                    status: 'Re-write',
+                    feedback: feedback || 'Please re-write this assignment due to high plagiarism detected.'
+                },
+                $unset: { plagiarismResult: 1 }
+            },
+            { new: true }
+        );
+        res.json(submission);
     } catch (err) {
         res.status(400).json({ message: err.message });
     }
 });
+
 
 // Get submission for a student for a specific assignment
 router.get('/student/:studentId/assignment/:assignmentId', async (req, res) => {

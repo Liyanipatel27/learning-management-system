@@ -27,7 +27,7 @@ const submissionSchema = new mongoose.Schema({
 
     status: {
         type: String,
-        enum: ['Pending', 'Graded'],
+        enum: ['Pending', 'Graded', 'Re-write'],
         default: 'Pending'
     },
     score: {
@@ -37,6 +37,26 @@ const submissionSchema = new mongoose.Schema({
     feedback: {
         type: String,
         default: ''
+    },
+    // Plagiarism Detection Results
+    extractedText: {
+        type: String, // Clean text extracted from file or code
+        select: false // Don't return by default to save bandwidth
+    },
+    plagiarismResult: {
+        similarityPercentage: { type: Number, default: 0 },
+        riskLevel: {
+            type: String,
+            enum: ['No Risk', 'Safe', 'Low Risk', 'High Risk'],
+            default: 'No Risk'
+        },
+        matchedWith: [{
+            studentId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+            similarity: Number,
+            submissionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Submission' }
+        }],
+        isAiVerified: { type: Boolean, default: false },
+        checkedAt: Date
     }
 }, { timestamps: true });
 
