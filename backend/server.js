@@ -56,6 +56,9 @@ app.use('/api/live-class', require('./routes/liveClass'));
 
 app.use('/uploads', express.static('uploads'));
 
+console.log('Mounting /api/ai routes...');
+app.use('/api/ai', require('./routes/aiRoutes'));
+
 app.get('/ping', (req, res) => {
     console.log('[DEBUG] /ping called');
     res.send('pong v3-schema-test');
