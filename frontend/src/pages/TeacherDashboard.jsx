@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import * as XLSX from 'xlsx';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line, RadialBarChart, RadialBar } from 'recharts';
 import CourseBuilder from './CourseBuilder';
 import StudentRiskAnalysis from './StudentRiskAnalysis';
 
@@ -1714,6 +1714,8 @@ const StudentsSection = () => {
 
 const StudentAnalyticsSection = ({ teacherId }) => {
     const [gradesData, setGradesData] = useState([]);
+    const [studentList, setStudentList] = useState([]);
+    const [selectedStudent, setSelectedStudent] = useState(null);
     const [loading, setLoading] = useState(true);
 
     // AI Class Insights State
@@ -1757,6 +1759,28 @@ const StudentAnalyticsSection = ({ teacherId }) => {
                 }).filter(Boolean);
 
                 setGradesData(processed);
+
+                // Process for Student List (Aggregate across courses)
+                const sMap = new Map();
+                res.data.forEach(course => {
+                    course.students.forEach(s => {
+                        if (!sMap.has(s.studentId)) {
+                            sMap.set(s.studentId, {
+                                id: s.studentId,
+                                name: s.studentName,
+                                email: s.studentEmail,
+                                courses: []
+                            });
+                        }
+                        const studentEntry = sMap.get(s.studentId);
+                        studentEntry.courses.push({
+                            courseName: course.courseName,
+                            progress: s.progressPercentage || 0,
+                            score: s.quizzes.reduce((acc, q) => acc + (q.score || 0), 0) / (s.quizzes.length || 1) // Avg score for this course
+                        });
+                    });
+                });
+                setStudentList(Array.from(sMap.values()));
             } catch (err) {
                 console.error(err);
             } finally {
@@ -1769,7 +1793,7 @@ const StudentAnalyticsSection = ({ teacherId }) => {
     if (loading) return <div>Loading analytics...</div>;
 
     return (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px', paddingBottom: '50px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '30px', paddingBottom: '50px' }}>
             <div style={{ background: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 4px 6px rgba(0,0,0,0.02)' }}>
                 <h3 style={{ color: '#2d3748', marginBottom: '20px' }}>Course Performance Averages</h3>
                 <div style={{ height: '300px' }}>
@@ -1780,32 +1804,6 @@ const StudentAnalyticsSection = ({ teacherId }) => {
                             <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '10px', padding: '10px' }} />
                             <Bar dataKey="average" fill="#6366f1" radius={[8, 8, 0, 0]} barSize={40} name="Avg Score %" />
                         </BarChart>
-                    </ResponsiveContainer>
-                </div>
-            </div>
-
-            <div style={{ background: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 4px 6px rgba(0,0,0,0.02)' }}>
-                <h3 style={{ color: '#2d3748', marginBottom: '20px' }}>Student Enrollment Distribution</h3>
-                <div style={{ height: '300px' }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                            <Pie
-                                data={gradesData}
-                                cx="50%"
-                                cy="50%"
-                                innerRadius={60}
-                                outerRadius={80}
-                                paddingAngle={5}
-                                dataKey="students"
-                                nameKey="name"
-                            >
-                                {gradesData.map((entry, index) => (
-                                    <Cell key={`cell-${index}`} fill={['#6366f1', '#10b981', '#f59e0b', '#ef4444'][index % 4]} />
-                                ))}
-                            </Pie>
-                            <Tooltip contentStyle={{ borderRadius: '10px', padding: '10px' }} />
-                            <Legend layout="vertical" verticalAlign="middle" align="right" />
-                        </PieChart>
                     </ResponsiveContainer>
                 </div>
             </div>
@@ -1914,6 +1912,110 @@ const StudentAnalyticsSection = ({ teacherId }) => {
                         <div style={{ padding: '20px', background: '#f8fafc', borderRadius: '15px', border: '1px solid #e2e8f0' }}>
                             <h4 style={{ color: '#475569', margin: '0 0 10px 0' }}>📈 Engagement Analysis</h4>
                             <p style={{ margin: 0, color: '#64748b', lineHeight: '1.6' }}>{classInsights.engagementAnalysis}</p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Student List Section */}
+            <div style={{ background: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 4px 6px rgba(0,0,0,0.02)' }}>
+                <h3 style={{ color: '#2d3748', marginBottom: '20px' }}>Student Performance Directory</h3>
+                <p style={{ color: '#718096', marginBottom: '20px' }}>Click on a student to view their individual performance graph.</p>
+                <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead>
+                            <tr style={{ background: '#f8fafc', textAlign: 'left', borderBottom: '2px solid #edf2f7' }}>
+                                <th style={{ padding: '15px', color: '#4a5568' }}>Student Name</th>
+                                <th style={{ padding: '15px', color: '#4a5568' }}>Email</th>
+                                <th style={{ padding: '15px', color: '#4a5568' }}>Enrolled Courses</th>
+                                <th style={{ padding: '15px', color: '#4a5568' }}>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {studentList.map(student => (
+                                <tr key={student.id}
+                                    style={{ borderBottom: '1px solid #edf2f7', cursor: 'pointer', transition: 'background 0.2s' }}
+                                    onClick={() => setSelectedStudent(student)}
+                                    onMouseEnter={(e) => e.currentTarget.style.background = '#f0f9ff'}
+                                    onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+                                >
+                                    <td style={{ padding: '15px', fontWeight: 'bold', color: '#2d3748' }}>{student.name}</td>
+                                    <td style={{ padding: '15px', color: '#718096' }}>{student.email}</td>
+                                    <td style={{ padding: '15px' }}>
+                                        <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                                            {student.courses.map((c, i) => (
+                                                <span key={i} style={{ fontSize: '0.75rem', background: '#e0e7ff', color: '#4338ca', padding: '2px 8px', borderRadius: '4px' }}>
+                                                    {c.courseName} ({c.progress}%)
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </td>
+                                    <td style={{ padding: '15px' }}>
+                                        <button style={{ padding: '6px 12px', background: '#6366f1', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem' }}>View Graph</button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {/* Student Individual Graph Modal */}
+            {selectedStudent && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1100 }}>
+                    <div style={{ background: 'white', padding: '40px', borderRadius: '24px', width: '90%', maxWidth: '700px', maxHeight: '90vh', overflowY: 'auto', position: 'relative' }}>
+                        <button
+                            onClick={() => setSelectedStudent(null)}
+                            style={{ position: 'absolute', top: '20px', right: '20px', background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#a0aec0' }}
+                        >
+                            &times;
+                        </button>
+
+                        <div style={{ textAlign: 'center', marginBottom: '30px' }}>
+                            <h2 style={{ fontSize: '1.8rem', color: '#2d3748', margin: '0 0 5px 0' }}>{selectedStudent.name}</h2>
+                            <p style={{ color: '#718096' }}>Individual Course Performance</p>
+                        </div>
+
+                        <div style={{ height: '400px', width: '100%', display: 'flex', justifyContent: 'center' }}>
+                            <ResponsiveContainer width="100%" height="100%">
+                                <RadialBarChart
+                                    cx="50%"
+                                    cy="50%"
+                                    innerRadius="10%"
+                                    outerRadius="80%"
+                                    barSize={20}
+                                    data={selectedStudent.courses.map((c, i) => ({
+                                        name: c.courseName,
+                                        progress: c.progress || 0,
+                                        fill: ['#8884d8', '#83a6ed', '#8dd1e1', '#82ca9d', '#a4de6c'][i % 5]
+                                    }))}
+                                >
+                                    <RadialBar
+                                        minAngle={15}
+                                        label={{ position: 'insideStart', fill: '#fff' }}
+                                        background
+                                        clockWise
+                                        dataKey="progress"
+                                    />
+                                    <Legend iconSize={10} width={120} height={140} layout="vertical" verticalAlign="middle" wrapperStyle={{ top: '50%', right: 0, transform: 'translate(0, -50%)', lineHeight: '24px' }} />
+                                    <Tooltip formatter={(value, name, props) => [value + '%', props.payload.name]} />
+                                </RadialBarChart>
+                            </ResponsiveContainer>
+                        </div>
+
+                        <div style={{ marginTop: '20px' }}>
+                            <h4 style={{ color: '#4a5568', marginBottom: '10px' }}>Course Details:</h4>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                                {selectedStudent.courses.map((c, i) => (
+                                    <div key={i} style={{ padding: '15px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #edf2f7' }}>
+                                        <div style={{ fontWeight: 'bold', color: '#2d3748' }}>{c.courseName}</div>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '5px' }}>
+                                            <span style={{ fontSize: '0.9rem', color: '#718096' }}>Progress: <span style={{ color: c.progress === 100 ? '#10b981' : '#f59e0b', fontWeight: 'bold' }}>{c.progress}%</span></span>
+                                            {c.progress === 100 && <span style={{ fontSize: '0.8rem', padding: '2px 8px', background: '#d1fae5', color: '#065f46', borderRadius: '10px' }}>Completed</span>}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     </div>
                 </div>

@@ -137,11 +137,37 @@ router.get('/grades/teacher/:teacherId', async (req, res) => {
                     });
                 });
 
+                // Calculate Progress Percentage
+                const totalModules = course.chapters.reduce((acc, ch) => acc + (ch.modules ? ch.modules.length : 0), 0);
+                const allContents = course.chapters.flatMap(c => c.modules.flatMap(m => m.contents)) || [];
+                const allQuizzes = course.chapters.flatMap(c => c.modules || []).filter(m => m.quiz?.questions?.length > 0) || [];
+                const totalItems = allContents.length + allQuizzes.length;
+
+                let completedItems = 0;
+                if (progress && totalItems > 0) {
+                    // Check Contents
+                    allContents.forEach(content => {
+                        if (progress.contentProgress && progress.contentProgress.some(p => p.contentId.toString() === content._id.toString() && p.isCompleted)) {
+                            completedItems++;
+                        }
+                    });
+
+                    // Check Quizzes
+                    allQuizzes.forEach(module => {
+                        if (progress.completedModules && progress.completedModules.some(m => m.moduleId.toString() === module._id.toString())) {
+                            completedItems++;
+                        }
+                    });
+                }
+
+                const progressPercentage = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
+
                 return {
                     studentId: progress.student._id,
                     studentName: progress.student.name,
                     studentEmail: progress.student.email,
                     studentEnrollment: progress.student.enrollment,
+                    progressPercentage: progressPercentage,
                     quizzes
                 };
             }).filter(s => s !== null);
