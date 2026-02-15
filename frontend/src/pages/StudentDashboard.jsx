@@ -981,36 +981,61 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
         return !isPrevCompleted;
     };
 
-    const handleQuizSubmission = async (moduleId, score, isFastTrack, onFail) => {
+    const handleQuizSubmission = async (moduleId, answers, isFastTrack, callback) => {
         try {
             const studentId = JSON.parse(localStorage.getItem('user') || '{}').id || JSON.parse(localStorage.getItem('user') || '{}')._id;
             const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/courses/${course._id}/modules/${moduleId}/submit-quiz`, {
                 studentId,
-                score,
+                answers, // Sending answers map
                 isFastTrack
             });
 
-            if (res.data.isPassed) {
-                alert(`Perfect! Score: ${score}%. ${res.data.message}`);
-                fetchProgress(); // Refresh progress
-                // We keep activeQuiz open so they can see descriptions
-            } else {
-                alert(`Score: ${score}%. Minimum required: ${res.data.requiredScore}%. Try again with a new set of questions!`);
+            const { isPassed, score, requiredScore, message, corrections } = res.data;
 
-                // Find original module to re-trigger shuffle
-                const originalModule = course.chapters.flatMap(c => c.modules).find(m => m._id === moduleId);
-                if (originalModule) {
-                    handleTakeQuiz(originalModule, isFastTrack);
-                } else if (onFail) {
-                    onFail(); // Fallback to just resetting UI if module not found
-                }
+            if (isPassed) {
+                alert(`Perfect! Score: ${score}%. ${message}`);
+                fetchProgress(); // Refresh progress
+            } else {
+                alert(`Score: ${score}%. Minimum required: ${requiredScore}%. Try again!`);
+                // Find original module to re-trigger shuffle? 
+                // We might just let them retry in the modal.
             }
+
+            // Execute callback with results so QuizViewer can update UI
+            if (callback) callback({ isPassed, score, corrections });
+
         } catch (err) {
-            console.error('Error submitting quiz:', err);
+            console.error('Quiz Submission Error:', err);
             alert('Error submitting quiz. Please try again.');
-            if (onFail) onFail();
+            if (callback) callback({ isPassed: false, score: 0, corrections: [] });
         }
     };
+
+    const handleQuizClick = (module) => {
+        // 1. Check if module has contents
+        if (!module.contents || module.contents.length === 0) {
+            handleTakeQuiz(module, false);
+            return;
+        }
+
+        // 2. Check if all contents are completed
+        const allContentsCompleted = module.contents.every(content => {
+            // If this is the currently selected content, rely on local state (real-time check)
+            if (selectedContent && content._id.toString() === selectedContent._id.toString()) {
+                return isTimeRequirementMet;
+            }
+            // Otherwise check saved progress
+            const p = studentProgress?.contentProgress?.find(cp => cp.contentId.toString() === content._id.toString());
+            return p?.isCompleted;
+        });
+
+        if (allContentsCompleted) {
+            handleTakeQuiz(module, false);
+        } else {
+            alert('Please complete all study materials in this module before taking the quiz.');
+        }
+    };
+
 
     const toggleModule = (moduleId) => {
         setExpandedModules(prev => {
@@ -1120,7 +1145,7 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
                                                     ))}
                                                     {module.quiz?.questions?.length > 0 && (
                                                         <div
-                                                            onClick={() => isTimeRequirementMet ? handleTakeQuiz(module, false) : alert('Finish studying first!')}
+                                                            onClick={() => handleQuizClick(module)}
                                                             style={{ fontSize: '0.75rem', padding: '4px 8px', color: '#38A169', fontWeight: 'bold', cursor: 'pointer' }}
                                                         >
                                                             📝 Quiz
@@ -1142,7 +1167,10 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
                             <QuizViewer
                                 quiz={activeQuiz.module.quiz}
                                 isFastTrack={activeQuiz.isFastTrack}
-                                alreadyPassed={studentProgress?.completedModules?.some(m => m.moduleId.toString() === activeQuiz.module._id.toString())}
+                                alreadyPassed={studentProgress?.completedModules?.some(m =>
+                                    m.moduleId.toString() === activeQuiz.module._id.toString() &&
+                                    m.score >= (activeQuiz.isFastTrack ? (activeQuiz.module.quiz.fastTrackScore || 85) : (activeQuiz.module.quiz.passingScore || 70))
+                                )}
                                 savedScore={studentProgress?.completedModules?.find(m => m.moduleId.toString() === activeQuiz.module._id.toString())?.score || 0}
                                 onClose={() => setActiveQuiz(null)}
                                 onSubmit={(score, onFail) => handleQuizSubmission(activeQuiz.module._id, score, activeQuiz.isFastTrack, onFail)}
@@ -2871,35 +2899,54 @@ const QuizViewer = ({ quiz, isFastTrack, alreadyPassed, savedScore, onSubmit, on
     const [answers, setAnswers] = useState({});
     const [submitted, setSubmitted] = useState(false);
     const [currentScore, setCurrentScore] = useState(0);
+    const [corrections, setCorrections] = useState([]); // Stores backend feedback
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     useEffect(() => {
-        console.log('Quiz Data received in Viewer:', quiz);
-        console.log('Already Passed Status:', alreadyPassed);
-        console.log('Saved Score from DB:', savedScore);
-
         // Reset state when new questions are loaded
         setAnswers({});
         setSubmitted(alreadyPassed); // Mark as submitted if already passed
         setCurrentScore(savedScore || 0); // Use saved score if available, otherwise 0
+        setCorrections([]);
     }, [quiz, alreadyPassed, savedScore]);
 
     const requiredScore = isFastTrack ? (quiz.fastTrackScore || 85) : (quiz.passingScore || 70);
     const isPassed = alreadyPassed || (submitted && currentScore >= requiredScore);
 
+    console.log('QuizViewer Render:', { submitted, isPassed, alreadyPassed, answersKeys: Object.keys(answers) });
+
     const handleAnswer = (qIndex, oIndex) => {
-        if (isPassed) return; // Prevent changing after passing
-        setAnswers({ ...answers, [qIndex]: oIndex });
+        console.log('handleAnswer called:', { qIndex, oIndex, submitted });
+        if (submitted) {
+            console.warn('Quiz already submitted, ignoring click.');
+            return;
+        }
+        setAnswers(prev => {
+            const newState = { ...prev, [qIndex]: oIndex };
+            console.log('Updating answers:', newState);
+            return newState;
+        });
     };
 
-    const calculateScore = () => {
-        let correct = 0;
-        quiz.questions.forEach((q, i) => {
-            if (answers[i] === q.correctAnswerIndex) correct++;
+    const submitQuiz = () => {
+        if (isSubmitting) return;
+        setIsSubmitting(true);
+
+        // Call parent onSubmit with answers
+        onSubmit(answers, (result) => {
+            setIsSubmitting(false);
+            setSubmitted(true);
+            setCurrentScore(result.score);
+            setCorrections(result.corrections || []);
+
+            // If they failed, we might want to allow retry?
+            // Current user requirement implies "hide answers". 
+            // If they fail, they shouldn't see correct answers, only score.
+            // But if they passed, they might want to see.
+            // Backend returns corrections ALWAYS or ONLY on pass?
+            // For now, backend returns 'corrections' always in my implementation.
+            // We can choose to render them or not.
         });
-        const score = Math.round((correct / quiz.questions.length) * 100);
-        setCurrentScore(score);
-        setSubmitted(true);
-        onSubmit(score, () => setSubmitted(false));
     };
 
     return (
@@ -2915,78 +2962,88 @@ const QuizViewer = ({ quiz, isFastTrack, alreadyPassed, savedScore, onSubmit, on
                     `Requirement: Score at least 70% to unlock the next module.`}
                 {submitted && (
                     <span style={{ marginLeft: '10px', fontWeight: 'bold', color: isPassed ? '#38A169' : '#E53E3E' }}>
-                        (Last Score: {currentScore}%)
+                        (Score: {currentScore}%)
                     </span>
                 )}
             </p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
-                {quiz.questions.map((q, i) => (
-                    <div key={i} style={{ borderBottom: '1px solid #edf2f7', paddingBottom: '20px' }}>
-                        <p style={{ fontWeight: 'bold', marginBottom: '15px' }}>{i + 1}. {q.question}</p>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                            {q.options.map((opt, oi) => {
-                                const isSelected = answers[i] === oi;
-                                const isCorrect = q.correctAnswerIndex === oi;
-                                let bgColor = '#f8fafc';
-                                let borderColor = 'transparent';
+                {quiz.questions.map((q, i) => {
+                    // Find correction if available
+                    // corrections is array of { questionIndex, isCorrect, correctAnswerIndex, explanation }
+                    // Logic: questionIndex matches 'i'
+                    const correction = corrections.find(c => Number(c.questionIndex) === i);
+                    const showFeedback = submitted && correction;
 
-                                if (isSelected) {
-                                    bgColor = '#EBF8FF';
-                                    borderColor = '#3182CE';
-                                }
+                    return (
+                        <div key={i} style={{ borderBottom: '1px solid #edf2f7', paddingBottom: '20px' }}>
+                            <p style={{ fontWeight: 'bold', marginBottom: '15px' }}>{i + 1}. {q.question}</p>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                {q.options.map((opt, oi) => {
+                                    const isSelected = answers[i] === oi;
+                                    let bgColor = '#f8fafc';
+                                    let borderColor = 'transparent';
 
-                                // If passed, highlight correct/wrong answers
-                                if (isPassed) {
-                                    if (isCorrect) {
-                                        bgColor = '#C6F6D5';
-                                        borderColor = '#38A169';
-                                    } else if (isSelected) {
-                                        bgColor = '#FED7D7';
-                                        borderColor = '#E53E3E';
+                                    if (isSelected) {
+                                        bgColor = '#EBF8FF';
+                                        borderColor = '#3182CE';
                                     }
-                                }
 
-                                return (
-                                    <div
-                                        key={oi}
-                                        onClick={() => handleAnswer(i, oi)}
-                                        style={{
-                                            padding: '12px',
-                                            background: bgColor,
-                                            border: `2px solid ${borderColor}`,
-                                            borderRadius: '10px',
-                                            cursor: isPassed ? 'default' : 'pointer',
-                                            fontSize: '0.9rem',
-                                            transition: 'all 0.2s',
-                                            position: 'relative'
-                                        }}
-                                    >
-                                        {opt}
-                                        {isPassed && isCorrect && <span style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: '#38A169' }}>✓</span>}
-                                    </div>
-                                );
-                            })}
-                        </div>
-                        {isPassed && (() => {
-                            console.log(`Question ${i + 1} explanation:`, q.explanation);
-                            return q.explanation && q.explanation.trim() !== '' ? (
+                                    // If submitted, show feedback based on CORRECTIONS
+                                    if (showFeedback) {
+                                        const isCorrectAnswer = correction.correctAnswerIndex === oi;
+
+                                        // Highlight correct answer in Green
+                                        if (isCorrectAnswer) {
+                                            bgColor = '#C6F6D5';
+                                            borderColor = '#38A169';
+                                        }
+                                        // Highlight wrong selection in Red
+                                        else if (isSelected && !correction.isCorrect) {
+                                            bgColor = '#FED7D7';
+                                            borderColor = '#E53E3E';
+                                        }
+                                    }
+
+                                    return (
+                                        <div
+                                            key={oi}
+                                            onClick={() => handleAnswer(i, oi)}
+                                            style={{
+                                                padding: '12px',
+                                                background: bgColor,
+                                                border: `2px solid ${borderColor}`,
+                                                borderRadius: '10px',
+                                                cursor: submitted ? 'default' : 'pointer',
+                                                fontSize: '0.9rem',
+                                                transition: 'all 0.2s',
+                                                position: 'relative'
+                                            }}
+                                        >
+                                            {opt}
+                                            {showFeedback && correction.correctAnswerIndex === oi && <span style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: '#38A169' }}>✓</span>}
+                                            {showFeedback && isSelected && !correction.isCorrect && <span style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: '#E53E3E' }}>✗</span>}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                            {showFeedback && correction.explanation && (
                                 <div style={{ marginTop: '15px', padding: '15px', background: '#F0FFF4', borderLeft: '4px solid #38A169', borderRadius: '8px' }}>
                                     <p style={{ margin: 0, fontSize: '0.9rem', color: '#2F855A', lineHeight: '1.5' }}>
                                         <strong style={{ display: 'block', marginBottom: '5px' }}>💡 Solution / Description:</strong>
-                                        {q.explanation}
+                                        {correction.explanation}
                                     </p>
                                 </div>
-                            ) : null;
-                        })()}
-                    </div>
-                ))}
+                            )}
+                        </div>
+                    );
+                })}
             </div>
 
-            {!isPassed ? (
+            {!submitted ? (
                 <button
-                    onClick={calculateScore}
-                    disabled={Object.keys(answers).length < quiz.questions.length || (submitted && !isFastTrack && currentScore < requiredScore && submitted)}
+                    onClick={submitQuiz}
+                    disabled={Object.keys(answers).length < quiz.questions.length || isSubmitting}
                     style={{
                         width: '100%',
                         padding: '15px',
@@ -2996,22 +3053,27 @@ const QuizViewer = ({ quiz, isFastTrack, alreadyPassed, savedScore, onSubmit, on
                         border: 'none',
                         borderRadius: '12px',
                         fontWeight: 'bold',
-                        cursor: 'pointer'
+                        cursor: Object.keys(answers).length < quiz.questions.length ? 'not-allowed' : 'pointer',
+                        opacity: isSubmitting ? 0.7 : 1
                     }}
                 >
-                    {submitted ? 'Re-Submit Quiz' : 'Submit Answers'}
+                    {isSubmitting ? 'Submitting...' : 'Submit Answers'}
                 </button>
             ) : (
                 <div style={{ marginTop: '40px', textAlign: 'center' }}>
-                    <div style={{ background: '#C6F6D5', color: '#22543D', padding: '15px', borderRadius: '12px', marginBottom: '20px', fontWeight: 'bold' }}>
-                        🎉 Congratulations! You passed with {currentScore}%.
+                    <div style={{ background: isPassed ? '#C6F6D5' : '#FED7D7', color: isPassed ? '#22543D' : '#742A2A', padding: '15px', borderRadius: '12px', marginBottom: '20px', fontWeight: 'bold' }}>
+                        {isPassed ? `🎉 Congratulations! You passed with ${currentScore}%.` : `Score: ${currentScore}%. Keep trying!`}
                     </div>
+                    {/* Only show 'Close' if passed, or 'Re-take' if failed? For now just Close. The user can re-open to retake. */}
                     <button
                         onClick={onClose}
                         style={{ width: '100%', padding: '15px', background: '#38A169', color: 'white', border: 'none', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer' }}
                     >
                         Close & Continue Learning
                     </button>
+                    {!isPassed && (
+                        <p style={{ marginTop: '10px', fontSize: '0.9rem', color: '#718096' }}>Close this quiz and open it again to retake it.</p>
+                    )}
                 </div>
             )}
         </div>

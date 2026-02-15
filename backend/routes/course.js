@@ -23,11 +23,53 @@ const uploadMiddleware = (req, res, next) => {
     });
 };
 
+// Helper: Sanitize Course (Remove Answers)
+const sanitizeCourse = (course) => {
+    if (!course) return null;
+    const courseObj = course.toObject ? course.toObject() : course;
+
+    if (courseObj.chapters) {
+        courseObj.chapters.forEach(chapter => {
+            if (chapter.modules) {
+                chapter.modules.forEach(module => {
+                    if (module.quiz && module.quiz.questions) {
+                        module.quiz.questions.forEach(q => {
+                            delete q.correctAnswerIndex;
+                            // We might want to keep explanation hidden until after quiz, 
+                            // but for now, definitely hide it from initial fetch.
+                            delete q.explanation;
+                        });
+                    }
+                });
+            }
+        });
+    }
+    return courseObj;
+};
+
+// Get all courses (for students/public) - ONLY PUBLISHED
 // Get all courses (for students/public) - ONLY PUBLISHED
 router.get('/', async (req, res) => {
     try {
         const courses = await Course.populate(await Course.find({ isPublished: true }), { path: 'teacher', select: 'name email' });
-        res.json(courses);
+        const sanitizedCourses = courses.map(course => sanitizeCourse(course));
+        res.json(sanitizedCourses);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
+// Get Single Course (Sanitized)
+router.get('/:courseId', async (req, res) => {
+    try {
+        // Check if it's a special route like 'grades' or 'teacher' (though Express routing should handle this if placed correctly)
+        // Ideally, put this AFTER specific paths but :courseId might conflict if not careful.
+        // However, standard REST :id usually goes last if ambiguous, or use validation.
+        if (req.params.courseId === 'grades' || req.params.courseId === 'teacher' || req.params.courseId === 'reports') return next();
+
+        const course = await Course.findById(req.params.courseId).populate('teacher', 'name email');
+        if (!course) return res.status(404).json({ message: 'Course not found' });
+        res.json(sanitizeCourse(course));
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
@@ -512,14 +554,14 @@ router.get('/:courseId/progress/:studentId', async (req, res) => {
     }
 });
 
-// Submit Quiz Result
+// Submit Quiz Result (Server-Side Grading)
 router.post('/:courseId/modules/:moduleId/submit-quiz', async (req, res) => {
-    const { studentId, score, isFastTrack } = req.body;
+    const { studentId, answers, isFastTrack } = req.body; // answers: { [questionIndex]: optionIndex }
     try {
         const course = await Course.findById(req.params.courseId);
         if (!course) return res.status(404).json({ message: 'Course not found' });
 
-        // Find module to get passing scores
+        // Find module to get passing scores and CORRECT ANSWERS
         let targetModule = null;
         for (const chapter of course.chapters) {
             targetModule = chapter.modules.id(req.params.moduleId);
@@ -528,12 +570,39 @@ router.post('/:courseId/modules/:moduleId/submit-quiz', async (req, res) => {
 
         if (!targetModule) return res.status(404).json({ message: 'Module not found' });
 
+        // Calculate Score
+        const questions = targetModule.quiz?.questions || [];
+        if (questions.length === 0) return res.status(400).json({ message: 'Quiz has no questions.' });
+
+        let correctCount = 0;
+        const total = questions.length;
+
+        // Build corrections/explanations to return
+        const corrections = [];
+
+        questions.forEach((q, idx) => {
+            const studentAnswer = answers[idx];
+            const isCorrect = Number(studentAnswer) === Number(q.correctAnswerIndex);
+
+            if (isCorrect) correctCount++;
+
+            corrections.push({
+                questionIndex: idx,
+                correctAnswerIndex: q.correctAnswerIndex,
+                explanation: q.explanation,
+                isCorrect
+            });
+        });
+
+        const score = Math.round((correctCount / total) * 100);
+
         const passingScore = isFastTrack ?
             (targetModule.quiz?.fastTrackScore || 85) :
             (targetModule.quiz?.passingScore || 70);
 
         const isPassed = score >= passingScore;
 
+        // Update Progress
         if (isPassed) {
             let progress = await Progress.findOne({ course: req.params.courseId, student: studentId });
             if (!progress) {
@@ -542,25 +611,39 @@ router.post('/:courseId/modules/:moduleId/submit-quiz', async (req, res) => {
 
             // Check if already completed
             const alreadyCompleted = progress.completedModules.find(m => m.moduleId.toString() === req.params.moduleId);
+            // Check if existing score is higher? For now, we overwrite if passed, or keep highest?
+            // Requirement says "if passed". Usually we optimize for best score or latest pass.
+            // Let's just push if not exists, or update if exists and score is better?
+            // Simple logic: If not exists, push. IF exists, update if score is better.
+
             if (!alreadyCompleted) {
                 progress.completedModules.push({
                     moduleId: req.params.moduleId,
                     score: score,
-                    isFastTracked: isFastTrack
+                    isFastTracked: isFastTrack,
+                    completedAt: Date.now()
                 });
-                progress.updatedAt = Date.now();
-                await progress.save();
+            } else {
+                if (score > alreadyCompleted.score) {
+                    alreadyCompleted.score = score;
+                    alreadyCompleted.isFastTracked = isFastTrack; // Update track too
+                    alreadyCompleted.completedAt = Date.now();
+                }
             }
+            progress.updatedAt = Date.now();
+            await progress.save();
         }
 
         res.json({
             isPassed,
             score,
             requiredScore: passingScore,
-            message: isPassed ? 'Module Unlocked!' : 'Score too low. Try again.'
+            message: isPassed ? 'Module Unlocked!' : 'Score too low. Try again.',
+            corrections // Return the keys/explanations NOW that they've submitted
         });
 
     } catch (err) {
+        console.error('Submit Quiz Error:', err);
         res.status(400).json({ message: err.message });
     }
 });
