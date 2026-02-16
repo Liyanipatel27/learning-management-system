@@ -843,6 +843,23 @@ const LiveClassroom = () => {
                         >
                             ⛔ End Class
                         </button>
+                        <button
+                            onClick={leaveClass}
+                            style={{
+                                padding: '10px 20px',
+                                background: '#334155',
+                                color: 'white',
+                                border: '2px solid #475569',
+                                borderRadius: '5px',
+                                fontWeight: 'bold',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '5px'
+                            }}
+                        >
+                            🚪 {isTeacher ? 'Exit Workspace' : 'Exit'}
+                        </button>
                     </div>
 
                     <div style={{ flex: 1, margin: '0 10px 10px 10px', borderRadius: '12px', overflow: 'hidden', position: 'relative', border: '1px solid #334155', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
@@ -1023,9 +1040,7 @@ const LiveClassroom = () => {
                         </button>
                         <button onClick={downloadSlide} style={{ marginLeft: 'auto', background: '#64748B', color: 'white', border: 'none', padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>💾 Save</button>
 
-                        <button onClick={leaveClass} style={{ background: '#334155', color: 'white', border: 'none', padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>
-                            {isTeacher ? 'Exit Workspace' : 'Exit'}
-                        </button>
+
                     </div>
                 </div>
             )}

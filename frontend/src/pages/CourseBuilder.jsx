@@ -11,6 +11,7 @@ const CourseBuilder = ({ teacherId, onCourseCreated, initialCourse }) => {
     const [currentCourseId, setCurrentCourseId] = useState(initialCourse ? initialCourse._id : null);
     const [editingQuiz, setEditingQuiz] = useState(null);
     const [showQuizAnswers, setShowQuizAnswers] = useState(false);
+    const [isPublished, setIsPublished] = useState(initialCourse ? initialCourse.isPublished : false);
 
     // --- AI QUIZ GENERATION STATE (Moved from QuizEditor) ---
     const [aiModalTarget, setAiModalTarget] = useState(null); // { chapterId, moduleId }
@@ -111,7 +112,10 @@ const CourseBuilder = ({ teacherId, onCourseCreated, initialCourse }) => {
             setStep(2);
             setCourseData({ subject: initialCourse.subject, teacherId: teacherId });
             setChapters(initialCourse.chapters);
+            setCourseData({ subject: initialCourse.subject, teacherId: teacherId });
+            setChapters(initialCourse.chapters);
             setCurrentCourseId(initialCourse._id);
+            setIsPublished(initialCourse.isPublished);
         }
     }, [initialCourse, teacherId]);
 
@@ -124,6 +128,7 @@ const CourseBuilder = ({ teacherId, onCourseCreated, initialCourse }) => {
             const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/courses/create`, { ...courseData, teacherId });
             setCurrentCourseId(res.data._id);
             setChapters(res.data.chapters || []); // Load existing chapters if any
+            setIsPublished(res.data.isPublished || false);
             setStep(2);
             // alert(res.status === 200 ? 'Found existing Subject. Adding to it.' : 'New Subject Created.');
         } catch (err) {
@@ -213,32 +218,92 @@ const CourseBuilder = ({ teacherId, onCourseCreated, initialCourse }) => {
         }
     };
 
-    // fetchCourseStructure not strictly needed inside here anymore as we get updates from API responses, 
+    const handlePublish = async (status) => {
+        try {
+            const res = await axios.put(`${import.meta.env.VITE_API_URL}/api/courses/${currentCourseId}/publish`, { isPublished: status });
+            setIsPublished(res.data.isPublished);
+            alert(status ? 'Course Published! Students can now see it.' : 'Course saved as Draft. Hidden from students.');
+        } catch (err) {
+            console.error(err);
+            alert('Error updating course status');
+        }
+    };
+
+    // fetchCourseStructure not strictly needed inside here anymore as we get updates from API responses,  
     // but handy if we wanted to revert changes. Removing for simplicity as per new flow.
 
     return (
         <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '20px' }}>
-            <button
-                onClick={onCourseCreated}
-                style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    marginBottom: '24px',
-                    border: 'none',
-                    background: 'white',
-                    color: '#4a5568',
-                    cursor: 'pointer',
-                    padding: '8px 16px',
-                    borderRadius: '10px',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-                    fontWeight: '600',
-                    transition: 'all 0.2s'
-                }}
-            >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
-                Back to Dashboard
-            </button>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                <button
+                    onClick={onCourseCreated}
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        border: 'none',
+                        background: 'white',
+                        color: '#4a5568',
+                        cursor: 'pointer',
+                        padding: '8px 16px',
+                        borderRadius: '10px',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                        fontWeight: '600',
+                        transition: 'all 0.2s'
+                    }}
+                >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                    Back to Dashboard
+                </button>
+
+                {step === 2 && (
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                        {!isPublished ? (
+                            <button
+                                onClick={() => handlePublish(true)}
+                                style={{
+                                    padding: '10px 20px',
+                                    background: '#16a34a',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '10px',
+                                    fontWeight: 'bold',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px',
+                                    boxShadow: '0 4px 6px rgba(22, 163, 74, 0.2)'
+                                }}
+                            >
+                                🚀 Publish Course
+                            </button>
+                        ) : (
+                            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                                <span style={{ color: '#16a34a', fontWeight: 'bold', background: '#dcfce7', padding: '6px 12px', borderRadius: '20px', fontSize: '0.85rem' }}>
+                                    ● Live
+                                </span>
+                                <button
+                                    onClick={() => handlePublish(false)}
+                                    style={{
+                                        padding: '10px 20px',
+                                        background: '#fff',
+                                        color: '#64748b',
+                                        border: '1px solid #cbd5e1',
+                                        borderRadius: '10px',
+                                        fontWeight: 'bold',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '8px'
+                                    }}
+                                >
+                                    Revert to Draft
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
 
             {step === 1 && (
                 <div style={{ background: 'white', padding: '40px', borderRadius: '24px', boxShadow: '0 10px 25px rgba(0,0,0,0.05)', textAlign: 'center' }}>

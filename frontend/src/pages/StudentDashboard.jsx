@@ -1253,33 +1253,7 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
                                             </div>
                                         )
                                     }
-                                    <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <div>
-                                            <h2 style={{ margin: 0, fontSize: '1.25rem', color: '#2d3748' }}>{selectedContent.title}</h2>
-                                            <span style={{ fontSize: '0.8rem', color: '#718096' }}>Type: {selectedContent.type.toUpperCase()}</span>
 
-                                        </div>
-                                        {selectedContent.type === 'link' && isTimeRequirementMet && (
-                                            <a
-                                                href={selectedContent.url}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                style={{ padding: '8px 16px', background: '#6C63FF', color: 'white', borderRadius: '8px', textDecoration: 'none', fontSize: '0.85rem', fontWeight: 'bold' }}
-                                            >
-                                                Open Link
-                                            </a>
-                                        )}
-                                        {selectedContent.type !== 'link' && isTimeRequirementMet && (
-                                            <a
-                                                href={getContentUrl(selectedContent.url)}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                style={{ padding: '8px 16px', background: '#6C63FF', color: 'white', borderRadius: '8px', textDecoration: 'none', fontSize: '0.85rem', fontWeight: 'bold' }}
-                                            >
-                                                Open In New Tab
-                                            </a>
-                                        )}
-                                    </div>
 
 
                                     {/* Study Requirement Bar */}
