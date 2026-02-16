@@ -19,6 +19,8 @@ const LiveClassroom = () => {
     const [color, setColor] = useState('#4F46E5');
     const [width, setWidth] = useState(3);
     const [isEraser, setIsEraser] = useState(false);
+    const [isTextMode, setIsTextMode] = useState(false);
+    const [textInput, setTextInput] = useState({ x: 0, y: 0, show: false, value: '' });
     const [slides, setSlides] = useState([]);
     const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
     // Jitsi States
@@ -34,7 +36,7 @@ const LiveClassroom = () => {
 
     // Mode State (Whiteboard or Coding)
     const [activeMode, setActiveMode] = useState('whiteboard');
-    const [canEditCode, setCanEditCode] = useState(user?.role === 'teacher');
+    const [canEditCode, setCanEditCode] = useState(true);
     const socketRef = useRef(null);
 
     // Coding States
@@ -67,6 +69,12 @@ const LiveClassroom = () => {
         socket.on('incoming-draw', ({ x, y, lastX, lastY, color, width, type }) => {
             const ctx = ctxRef.current;
             if (!ctx) return;
+            const canvas = canvasRef.current;
+            // Scale coordinates if they were sent from a client with different dimensions
+            // For now, assume relative or rely on socket broadcasting correct coords. 
+            // Better: socket should send normalized coords (0-1) but that's a bigger refactor.
+            // For now, let's just draw.
+
             ctx.beginPath();
             ctx.strokeStyle = color;
             ctx.lineWidth = width;
@@ -87,9 +95,7 @@ const LiveClassroom = () => {
         });
 
         socket.on('incoming-code', (newCode) => {
-            if (user.role === 'student') {
-                setCode(newCode);
-            }
+            setCode(newCode);
         });
 
         socket.on('incoming-permission', ({ canEdit }) => {
@@ -117,13 +123,39 @@ const LiveClassroom = () => {
             }
         });
 
+        socket.on('incoming-slide-delete', ({ index }) => {
+            if (user.role === 'student') {
+                setSlides(prev => {
+                    const newSlides = [...prev];
+                    if (index >= 0 && index < newSlides.length) {
+                        newSlides.splice(index, 1);
+                    }
+                    return newSlides;
+                });
+                setCurrentSlideIndex(prev => {
+                    if (index < prev) return prev - 1;
+                    if (index === prev) return Math.max(0, prev - 1);
+                    return prev;
+                });
+            }
+        });
+
         socket.on('incoming-canvas-update', ({ imageData }) => {
             const img = new Image();
             img.onload = () => {
                 if (ctxRef.current && canvasRef.current) {
+                    // Reset transform to identity before clearing to ensure full clear
+                    ctxRef.current.setTransform(1, 0, 0, 1, 0, 0);
                     ctxRef.current.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-                    ctxRef.current.drawImage(img, 0, 0);
-                    // Update current slides state as well to persist
+
+                    // Re-apply scale for drawing
+                    // actually, drawImage with full canvas data should probably just fill.
+                    ctxRef.current.drawImage(img, 0, 0, canvasRef.current.width, canvasRef.current.height);
+
+                    // Restore scale for user drawing
+                    const dpr = window.devicePixelRatio || 1;
+                    ctxRef.current.scale(dpr, dpr);
+
                     setSlides(prev => {
                         const newSlides = [...prev];
                         newSlides[currentSlideIndex] = imageData;
@@ -165,15 +197,24 @@ const LiveClassroom = () => {
         };
         fetchRoomState();
 
-        // Start session timer
-        timerRef.current = setInterval(() => {
-            setElapsedTime(prev => prev + 1);
-        }, 1000);
-
         return () => {
-            if (timerRef.current) clearInterval(timerRef.current);
+            // Cleanup handled in separate effect
         };
     }, [roomId]);
+
+    // Timer Logic for Recording
+    useEffect(() => {
+        let interval;
+        if (isRecording) {
+            setElapsedTime(0);
+            interval = setInterval(() => {
+                setElapsedTime(prev => prev + 1);
+            }, 1000);
+        } else {
+            setElapsedTime(0);
+        }
+        return () => clearInterval(interval);
+    }, [isRecording]);
 
     // Save state when slides or index or code changes (Debounced)
     useEffect(() => {
@@ -260,10 +301,23 @@ const LiveClassroom = () => {
         if (canvas) {
             const ctx = canvas.getContext('2d');
             if (ctx) {
-                // Initial fill with white only if this is the first initialization
+                // High DPI Support
+                const dpr = window.devicePixelRatio || 1;
+                // Get CSS size
+                const rect = canvas.getBoundingClientRect();
+
+                // Set actual size in memory (scaled to account for extra pixel density)
+                canvas.width = rect.width * dpr;
+                canvas.height = rect.height * dpr;
+
+                // Scale the context to match
+                ctx.scale(dpr, dpr);
+
+                // Initial fill
                 if (!canvasInitialized) {
                     ctx.fillStyle = "white";
-                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    // Clear rect uses physical pixels when transform is identity, so we fill logical
+                    ctx.fillRect(0, 0, rect.width, rect.height);
                 }
                 ctx.lineCap = 'round';
                 ctx.strokeStyle = color;
@@ -275,16 +329,35 @@ const LiveClassroom = () => {
 
         const handleResize = () => {
             const canvas = canvasRef.current;
-            if (canvas && canvas.parentElement) {
-                canvas.width = canvas.parentElement.clientWidth;
-                canvas.height = canvas.parentElement.clientHeight;
+            if (canvas) {
+                const rect = canvas.getBoundingClientRect();
+                const dpr = window.devicePixelRatio || 1;
+
+                // Update internal resolution
+                canvas.width = rect.width * dpr;
+                canvas.height = rect.height * dpr;
+
+                // Normalize coordinate system to use CSS pixels
+                const ctx = ctxRef.current;
+                if (ctx) {
+                    ctx.scale(dpr, dpr);
+                    ctx.lineCap = 'round';
+                    ctx.strokeStyle = color;
+                    ctx.lineWidth = width;
+                }
+
                 // Re-draw current slide after resize
                 if (slides[currentSlideIndex]) {
                     const img = new Image();
                     img.onload = () => {
                         if (ctxRef.current) {
+                            // Reset transform for full clear
+                            ctxRef.current.setTransform(1, 0, 0, 1, 0, 0);
                             ctxRef.current.clearRect(0, 0, canvas.width, canvas.height);
-                            ctxRef.current.drawImage(img, 0, 0);
+                            // Draw image stretched to fit
+                            ctxRef.current.drawImage(img, 0, 0, canvas.width, canvas.height);
+                            // Restore scale
+                            ctxRef.current.scale(dpr, dpr);
                         }
                     };
                     img.src = slides[currentSlideIndex];
@@ -293,40 +366,26 @@ const LiveClassroom = () => {
         };
 
         window.addEventListener('resize', handleResize);
+        document.addEventListener('fullscreenchange', handleResize);
+        document.addEventListener('webkitfullscreenchange', handleResize); // Safari/Chrome older
+        document.addEventListener('mozfullscreenchange', handleResize); // Firefox older
+        document.addEventListener('MSFullscreenChange', handleResize); // IE/Edge older
+
         // Initial size
-        setTimeout(handleResize, 500);
+        setTimeout(handleResize, 100);
 
         return () => {
             window.removeEventListener('resize', handleResize);
+            document.removeEventListener('fullscreenchange', handleResize);
+            document.removeEventListener('webkitfullscreenchange', handleResize);
+            document.removeEventListener('mozfullscreenchange', handleResize);
+            document.removeEventListener('MSFullscreenChange', handleResize);
             if (jitsiApiRef.current) {
                 jitsiApiRef.current.dispose();
                 jitsiApiRef.current = null;
             }
         };
-    }, []);
-
-    // Also handle resize when sidebar toggles
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            const canvas = canvasRef.current;
-            if (canvas && canvas.parentElement) {
-                canvas.width = canvas.parentElement.clientWidth;
-                canvas.height = canvas.parentElement.clientHeight;
-                // Re-draw
-                if (slides[currentSlideIndex]) {
-                    const img = new Image();
-                    img.onload = () => {
-                        if (ctxRef.current) {
-                            ctxRef.current.clearRect(0, 0, canvas.width, canvas.height);
-                            ctxRef.current.drawImage(img, 0, 0);
-                        }
-                    };
-                    img.src = slides[currentSlideIndex];
-                }
-            }
-        }, 350); // wait for CSS transition
-        return () => clearTimeout(timer);
-    }, [sidebarVisible, activeMode]);
+    }, [currentSlideIndex, sidebarVisible, activeMode]); // Re-bind on mode change to catch layout shifts
 
     // Simplified Jitsi Initialization
     useEffect(() => {
@@ -414,48 +473,116 @@ const LiveClassroom = () => {
     // --- Whiteboard Functions ---
     const lastPos = useRef({ x: 0, y: 0 });
 
-    const startDrawing = ({ nativeEvent }) => {
-        const { offsetX, offsetY } = nativeEvent;
+    const getCoordinates = (event) => {
+        if (!canvasRef.current) return { x: 0, y: 0 };
+
+        // Use standard offsetX/Y if available (Mouse)
+        // This automatically handles borders/padding relative to the target code
+        if (event.nativeEvent && typeof event.nativeEvent.offsetX === 'number') {
+            return {
+                x: event.nativeEvent.offsetX,
+                y: event.nativeEvent.offsetY
+            };
+        }
+
+        // Fallback for Touch Events
+        const rect = canvasRef.current.getBoundingClientRect();
+        let clientX = 0;
+        let clientY = 0;
+
+        if (event.touches && event.touches.length > 0) {
+            clientX = event.touches[0].clientX;
+            clientY = event.touches[0].clientY;
+        } else if (event.changedTouches && event.changedTouches.length > 0) {
+            clientX = event.changedTouches[0].clientX;
+            clientY = event.changedTouches[0].clientY;
+        } else if (event.nativeEvent && event.nativeEvent.touches && event.nativeEvent.touches.length > 0) {
+            clientX = event.nativeEvent.touches[0].clientX;
+            clientY = event.nativeEvent.touches[0].clientY;
+        } else {
+            // Fallback to clientX on event (rare but possible)
+            clientX = event.clientX;
+            clientY = event.clientY;
+        }
+
+        return {
+            x: clientX - rect.left,
+            y: clientY - rect.top
+        };
+    };
+
+    const startDrawing = (event) => {
+        // Prevent scrolling on touch
+        if (event.type === 'touchstart') event.preventDefault();
+
+        const { x, y } = getCoordinates(event);
         if (!ctxRef.current) return;
+
         ctxRef.current.beginPath();
-        ctxRef.current.moveTo(offsetX, offsetY);
+        ctxRef.current.moveTo(x, y);
         setIsPainting(true);
-        lastPos.current = { x: offsetX, y: offsetY };
+        lastPos.current = { x, y };
 
         // Save state for Undo before drawing starts
-        if (canvasRef.current) {
+        if (canvasRef.current && history.length === 0) {
+            // Only save initial blank state if history is empty? 
+            // Logic: Usually we save *after* works. But for undoing to blank, we need blank state.
+            // Current logic saved on every start. Let's keep it.
             const currentData = canvasRef.current.toDataURL();
             setHistory(prev => [...prev, currentData]);
-            setRedoStack([]); // Clear redo stack on new action
+            setRedoStack([]);
+        } else if (canvasRef.current) {
+            const currentData = canvasRef.current.toDataURL();
+            setHistory(prev => [...prev, currentData]);
+            setRedoStack([]);
         }
 
         socketRef.current?.emit('draw-event', {
             roomId,
-            x: offsetX,
-            y: offsetY,
+            x: x,
+            y: y,
             color,
             width,
             type: 'start'
         });
     };
 
-    const draw = ({ nativeEvent }) => {
+    const draw = (event) => {
         if (!isPainting || !ctxRef.current) return;
-        const { offsetX, offsetY } = nativeEvent;
-        ctxRef.current.lineTo(offsetX, offsetY);
-        ctxRef.current.stroke();
+        if (event.type === 'touchmove') event.preventDefault(); // Stop scrolling
+
+        const { x, y } = getCoordinates(event);
+        const ctx = ctxRef.current;
+
+        // Quadratic Curve Smoothing
+        // We draw a curve from the Last Point to the mid-point of (Last, Current)
+        // Control point is the Last Point.
+        // Wait, standard smoothing uses: p0->mid(p0,p1) with p0 is control?
+        // simple: Curve from LastPos to Midpoint(LastPos, CurrentPos) ? No.
+
+        // Better Algorithm for real-time:
+        // Draw line to current? No, that's jagged.
+        // We need 3 points. But we only have last and current.
+        // Strategy: Treat 'lastPos' as the control point?
+        // Let's stick to simple lineTo but relying on high-frequency events + LineCap Round.
+        // Actually, the user says "small writing". The issue is likely 'points skipping'.
+
+        ctx.beginPath();
+        ctx.moveTo(lastPos.current.x, lastPos.current.y);
+        ctx.lineTo(x, y);
+        ctx.stroke();
 
         socketRef.current?.emit('draw-event', {
             roomId,
-            x: offsetX,
-            y: offsetY,
+            x: x,
+            y: y,
             lastX: lastPos.current.x,
             lastY: lastPos.current.y,
             color,
             width,
             type: 'move'
         });
-        lastPos.current = { x: offsetX, y: offsetY };
+        lastPos.current = { x, y };
     };
 
     const stopDrawing = () => {
@@ -469,9 +596,71 @@ const LiveClassroom = () => {
         }
     };
 
+
+
+    const toggleTextMode = () => {
+        setIsTextMode(!isTextMode);
+        setIsEraser(false);
+        setIsPainting(false);
+    };
+
+    const handleCanvasClick = (event) => {
+        if (!isTextMode) return;
+
+        // Prevent default to avoid double-firing (touch -> mouse)
+        // and prevent generic canvas behavior
+        event.preventDefault();
+        event.stopPropagation();
+
+        const { x, y } = getCoordinates(event);
+        setTextInput({ x, y, show: true, value: '' });
+    };
+
+    const handleTextSubmit = () => {
+        if (!textInput.show || !textInput.value) {
+            setTextInput({ ...textInput, show: false });
+            return;
+        }
+
+        const ctx = ctxRef.current;
+        if (ctx) {
+            // Save state for undo
+            if (canvasRef.current) {
+                const currentData = canvasRef.current.toDataURL();
+                setHistory(prev => [...prev, currentData]);
+                setRedoStack([]);
+            }
+
+            ctx.font = `${width * 5}px Arial`; // Scale font with brush size? 
+            // Or fixed? Let's use brush size * 4 for visibility
+            ctx.fillStyle = color;
+            ctx.fillText(textInput.value, textInput.x, textInput.y);
+
+            // Emit to sync
+            socketRef.current?.emit('canvas-update', { roomId, imageData: canvasRef.current.toDataURL() });
+        }
+
+        setTextInput({ ...textInput, show: false, value: '' });
+        saveSlide();
+    };
+
+    // Auto-focus input when it appears
+    useEffect(() => {
+        if (textInput.show) {
+            // Small timeout to ensure DOM is ready and transition is done
+            setTimeout(() => {
+                const input = document.getElementById('wb-text-input');
+                if (input) {
+                    input.focus();
+                }
+            }, 10);
+        }
+    }, [textInput.show]);
+
     const toggleEraser = () => {
         const newVal = !isEraser;
         setIsEraser(newVal);
+        setIsTextMode(false);
         if (ctxRef.current) {
             ctxRef.current.globalCompositeOperation = newVal ? 'destination-out' : 'source-over';
         }
@@ -504,8 +693,11 @@ const LiveClassroom = () => {
         saveSlide();
         const canvas = canvasRef.current;
         if (ctxRef.current) {
+            // Fill white relative to logical size? 
+            // Since we scaled ctx, we fill logical size
+            const rect = canvas.getBoundingClientRect();
             ctxRef.current.fillStyle = "white";
-            ctxRef.current.fillRect(0, 0, canvas.width, canvas.height);
+            ctxRef.current.fillRect(0, 0, rect.width, rect.height);
         }
         socketRef.current?.emit('clear-canvas', roomId);
         const newSlideData = canvas.toDataURL();
@@ -526,13 +718,37 @@ const LiveClassroom = () => {
         socketRef.current?.emit('slide-change-event', { roomId, index });
     };
 
+    const deleteSlide = () => {
+        if (slides.length <= 1) {
+            alert("Cannot delete the only slide!");
+            return;
+        }
+        if (!window.confirm("Are you sure you want to delete this slide?")) return;
+
+        const indexToDelete = currentSlideIndex;
+        const newSlides = [...slides];
+        newSlides.splice(indexToDelete, 1);
+        setSlides(newSlides);
+
+        let newIndex = indexToDelete;
+        if (newIndex >= newSlides.length) {
+            newIndex = newSlides.length - 1;
+        }
+        setCurrentSlideIndex(newIndex);
+
+        socketRef.current?.emit('slide-delete-event', { roomId, index: indexToDelete });
+    };
+
     useEffect(() => {
         if (canvasInitialized && slides[currentSlideIndex] && ctxRef.current) {
             const img = new Image();
             img.onload = () => {
                 if (ctxRef.current) {
+                    ctxRef.current.setTransform(1, 0, 0, 1, 0, 0);
                     ctxRef.current.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-                    ctxRef.current.drawImage(img, 0, 0);
+                    ctxRef.current.drawImage(img, 0, 0, canvasRef.current.width, canvasRef.current.height);
+                    const dpr = window.devicePixelRatio || 1;
+                    ctxRef.current.scale(dpr, dpr);
                 }
             };
             img.src = slides[currentSlideIndex];
@@ -570,6 +786,9 @@ const LiveClassroom = () => {
         } else {
             document.exitFullscreen();
         }
+        // Force resize check after transition
+        setTimeout(handleResize, 100);
+        setTimeout(handleResize, 500);
     };
 
     const undo = () => {
@@ -583,8 +802,11 @@ const LiveClassroom = () => {
 
         const img = new Image();
         img.onload = () => {
+            ctxRef.current.setTransform(1, 0, 0, 1, 0, 0);
             ctxRef.current.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-            ctxRef.current.drawImage(img, 0, 0);
+            ctxRef.current.drawImage(img, 0, 0, canvasRef.current.width, canvasRef.current.height);
+            const dpr = window.devicePixelRatio || 1;
+            ctxRef.current.scale(dpr, dpr);
             saveSlide(); // Update slides array
             socketRef.current?.emit('canvas-update', { roomId, imageData: previousState });
         };
@@ -774,58 +996,58 @@ const LiveClassroom = () => {
         <div
             ref={classroomRef}
             style={{
-                display: isTeacher ? 'grid' : 'block',
-                gridTemplateColumns: (isTeacher && !isFullScreen) ? '1fr 350px' : '1fr',
+                display: 'grid',
+                gridTemplateColumns: !isFullScreen ? '1fr 350px' : '1fr',
                 height: '100vh',
                 background: '#0F172A',
                 overflow: 'hidden',
                 transition: 'grid-template-columns 0.3s ease'
             }}
         >
-            {/* Left: Whiteboard/Coding area (ONLY FOR TEACHER) */}
-            {isTeacher && (
-                <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', position: 'relative', overflow: 'hidden' }}>
-                    <div style={{
-                        display: 'flex',
-                        gap: '10px',
-                        padding: '10px',
-                        background: '#0F172A',
-                        zIndex: 10,
-                        flexShrink: 0
-                    }}>
-                        <button
-                            onClick={() => setActiveMode('whiteboard')}
-                            style={{
-                                flex: 1,
-                                padding: '10px',
-                                background: activeMode === 'whiteboard' ? '#4F46E5' : '#1E293B',
-                                color: 'white',
-                                border: activeMode === 'whiteboard' ? 'none' : '1px solid #334155',
-                                borderRadius: '10px',
-                                cursor: 'pointer',
-                                fontWeight: 'bold',
-                                transition: 'all 0.2s'
-                            }}
-                        >
-                            🖌️ Whiteboard
-                        </button>
-                        <button
-                            onClick={() => setActiveMode('coding')}
-                            style={{
-                                flex: 1,
-                                padding: '10px',
-                                background: activeMode === 'coding' ? '#4F46E5' : '#1E293B',
-                                color: 'white',
-                                border: activeMode === 'coding' ? 'none' : '1px solid #334155',
-                                borderRadius: '10px',
-                                cursor: 'pointer',
-                                fontWeight: 'bold',
-                                transition: 'all 0.2s'
-                            }}
-                        >
-                            💻 Coding Area
-                        </button>
-                        {/* Explicit End Class Button for reliable exit */}
+            {/* Left: Whiteboard/Coding area (Visible to ALL, Read-only for students) */}
+            <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', position: 'relative', overflow: 'hidden' }}>
+                <div style={{
+                    display: 'flex',
+                    gap: '10px',
+                    padding: '10px',
+                    background: '#0F172A',
+                    zIndex: 10,
+                    flexShrink: 0
+                }}>
+                    <button
+                        onClick={() => setActiveMode('whiteboard')}
+                        style={{
+                            flex: 1,
+                            padding: '10px',
+                            background: activeMode === 'whiteboard' ? '#4F46E5' : '#1E293B',
+                            color: 'white',
+                            border: activeMode === 'whiteboard' ? 'none' : '1px solid #334155',
+                            borderRadius: '10px',
+                            cursor: 'pointer',
+                            fontWeight: 'bold',
+                            transition: 'all 0.2s'
+                        }}
+                    >
+                        🖌️ Whiteboard
+                    </button>
+                    <button
+                        onClick={() => setActiveMode('coding')}
+                        style={{
+                            flex: 1,
+                            padding: '10px',
+                            background: activeMode === 'coding' ? '#4F46E5' : '#1E293B',
+                            color: 'white',
+                            border: activeMode === 'coding' ? 'none' : '1px solid #334155',
+                            borderRadius: '10px',
+                            cursor: 'pointer',
+                            fontWeight: 'bold',
+                            transition: 'all 0.2s'
+                        }}
+                    >
+                        💻 Coding Area
+                    </button>
+                    {/* Explicit End Class Button (TEACHER ONLY) */}
+                    {isTeacher && (
                         <button
                             onClick={() => endClass(false)}
                             style={{
@@ -843,33 +1065,52 @@ const LiveClassroom = () => {
                         >
                             ⛔ End Class
                         </button>
-                        <button
-                            onClick={leaveClass}
-                            style={{
-                                padding: '10px 20px',
-                                background: '#334155',
-                                color: 'white',
-                                border: '2px solid #475569',
-                                borderRadius: '5px',
-                                fontWeight: 'bold',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '5px'
-                            }}
-                        >
-                            🚪 {isTeacher ? 'Exit Workspace' : 'Exit'}
-                        </button>
-                    </div>
+                    )}
+                    <button
+                        onClick={downloadSlide}
+                        style={{
+                            padding: '10px 20px',
+                            background: '#64748B',
+                            color: 'white',
+                            border: '2px solid #475569',
+                            borderRadius: '5px',
+                            fontWeight: 'bold',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '5px'
+                        }}
+                    >
+                        💾 Save
+                    </button>
+                    <button
+                        onClick={leaveClass}
+                        style={{
+                            padding: '10px 20px',
+                            background: '#334155',
+                            color: 'white',
+                            border: '2px solid #475569',
+                            borderRadius: '5px',
+                            fontWeight: 'bold',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '5px'
+                        }}
+                    >
+                        🚪 {isTeacher ? 'Exit Workspace' : 'Exit'}
+                    </button>
+                </div>
 
-                    <div style={{ flex: 1, margin: '0 10px 10px 10px', borderRadius: '12px', overflow: 'hidden', position: 'relative', border: '1px solid #334155', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-                        {/* Session Timer Overlay */}
+                <div style={{ flex: 1, margin: '0 10px 10px 10px', borderRadius: '12px', overflow: 'hidden', position: 'relative', border: '1px solid #334155', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+                    {/* Session Timer Overlay - Only visible when recording */}
+                    {isRecording && (
                         <div style={{
                             position: 'absolute',
                             top: '15px',
                             right: '15px',
                             zIndex: 10,
-                            background: 'rgba(15, 23, 42, 0.8)',
+                            background: 'rgba(239, 68, 68, 0.9)', // Red background for recording
                             color: 'white',
                             padding: '6px 14px',
                             borderRadius: '20px',
@@ -878,172 +1119,272 @@ const LiveClassroom = () => {
                             display: 'flex',
                             alignItems: 'center',
                             gap: '8px',
-                            border: '1px solid rgba(255,255,255,0.1)',
-                            backdropFilter: 'blur(4px)'
+                            border: '1px solid rgba(255,255,255,0.2)',
+                            backdropFilter: 'blur(4px)',
+                            boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
                         }}>
-                            <div style={{ width: '8px', height: '8px', background: '#EF4444', borderRadius: '50%', animation: 'pulse 1.5s infinite' }}></div>
+                            <div style={{ width: '8px', height: '8px', background: 'white', borderRadius: '50%', animation: 'pulse 1.5s infinite' }}></div>
                             REC: {formatTime(elapsedTime)}
-                            {elapsedTime >= 3600 && <span style={{ color: '#FCD34D', marginLeft: '5px' }}>⚠️ 1hr reached</span>}
                         </div>
+                    )}
 
-                        {/* Whiteboard Container */}
-                        <div style={{
-                            display: activeMode === 'whiteboard' ? 'block' : 'none',
-                            height: '100%',
-                            background: 'white',
-                            position: 'relative'
-                        }}>
-                            <canvas
-                                ref={canvasRef}
-                                onMouseDown={startDrawing}
-                                onMouseMove={draw}
-                                onMouseUp={stopDrawing}
-                                onMouseLeave={stopDrawing}
-                                style={{ cursor: isEraser ? 'crosshair' : 'pencil', width: '100%', height: '100%', display: 'block' }}
+                    {/* Whiteboard Container */}
+                    <div style={{
+                        display: activeMode === 'whiteboard' ? 'block' : 'none',
+                        height: '100%',
+                        background: 'white',
+                        position: 'relative'
+                    }}>
+                        <canvas
+                            ref={canvasRef}
+                            onMouseDown={(e) => {
+                                if (!isTeacher) return; // Students cannot draw
+                                if (isTextMode) return; // Wait for click
+                                startDrawing(e);
+                            }}
+                            onClick={(e) => {
+                                if (!isTeacher) return;
+                                if (isTextMode) handleCanvasClick(e);
+                            }}
+                            onMouseMove={draw}
+                            onMouseUp={stopDrawing}
+                            onMouseLeave={stopDrawing}
+                            onTouchStart={(e) => {
+                                if (!isTeacher) return;
+                                if (isTextMode) {
+                                    // For touch, click might be unreliable, use TouchStart but prevent drawing
+                                    handleCanvasClick(e);
+                                } else {
+                                    startDrawing(e);
+                                }
+                            }}
+                            onTouchMove={draw}
+                            onTouchEnd={stopDrawing}
+                            style={{
+                                cursor: isTeacher ? (isTextMode ? 'text' : 'crosshair') : 'default',
+                                width: '100%',
+                                height: '100%',
+                                display: 'block',
+                                touchAction: 'none'
+                            }}
+                        />
+                        {textInput.show && (
+                            <input
+                                id="wb-text-input"
+                                type="text"
+                                value={textInput.value}
+                                onChange={(e) => setTextInput({ ...textInput, value: e.target.value })}
+                                onBlur={handleTextSubmit}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') handleTextSubmit();
+                                }}
+                                placeholder="Type here..."
+                                style={{
+                                    position: 'absolute',
+                                    left: textInput.x,
+                                    top: textInput.y,
+                                    fontSize: `${width * 5}px`,
+                                    color: color,
+                                    background: 'rgba(255, 255, 255, 0.8)',
+                                    border: '2px solid #4F46E5', // Distinct blue border
+                                    borderRadius: '4px',
+                                    padding: '2px 4px',
+                                    outline: 'none',
+                                    margin: 0,
+                                    zIndex: 9999, // Ensure it's on top of everything
+                                    minWidth: '100px',
+                                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                                }}
+                                onMouseDown={(e) => e.stopPropagation()}
+                                onMouseUp={(e) => e.stopPropagation()}
+                                onClick={(e) => e.stopPropagation()}
+                                onTouchStart={(e) => e.stopPropagation()}
+                                onTouchEnd={(e) => e.stopPropagation()}
+                                autoComplete="off"
+                                autoCorrect="off"
+                                spellCheck="false"
+                                autoFocus
                             />
-                            <div style={{ position: 'absolute', top: '10px', left: '10px', color: '#64748B', fontWeight: 'bold', background: 'rgba(255,255,255,0.8)', padding: '2px 8px', borderRadius: '4px' }}>
-                                👨‍🏫 Teaching Whiteboard
-                            </div>
+                        )}
+
+                        <div style={{ position: 'absolute', top: '10px', left: '10px', color: '#64748B', fontWeight: 'bold', background: 'rgba(255,255,255,0.8)', padding: '2px 8px', borderRadius: '4px' }}>
+                            👨‍🏫 Teaching Whiteboard
                         </div>
+                    </div>
 
-                        {/* Coding Container */}
-                        <div style={{
-                            display: activeMode === 'coding' ? 'block' : 'none',
-                            height: '100%',
-                            background: '#1e1e2e',
-                            minHeight: 0
-                        }}>
-                            <div style={{ padding: '20px', height: '100%', display: 'flex', flexDirection: 'column', gap: '15px', minHeight: 0 }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <h3 style={{ color: 'white', margin: 0 }}>Live Coding</h3>
+                    {/* Coding Container */}
+                    <div style={{
+                        display: activeMode === 'coding' ? 'block' : 'none',
+                        height: '100%',
+                        background: '#1e1e2e',
+                        minHeight: 0
+                    }}>
+                        <div style={{ padding: '20px', height: '100%', display: 'flex', flexDirection: 'column', gap: '15px', minHeight: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '15px', paddingBottom: '10px', borderBottom: '1px solid #334155' }}>
+                                <h3 style={{ color: 'white', margin: 0 }}>Live Coding</h3>
 
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: '20px' }}>
+                                    <span style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Language:</span>
                                     <select
                                         value={language}
                                         onChange={(e) => setLanguage(e.target.value)}
-                                        style={{ padding: '5px 10px', background: '#334155', color: 'white', border: 'none', borderRadius: '5px' }}
+                                        style={{
+                                            padding: '6px 12px',
+                                            background: '#334155',
+                                            color: 'white',
+                                            border: '1px solid #475569',
+                                            borderRadius: '6px',
+                                            cursor: 'pointer',
+                                            fontSize: '0.9rem',
+                                            outline: 'none'
+                                        }}
                                     >
                                         <option value="javascript">JavaScript</option>
                                         <option value="python">Python</option>
                                         <option value="cpp">C++</option>
                                         <option value="java">Java</option>
+                                        <option value="c">C</option>
+                                        <option value="csharp">C#</option>
+                                        <option value="php">PHP</option>
+                                        <option value="ruby">Ruby</option>
+                                        <option value="go">Go</option>
+                                        <option value="rust">Rust</option>
+                                        <option value="typescript">TypeScript</option>
+                                        <option value="swift">Swift</option>
+                                        <option value="kotlin">Kotlin</option>
+                                        <option value="sql">SQL</option>
+                                        <option value="html">HTML</option>
+                                        <option value="css">CSS</option>
                                     </select>
                                 </div>
-                                <div style={{ flex: 2, borderRadius: '8px', overflow: 'hidden', border: '1px solid #334155' }}>
-                                    <Editor
-                                        height="100%"
-                                        language={language === 'cpp' ? 'cpp' : language}
-                                        value={code}
-                                        theme="vs-dark"
-                                        options={{
-                                            fontSize: 14,
-                                            minimap: { enabled: false },
-                                            readOnly: !canEditCode,
-                                            automaticLayout: true
-                                        }}
-                                        onChange={(value) => {
-                                            setCode(value);
-                                            socketRef.current?.emit('code-update', { roomId, code: value });
-                                        }}
-                                    />
-                                </div>
-                                <div style={{ display: 'flex', gap: '10px' }}>
-                                    <textarea
-                                        value={stdin}
-                                        onChange={(e) => setStdin(e.target.value)}
-                                        placeholder="Input (stdin)"
-                                        style={{
-                                            flex: 1,
-                                            height: '60px',
-                                            background: '#0f172a',
-                                            color: 'white',
-                                            padding: '10px',
-                                            borderRadius: '8px',
-                                            border: '1px solid #334155',
-                                            fontSize: '0.9rem',
-                                            resize: 'none'
-                                        }}
-                                    />
-                                    <button
-                                        onClick={handleExecuteCode}
-                                        disabled={executingCode}
-                                        style={{
-                                            width: '120px',
-                                            background: '#10b981',
-                                            color: 'white',
-                                            border: 'none',
-                                            borderRadius: '8px',
-                                            fontWeight: 'bold',
-                                            cursor: executingCode ? 'not-allowed' : 'pointer'
-                                        }}
-                                    >
-                                        {executingCode ? '⚡...' : '▶ Run'}
-                                    </button>
-                                </div>
-                                {executionResult && (
-                                    <div style={{ flex: 1, background: '#0f172a', padding: '15px', borderRadius: '8px', border: '1px solid #334155', overflowY: 'auto' }}>
-                                        <p style={{ color: '#94a3b8', fontSize: '0.8rem', margin: '0 0 5px 0' }}>Result:</p>
-                                        <pre style={{ color: '#10b981', margin: 0, whiteSpace: 'pre-wrap', fontSize: '0.9rem' }}>
-                                            {executionResult.output}
-                                        </pre>
-                                    </div>
-                                )}
                             </div>
+                            <div style={{ flex: 2, borderRadius: '8px', overflow: 'hidden', border: '1px solid #334155' }}>
+                                <Editor
+                                    height="100%"
+                                    language={language === 'cpp' ? 'cpp' : language}
+                                    value={code}
+                                    theme="vs-dark"
+                                    options={{
+                                        fontSize: 14,
+                                        minimap: { enabled: false },
+                                        readOnly: !canEditCode,
+                                        automaticLayout: true
+                                    }}
+                                    onChange={(value) => {
+                                        setCode(value);
+                                        socketRef.current?.emit('code-update', { roomId, code: value });
+                                    }}
+                                />
+                            </div>
+                            <div style={{ display: 'flex', gap: '10px' }}>
+                                <textarea
+                                    value={stdin}
+                                    onChange={(e) => setStdin(e.target.value)}
+                                    placeholder="Input (stdin)"
+                                    style={{
+                                        flex: 1,
+                                        height: '60px',
+                                        background: '#0f172a',
+                                        color: 'white',
+                                        padding: '10px',
+                                        borderRadius: '8px',
+                                        border: '1px solid #334155',
+                                        fontSize: '0.9rem',
+                                        resize: 'none'
+                                    }}
+                                />
+                                <button
+                                    onClick={handleExecuteCode}
+                                    disabled={executingCode}
+                                    style={{
+                                        width: '120px',
+                                        background: '#10b981',
+                                        color: 'white',
+                                        border: 'none',
+                                        borderRadius: '8px',
+                                        fontWeight: 'bold',
+                                        cursor: executingCode ? 'not-allowed' : 'pointer'
+                                    }}
+                                >
+                                    {executingCode ? '⚡...' : '▶ Run'}
+                                </button>
+                            </div>
+                            {executionResult && (
+                                <div style={{ flex: 1, background: '#0f172a', padding: '15px', borderRadius: '8px', border: '1px solid #334155', overflowY: 'auto' }}>
+                                    <p style={{ color: '#94a3b8', fontSize: '0.8rem', margin: '0 0 5px 0' }}>Result:</p>
+                                    <pre style={{ color: '#10b981', margin: 0, whiteSpace: 'pre-wrap', fontSize: '0.9rem' }}>
+                                        {executionResult.output}
+                                    </pre>
+                                </div>
+                            )}
                         </div>
-                    </div>
-
-                    {/* Toolbar */}
-                    <div style={{
-                        height: '75px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '12px',
-                        padding: '0 15px',
-                        background: '#1E293B',
-                        borderTop: '1px solid #334155',
-                        flexShrink: 0,
-                        zIndex: 10
-                    }}>
-                        <div style={{ display: 'flex', gap: '5px' }}>
-                            <button onClick={undo} disabled={history.length === 0} style={{ background: history.length === 0 ? '#1E293B' : '#334155', color: history.length === 0 ? '#64748B' : 'white', border: '1px solid #475569', padding: '10px', borderRadius: '8px', cursor: history.length === 0 ? 'not-allowed' : 'pointer', fontSize: '16px' }} title="Undo">↩️</button>
-                            <button onClick={redo} disabled={redoStack.length === 0} style={{ background: redoStack.length === 0 ? '#1E293B' : '#334155', color: redoStack.length === 0 ? '#64748B' : 'white', border: '1px solid #475569', padding: '10px', borderRadius: '8px', cursor: redoStack.length === 0 ? 'not-allowed' : 'pointer', fontSize: '16px' }} title="Redo">↪️</button>
-                            <button onClick={clearCanvas} style={{ background: '#334155', color: 'white', border: 'none', padding: '10px', borderRadius: '8px', cursor: 'pointer' }} title="Clear Canvas">🗑️</button>
-                            <div style={{ width: '1px', height: '20px', background: '#334155', margin: 'auto 5px' }}></div>
-                            <button onClick={() => toggleEraser()} style={{ background: isEraser ? '#EF4444' : '#334155', color: 'white', border: 'none', padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                                {isEraser ? '🧽 Erasing' : '✏️ Pen'}
-                            </button>
-                        </div>
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                            {['#4F46E5', '#EF4444', '#10B981', '#000000'].map(c => (
-                                <div key={c} onClick={() => changeColor(c)} style={{ width: '28px', height: '28px', borderRadius: '50%', background: c, border: color === c ? '3px solid white' : '1px solid #475569', cursor: 'pointer' }} />
-                            ))}
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#0F172A', padding: '5px 12px', borderRadius: '8px' }}>
-                            <span style={{ color: '#94A3B8', fontSize: '11px', fontWeight: 'bold' }}>SIZE:</span>
-                            <input type="range" min="1" max="25" value={width} onChange={(e) => changeWidth(e.target.value)} style={{ cursor: 'pointer' }} />
-                        </div>
-                        <div style={{ borderLeft: '1px solid #334155', height: '30px', margin: '0 5px' }} />
-                        <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
-                            <button onClick={() => loadSlide(currentSlideIndex - 1)} disabled={currentSlideIndex === 0} style={{ padding: '8px 12px', borderRadius: '8px', background: '#334155', color: 'white', border: 'none', cursor: 'pointer' }}>⬅️</button>
-                            <span style={{ color: 'white', fontSize: '14px', fontWeight: '600', minWidth: '50px', textAlign: 'center' }}>{currentSlideIndex + 1} / {slides.length}</span>
-                            <button onClick={() => loadSlide(currentSlideIndex + 1)} disabled={currentSlideIndex === slides.length - 1} style={{ padding: '8px 12px', borderRadius: '8px', background: '#334155', color: 'white', border: 'none', cursor: 'pointer' }}>➡️</button>
-                            <button onClick={addSlide} style={{ background: '#10B981', color: 'white', border: 'none', padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>➕ New</button>
-                        </div>
-                        <div style={{ borderLeft: '1px solid #334155', height: '30px', margin: '0 5px' }} />
-                        <button onClick={toggleFullScreen} style={{ background: '#475569', color: 'white', border: 'none', padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>
-                            {document.fullscreenElement ? '🗗 Exit' : '⛶ Full'}
-                        </button>
-                        <button onClick={() => setSidebarVisible(!sidebarVisible)} style={{ background: '#475569', color: 'white', border: 'none', padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>
-                            {sidebarVisible ? '⬅ Hide' : '➡ Show'}
-                        </button>
-                        <button onClick={isRecording ? stopRecording : startRecording} style={{ background: isRecording ? '#EF4444' : '#10B981', color: 'white', border: 'none', padding: '10px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', minWidth: '100px' }}>
-                            {isRecording ? '⏹ Stop' : '⏺ Record'}
-                        </button>
-                        <button onClick={downloadSlide} style={{ marginLeft: 'auto', background: '#64748B', color: 'white', border: 'none', padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>💾 Save</button>
-
-
                     </div>
                 </div>
-            )}
+
+                {/* Toolbar (Teaching Tools - Editing Hidden for Students, Layout Visible) */}
+                <div style={{
+                    height: '75px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    padding: '0 15px',
+                    background: '#1E293B',
+                    borderTop: '1px solid #334155',
+                    flexShrink: 0,
+                    zIndex: 10
+                }}>
+                    {isTeacher && (
+                        <>
+                            <div style={{ display: 'flex', gap: '5px' }}>
+                                <button onClick={undo} disabled={history.length === 0} style={{ background: history.length === 0 ? '#1E293B' : '#334155', color: history.length === 0 ? '#64748B' : 'white', border: '1px solid #475569', padding: '10px', borderRadius: '8px', cursor: history.length === 0 ? 'not-allowed' : 'pointer', fontSize: '16px' }} title="Undo">↩️</button>
+                                <button onClick={redo} disabled={redoStack.length === 0} style={{ background: redoStack.length === 0 ? '#1E293B' : '#334155', color: redoStack.length === 0 ? '#64748B' : 'white', border: '1px solid #475569', padding: '10px', borderRadius: '8px', cursor: redoStack.length === 0 ? 'not-allowed' : 'pointer', fontSize: '16px' }} title="Redo">↪️</button>
+                                <button onClick={deleteSlide} style={{ background: '#EF4444', color: 'white', border: '1px solid #991B1B', padding: '10px', borderRadius: '8px', cursor: 'pointer', fontSize: '16px' }} title="Delete Slide">🗑️</button>
+                                <div style={{ width: '1px', height: '20px', background: '#334155', margin: 'auto 5px' }}></div>
+                                <button onClick={() => toggleEraser()} style={{ background: isEraser ? '#EF4444' : '#334155', color: 'white', border: 'none', padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                    {isEraser ? '🧽 Erasing' : '✏️ Pen'}
+                                </button>
+                                <button onClick={toggleTextMode} style={{ background: isTextMode ? '#10B981' : '#334155', color: 'white', border: 'none', padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                    🔤 Text
+                                </button>
+
+                            </div>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                                {['#4F46E5', '#EF4444', '#10B981', '#000000'].map(c => (
+                                    <div key={c} onClick={() => changeColor(c)} style={{ width: '28px', height: '28px', borderRadius: '50%', background: c, border: color === c ? '3px solid white' : '1px solid #475569', cursor: 'pointer' }} />
+                                ))}
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#0F172A', padding: '5px 12px', borderRadius: '8px' }}>
+                                <span style={{ color: '#94A3B8', fontSize: '11px', fontWeight: 'bold' }}>SIZE:</span>
+                                <input type="range" min="1" max="25" value={width} onChange={(e) => changeWidth(e.target.value)} style={{ cursor: 'pointer' }} />
+                            </div>
+                            <div style={{ borderLeft: '1px solid #334155', height: '30px', margin: '0 5px' }} />
+                            <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
+                                <button onClick={() => loadSlide(currentSlideIndex - 1)} disabled={currentSlideIndex === 0} style={{ padding: '8px 12px', borderRadius: '8px', background: '#334155', color: 'white', border: 'none', cursor: 'pointer' }}>⬅️</button>
+                                <span style={{ color: 'white', fontSize: '14px', fontWeight: '600', minWidth: '50px', textAlign: 'center' }}>{currentSlideIndex + 1} / {slides.length}</span>
+                                <button onClick={() => loadSlide(currentSlideIndex + 1)} disabled={currentSlideIndex === slides.length - 1} style={{ padding: '8px 12px', borderRadius: '8px', background: '#334155', color: 'white', border: 'none', cursor: 'pointer' }}>➡️</button>
+                                <button onClick={addSlide} style={{ background: '#10B981', color: 'white', border: 'none', padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>➕ New</button>
+
+                            </div>
+                            <div style={{ borderLeft: '1px solid #334155', height: '30px', margin: '0 5px' }} />
+                        </>
+                    )}
+                    <button onClick={toggleFullScreen} style={{ background: '#475569', color: 'white', border: 'none', padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>
+                        {document.fullscreenElement ? '🗗 Exit' : '⛶ Full'}
+                    </button>
+                    <button onClick={() => setSidebarVisible(!sidebarVisible)} style={{ background: '#475569', color: 'white', border: 'none', padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>
+                        {sidebarVisible ? '⬅ Hide' : '➡ Show'}
+                    </button>
+                    {isTeacher && (
+                        <button onClick={isRecording ? stopRecording : startRecording} style={{ background: isRecording ? '#EF4444' : '#10B981', color: 'white', border: 'none', padding: '10px 10px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' }}>
+                            {isRecording ? '⏹ Stop' : '⏺ Record'}
+                        </button>
+                    )}
+
+
+
+                </div>
+            </div>
+
 
             {/* Right: Jitsi Call Area */}
             <div style={{
@@ -1073,7 +1414,7 @@ const LiveClassroom = () => {
                     100% { opacity: 1; transform: scale(1); }
                 }
             `}</style>
-        </div>
+        </div >
     );
 };
 

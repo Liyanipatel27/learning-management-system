@@ -103,6 +103,10 @@ io.on('connection', (socket) => {
         socket.to(roomId).emit('incoming-slide-add', { slideData });
     });
 
+    socket.on('slide-delete-event', ({ roomId, index }) => {
+        socket.to(roomId).emit('incoming-slide-delete', { index });
+    });
+
     socket.on('canvas-update', ({ roomId, imageData }) => {
         socket.to(roomId).emit('incoming-canvas-update', { imageData });
     });

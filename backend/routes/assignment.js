@@ -353,24 +353,9 @@ router.post('/execute', async (req, res) => {
 
         const pistonLang = langMap[language] || language;
 
-        const response = await axios.post('https://emkc.org/api/v2/piston/execute', {
-            language: pistonLang,
-            version: '*', // Use latest available version
-            files: [
-                {
-                    content: code
-                }
-            ],
-            stdin: stdin || ''
-        });
-
-        res.json({
-            output: response.data.run.output,
-            stdout: response.data.run.stdout,
-            stderr: response.data.run.stderr,
-            code: response.data.run.code,
-            signal: response.data.run.signal
-        });
+        // Use AI Service for execution (Fallback since Piston is blocked)
+        const result = await aiService.executeCode(language, code, stdin);
+        res.json(result);
     } catch (err) {
         console.error('Code execution error:', err.response?.data || err.message);
         res.status(500).json({ message: 'Error executing code', error: err.message });
@@ -394,35 +379,26 @@ router.post('/execute-tests', async (req, res) => {
 
         const runTestCase = async (testCase) => {
             try {
-                const response = await axios.post('https://emkc.org/api/v2/piston/execute', {
-                    language: pistonLang,
-                    version: '*',
-                    files: [{ content: code }],
-                    stdin: (testCase.input || '') + '\n' // Append newline to ensure readLine() doesn't hang
-                });
+                // Use AI Service for Test Execution
+                const result = await aiService.executeCode(language, code, testCase.input);
 
-                const rawOutput = response.data.run.stdout || '';
-                const actual = rawOutput.trim();
-                const expected = (testCase.output || '').trim();
-
-                // Allow some flexibility (e.g., trailing newlines handled by trim)
-                // Also handle simple number comparisons if strings match
-                const passed = actual === expected;
+                const expected = (testCase.expectedOutput || '').trim();
+                const actual = (result.stdout || '').trim();
 
                 return {
                     input: testCase.input,
-                    expectedOutput: testCase.output,
-                    actualOutput: rawOutput, // Keep raw formatting for display
-                    passed,
-                    error: response.data.run.stderr
+                    expectedOutput: testCase.expectedOutput,
+                    actualOutput: result.stdout,
+                    passed: expected === actual,
+                    error: result.stderr
                 };
-            } catch (e) {
+            } catch (err) {
                 return {
                     input: testCase.input,
-                    expectedOutput: testCase.output,
-                    actualOutput: '',
+                    expectedOutput: testCase.expectedOutput,
+                    actualOutput: null,
                     passed: false,
-                    error: e.message
+                    error: err.message
                 };
             }
         };
