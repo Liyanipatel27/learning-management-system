@@ -989,6 +989,8 @@ const AssignmentsSection = ({ teacherId, courses }) => {
                 ))}
             </div>
 
+
+
             {/* Create Modal */}
             {showCreateModal && (
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
@@ -1611,6 +1613,11 @@ const StudentsSection = () => {
     const [riskData, setRiskData] = useState({});
     const [analyzingRisk, setAnalyzingRisk] = useState({});
 
+    // Pagination & Filter State
+    const [currentPage, setCurrentPage] = useState(1);
+    const [filters, setFilters] = useState({ name: '', enrollment: '', subject: '' });
+    const itemsPerPage = 10;
+
     useEffect(() => {
         const fetchStudentData = async () => {
             try {
@@ -1625,6 +1632,7 @@ const StudentsSection = () => {
                                 id: s.studentId,
                                 name: s.studentName,
                                 email: s.studentEmail,
+                                enrollment: s.studentEnrollment || 'N/A',
                                 courses: [],
                                 quizzesTaken: 0,
                                 avgScore: 0
@@ -1662,11 +1670,31 @@ const StudentsSection = () => {
             setRiskData(prev => ({ ...prev, [student.id]: res.data }));
         } catch (err) {
             console.error(err);
-            console.error(err);
             const errorMsg = err.response?.data?.message || err.message || "Unknown error";
             alert(`Risk prediction failed: ${errorMsg}`);
         } finally {
             setAnalyzingRisk(prev => ({ ...prev, [student.id]: false }));
+        }
+    };
+
+    // Filter Logic
+    const filteredStudents = students.filter(student => {
+        const matchesName = student.name.toLowerCase().includes(filters.name.toLowerCase());
+        const matchesEnrollment = String(student.enrollment || '').toLowerCase().includes(filters.enrollment.toLowerCase());
+        const matchesSubject = filters.subject === '' || student.courses.some(c => c.toLowerCase().includes(filters.subject.toLowerCase()));
+        return matchesName && matchesEnrollment && matchesSubject;
+    });
+
+    // Pagination Logic
+    const totalPages = Math.ceil(filteredStudents.length / itemsPerPage);
+    const paginatedStudents = filteredStudents.slice(
+        (currentPage - 1) * itemsPerPage,
+        currentPage * itemsPerPage
+    );
+
+    const handlePageChange = (newPage) => {
+        if (newPage >= 1 && newPage <= totalPages) {
+            setCurrentPage(newPage);
         }
     };
 
@@ -1675,11 +1703,47 @@ const StudentsSection = () => {
     return (
         <div style={{ background: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 4px 6px rgba(0,0,0,0.02)' }}>
             <h2 style={{ fontSize: '1.5rem', marginBottom: '20px' }}>Student Directory & Risk Analysis</h2>
+
+            {/* Filters */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '20px', background: '#f8fafc', padding: '15px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', color: '#4a5568', marginBottom: '5px' }}>Filter by Name</label>
+                    <input
+                        type="text"
+                        placeholder="Search Name..."
+                        value={filters.name}
+                        onChange={(e) => { setFilters({ ...filters, name: e.target.value }); setCurrentPage(1); }}
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e0', outline: 'none' }}
+                    />
+                </div>
+                <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', color: '#4a5568', marginBottom: '5px' }}>Filter by Enrollment ID</label>
+                    <input
+                        type="text"
+                        placeholder="Search Enrollment..."
+                        value={filters.enrollment}
+                        onChange={(e) => { setFilters({ ...filters, enrollment: e.target.value }); setCurrentPage(1); }}
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e0', outline: 'none' }}
+                    />
+                </div>
+                <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', color: '#4a5568', marginBottom: '5px' }}>Filter by Subject</label>
+                    <input
+                        type="text"
+                        placeholder="Search Subject..."
+                        value={filters.subject}
+                        onChange={(e) => { setFilters({ ...filters, subject: e.target.value }); setCurrentPage(1); }}
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e0', outline: 'none' }}
+                    />
+                </div>
+            </div>
+
             <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
                         <tr style={{ background: '#f8fafc', textAlign: 'left' }}>
                             <th style={{ padding: '15px' }}>Name</th>
+                            <th style={{ padding: '15px' }}>Enrollment ID</th>
                             <th style={{ padding: '15px' }}>Email</th>
                             <th style={{ padding: '15px' }}>Enrolled Courses</th>
                             <th style={{ padding: '15px' }}>Avg Score</th>
@@ -1687,28 +1751,65 @@ const StudentsSection = () => {
                         </tr>
                     </thead>
                     <tbody>
-                        {students.map(student => (
-                            <React.Fragment key={student.id}>
-                                <tr style={{ borderBottom: '1px solid #edf2f7' }}>
-                                    <td style={{ padding: '15px', fontWeight: 'bold', color: '#2d3748' }}>{student.name}</td>
-                                    <td style={{ padding: '15px', color: '#718096' }}>{student.email}</td>
-                                    <td style={{ padding: '15px' }}>
-                                        <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
-                                            {student.courses.map((c, i) => (
-                                                <span key={i} style={{ fontSize: '0.75rem', background: '#e0e7ff', color: '#4338ca', padding: '2px 8px', borderRadius: '4px' }}>{c}</span>
-                                            ))}
-                                        </div>
-                                    </td>
-                                    <td style={{ padding: '15px', fontWeight: 'bold' }}>{student.avgScore}%</td>
+                        {paginatedStudents.length === 0 ? (
+                            <tr>
+                                <td colSpan="5" style={{ padding: '30px', textAlign: 'center', color: '#718096' }}>No students found matching filters.</td>
+                            </tr>
+                        ) : (
+                            paginatedStudents.map(student => (
+                                <React.Fragment key={student.id}>
+                                    <tr style={{ borderBottom: '1px solid #edf2f7' }}>
+                                        <td style={{ padding: '15px', fontWeight: 'bold', color: '#2d3748' }}>{student.name}</td>
+                                        <td style={{ padding: '15px', color: '#4a5568', fontFamily: 'monospace' }}>{student.enrollment}</td>
+                                        <td style={{ padding: '15px', color: '#718096' }}>{student.email}</td>
+                                        <td style={{ padding: '15px' }}>
+                                            <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                                                {student.courses.map((c, i) => (
+                                                    <span key={i} style={{ fontSize: '0.75rem', background: '#e0e7ff', color: '#4338ca', padding: '2px 8px', borderRadius: '4px' }}>{c}</span>
+                                                ))}
+                                            </div>
+                                        </td>
+                                        <td style={{ padding: '15px', fontWeight: 'bold' }}>{student.avgScore}%</td>
 
-                                </tr>
+                                    </tr>
 
-                            </React.Fragment>
-                        ))}
+                                </React.Fragment>
+                            ))
+                        )}
                     </tbody>
                 </table>
             </div>
-        </div>
+
+            {/* Pagination Controls */}
+            {
+                filteredStudents.length > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '20px', paddingTop: '15px', borderTop: '1px solid #edf2f7' }}>
+                        <div style={{ fontSize: '0.9rem', color: '#718096' }}>
+                            Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredStudents.length)} of {filteredStudents.length} entries
+                        </div>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                            <button
+                                onClick={() => handlePageChange(currentPage - 1)}
+                                disabled={currentPage === 1}
+                                style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #cbd5e0', background: currentPage === 1 ? '#f1f5f9' : 'white', cursor: currentPage === 1 ? 'not-allowed' : 'pointer', color: '#4a5568' }}
+                            >
+                                Previous
+                            </button>
+                            <span style={{ display: 'flex', alignItems: 'center', padding: '0 10px', fontWeight: 'bold', color: '#4a5568' }}>
+                                Page {currentPage} of {totalPages}
+                            </span>
+                            <button
+                                onClick={() => handlePageChange(currentPage + 1)}
+                                disabled={currentPage === totalPages}
+                                style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #cbd5e0', background: currentPage === totalPages ? '#f1f5f9' : 'white', cursor: currentPage === totalPages ? 'not-allowed' : 'pointer', color: '#4a5568' }}
+                            >
+                                Next
+                            </button>
+                        </div>
+                    </div>
+                )
+            }
+        </div >
     );
 };
 
