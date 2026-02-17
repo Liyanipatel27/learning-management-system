@@ -797,49 +797,86 @@ class AIService {
 
         prompt += `
         Output ONLY valid JSON with 5 questions:
-        Output ONLY valid JSON with 5 questions:
+        [
+            {
+                "question": "Question text",
+                "options": ["Option A", "Option B", "Option C", "Option D"],
+                "correctAnswer": "Option A" // Or index
+            }
+        ]`;
+
+        return await this.callCVLLM(prompt, "You are a quiz generator. Return ONLY valid JSON.", true);
+    }
+
+    // Feature 7: AI Verification for Account Requests
+    async verifyRegistrationRequest(data) {
+        const { name, email, mobile, role, reason, course, qualification } = data;
+
+        const prompt = `Analyze this account registration request for an LMS and provide a Trust Score (0-100) and Risk Level.
+        
+        User Details:
+        - Name: ${name}
+        - Email: ${email}
+        - Mobile: ${mobile}
+        - Requested Role: ${role}
+        - Reason for Joining: "${reason}"
+        - Course/Subject: ${course || 'N/A'}
+        - Qualification: ${qualification || 'N/A'}
+
+        Check for:
+        1. **Gibberish Names/Reasons**: e.g., "dadsad", "123123" -> Low Trust.
+        2. **Email Format**: Valid format? (Simple check).
+        3. **Role Consistency**: Does the reason match the role? (e.g., A teacher saying "I want to study math" -> Suspicious).
+        4. **Bot behavior**: All lowercase, random strings.
+        
+        Output ONLY valid JSON:
         {
-            "questions": [
-                {
-                    "question": "...",
-                    "options": ["A", "B", "C", "D"],
-                    "correctAnswerIndex": 0,
-                    "explanation": "..."
-                }
-            ]
+            "trustScore": 85,
+            "riskLevel": "Low", // Low, Medium, High
+            "analysis": "Reason aligns with role. text looks organic.",
+            "recommendation": "Approve" // Approve, Reject, Manual Review
         }`;
 
         try {
-            const res = await this.callCVLLM(prompt, "You are a quiz generator. Return ONLY valid JSON.", true);
-            return JSON.parse(res);
-        } catch (e) {
-            throw new Error("Failed to generate quiz");
+            const response = await this.callLLM(prompt, "You are a security analyst for an LMS. Return ONLY valid JSON.", true);
+            return JSON.parse(response);
+        } catch (error) {
+            console.error("AI Verification Failed:", error);
+            // Fallback
+            return {
+                trustScore: 50,
+                riskLevel: "Medium",
+                analysis: "AI Verification unavailable. Manual review recommended.",
+                recommendation: "Manual Review"
+            };
         }
     }
+
+
 
     // ============ TEACHER DASHBOARD FEATURES ============
 
     // Feature 1: Assignment Feedback Generator (Gemini)
     async generateAssignmentFeedback(assignmentQuestion, studentAnswer, plagiarismScore) {
         const prompt = `Analyze the student's answer for the following question and provide structured feedback.
-        
-        Question: ${assignmentQuestion}
+
+Question: ${assignmentQuestion}
         Student Answer: ${studentAnswer}
         Plagiarism Score: ${plagiarismScore}%
 
-        STRICT SCORING RULES BASED ON PLAGIARISM:
-        1. If Plagiarism is 0% (No Risk): Suggested Score MUST be between 90-100.
-        2. If Plagiarism is 1% - 25% (Safe): Suggested Score MUST be between 70-89.
-        3. If Plagiarism is 26% - 50% (Low Risk): Suggested Score MUST be between 50-69.
-        4. If Plagiarism is 51% - 100% (High Risk): Suggested Score MUST be between 0-49. AND "Re-write assignment" MUST be included in 'areasForImprovement'.
+    STRICT SCORING RULES BASED ON PLAGIARISM:
+1. If Plagiarism is 0 % (No Risk): Suggested Score MUST be between 90 - 100.
+2. If Plagiarism is 1 % - 25 % (Safe): Suggested Score MUST be between 70 - 89.
+3. If Plagiarism is 26 % - 50 % (Low Risk): Suggested Score MUST be between 50 - 69.
+4. If Plagiarism is 51 % - 100 % (High Risk): Suggested Score MUST be between 0 - 49. AND "Re-write assignment" MUST be included in 'areasForImprovement'.
 
         Provide feedback in the following JSON format:
-        {
-            "score": "A number between 0-100 strictly following the rules above",
-            "strengths": ["List of strong points (only if plagiarism is low)"],
+{
+    "score": "A number between 0-100 strictly following the rules above",
+        "strengths": ["List of strong points (only if plagiarism is low)"],
             "areasForImprovement": ["List of areas to improve"],
-            "detailedFeedback": "A comprehensive paragraph giving constructive feedback. Mention plagiarism impact if score is low."
-        }
+                "detailedFeedback": "A comprehensive paragraph giving constructive feedback. Mention plagiarism impact if score is low."
+}
         Return ONLY valid JSON.`;
 
         try {
@@ -853,20 +890,20 @@ class AIService {
 
     // Feature 2: Question Quality Analyzer (Gemini)
     async analyzeQuestionQuality(question, options, correctAnswer) {
-        const prompt = `Analyze this multiple-choice question for quality, difficulty, and Bloom's taxonomy level.
+        const prompt = `Analyze this multiple - choice question for quality, difficulty, and Bloom's taxonomy level.
 
         Question: ${question}
-        Options: ${JSON.stringify(options)}
+Options: ${JSON.stringify(options)}
         Correct Answer: ${correctAnswer}
 
         Provide analysis in the following JSON format:
-        {
-            "difficultyLevel": "Easy/Medium/Hard",
-            "bloomsTaxonomy": "Recall/Understand/Apply/Analyze/Evaluate/Create",
+{
+    "difficultyLevel": "Easy/Medium/Hard",
+        "bloomsTaxonomy": "Recall/Understand/Apply/Analyze/Evaluate/Create",
             "qualityScore": "0-10",
-            "suggestions": ["List of suggestions to improve clarity or distractors"],
-            "isRepetitive": false
-        }
+                "suggestions": ["List of suggestions to improve clarity or distractors"],
+                    "isRepetitive": false
+}
         Return ONLY valid JSON.`;
 
         try {
@@ -895,27 +932,27 @@ class AIService {
         ${JSON.stringify(studentData)}
 
         Risk Levels:
-        - Low: Doing well.
+- Low: Doing well.
         - Medium: Needs attention.
         - High: At risk of failing or dropping out.
 
         Return JSON:
-        {
-            "riskLevel": "Low/Medium/High",
-            "riskScore": "0-100 (probability of risk)",
+{
+    "riskLevel": "Low/Medium/High",
+        "riskScore": "0-100 (probability of risk)",
             "primaryFactors": ["List of factors contributing to risk"],
-            "interventionPlan": ["Suggested actions for the teacher"],
-            "copyLikelihood": "0-100 (Simulated likelihood of 'Copy' vs 'Own Written' based on performance consistency)",
-            "breakdown": {
-                "copy": "0-100",
-                "ownWritten": "0-100",
+                "interventionPlan": ["Suggested actions for the teacher"],
+                    "copyLikelihood": "0-100 (Simulated likelihood of 'Copy' vs 'Own Written' based on performance consistency)",
+                        "breakdown": {
+        "copy": "0-100",
+            "ownWritten": "0-100",
                 "aiRefined": "0-100"
-            },
-            "contributors": [
-                { "factor": "Factor Name (e.g., 'Writing Style Mismatch')", "impact": "High/Medium/Low", "description": "Brief explanation" }
-            ],
-            "detailedAnalysis": "A comprehensive paragraph explaining the results, mimicking a 'Understanding your results' section."
-        }`;
+    },
+    "contributors": [
+        { "factor": "Factor Name (e.g., 'Writing Style Mismatch')", "impact": "High/Medium/Low", "description": "Brief explanation" }
+    ],
+        "detailedAnalysis": "A comprehensive paragraph explaining the results, mimicking a 'Understanding your results' section."
+} `;
 
         // Simple Random Load Balancing for OpenAI
         const randomKey = keys[Math.floor(Math.random() * keys.length)].trim();

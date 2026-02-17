@@ -204,4 +204,114 @@ router.get('/reports/teachers', async (req, res) => {
 
 // 5. ANNOUNCEMENTS routes moved to announcement.js
 
+// 6. ACCOUNT REQUEST MANAGEMENT
+
+// Email Transporter (Reuse from auth.js or create new)
+const nodemailer = require('nodemailer');
+const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
+    }
+});
+
+const AccountRequest = require('../models/AccountRequest');
+
+// Get all pending requests
+router.get('/account-requests', async (req, res) => {
+    try {
+        const requests = await AccountRequest.find({ status: 'Pending' }).sort({ createdAt: -1 });
+        res.json(requests);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
+// Approve Request
+router.post('/approve-request/:id', async (req, res) => {
+    try {
+        const request = await AccountRequest.findById(req.params.id);
+        if (!request) return res.status(404).json({ message: 'Request not found' });
+
+        if (request.status !== 'Pending') return res.status(400).json({ message: 'Request already processed' });
+
+        // Generate Credentials
+        const createUsername = (name) => {
+            const cleanName = name.toLowerCase().replace(/\s+/g, '');
+            const year = new Date().getFullYear();
+            return `${cleanName}.${request.role}.${year}`; // e.g., john.student.2024
+        };
+
+        const generatePassword = () => {
+            const length = 10;
+            const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
+            let retVal = "";
+            for (let i = 0, n = charset.length; i < length; ++i) {
+                retVal += charset.charAt(Math.floor(Math.random() * n));
+            }
+            return retVal;
+        };
+
+        const username = createUsername(request.name); // Not used as login is email, but maybe useful? User model doesn't strictly have username, it uses email.
+        const password = generatePassword();
+
+        // Hash password
+        const bcrypt = require('bcryptjs'); // Need to import this at top if not present, but locally ok here
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(password, salt);
+
+        // Create User
+        const newUser = new User({
+            name: request.name,
+            email: request.email,
+            password: hashedPassword,
+            role: request.role,
+            // Add other fields if necessary
+        });
+
+        await newUser.save();
+
+        // Update Request Status
+        request.status = 'Approved';
+        await request.save();
+
+        // Send Email
+        const mailOptions = {
+            from: process.env.EMAIL_USER,
+            to: request.email,
+            subject: 'LMS Account Approved - Login Credentials',
+            text: `Dear ${request.name},\n\nYour request for an LMS account has been approved.\n\nHere are your login credentials:\nEmail: ${request.email}\nPassword: ${password}\n\nPlease change your password after your first login.\n\nLogin here: http://localhost:5173/login\n\nBest regards,\nLMS Admin Team`
+        };
+
+        transporter.sendMail(mailOptions, (error, info) => {
+            if (error) console.log("Email error:", error);
+            else console.log('Email sent: ' + info.response);
+        });
+
+        res.json({ message: 'Request approved and user created successfully.' });
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: err.message });
+    }
+});
+
+// Reject Request
+router.post('/reject-request/:id', async (req, res) => {
+    try {
+        const request = await AccountRequest.findById(req.params.id);
+        if (!request) return res.status(404).json({ message: 'Request not found' });
+
+        request.status = 'Rejected';
+        await request.save();
+
+        // Optional: Send Rejection Email
+
+        res.json({ message: 'Request rejected.' });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
 module.exports = router;
