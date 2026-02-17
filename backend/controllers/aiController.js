@@ -3,10 +3,47 @@ const Course = require('../models/Course');
 const Progress = require('../models/Progress');
 const { extractTextFromUrl } = require('../utils/contentProcessor');
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { GoogleAIFileManager } = require("@google/generative-ai/server");
+const fs = require('fs');
 
 // Initialize Gemini for Quiz Generation (using specific key if available, or fallback)
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_QUIZ_GENERATOR_KEY || process.env.GEMINI_API_KEY);
+// Initialize Gemini
+// Prioritize CV_GEMINI_API_KEYS or GEMINI_API_KEYS
+const keys = (process.env.CV_GEMINI_API_KEYS || process.env.GEMINI_API_KEYS || '').split(',').map(k => k.trim()).filter(k => k);
+// Use 3rd key if available, else 2nd, else 1st, else fallback to single env var
+const activeKey = keys[2] || keys[1] || keys[0] || process.env.GEMINI_QUIZ_GENERATOR_KEY || process.env.GEMINI_API_KEY;
+
+const genAI = new GoogleGenerativeAI(activeKey);
 const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+const fileManager = new GoogleAIFileManager(activeKey);
+
+// Helper to upload file to Gemini
+async function uploadToGemini(path, mimeType) {
+    const uploadResult = await fileManager.uploadFile(path, {
+        mimeType,
+        displayName: path,
+    });
+    const file = uploadResult.file;
+    console.log(`Uploaded file ${file.displayName} as: ${file.name}`);
+    return file;
+}
+
+// Helper to wait for file to be active
+async function waitForFilesActive(files) {
+    console.log("Waiting for file processing...");
+    for (const name of files.map((file) => file.name)) {
+        let file = await fileManager.getFile(name);
+        while (file.state === "PROCESSING") {
+            process.stdout.write(".");
+            await new Promise((resolve) => setTimeout(resolve, 10_000));
+            file = await fileManager.getFile(name);
+        }
+        if (file.state !== "ACTIVE") {
+            throw Error(`File ${file.name} failed to process`);
+        }
+    }
+    console.log("...all files ready\n");
+}
 
 // 1. Generate Summary
 exports.getSummary = async (req, res) => {
@@ -384,6 +421,77 @@ exports.generateClassInsights = async (req, res) => {
 
     } catch (err) {
         console.error("Class Insights Controller Error:", err);
+        res.status(500).json({ message: err.message });
+    }
+};
+
+// 11. Video Summary
+exports.generateVideoSummary = async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ message: "No video file uploaded." });
+        }
+
+        const videoPath = req.file.path;
+        console.log("Processing video:", videoPath);
+
+        // 1. Upload to Gemini
+        const uploadResponse = await uploadToGemini(videoPath, req.file.mimetype);
+
+        // 2. Wait for processing (Gemini needs time to process video)
+        await waitForFilesActive([uploadResponse]);
+
+        // 3. Generate Content
+        const prompt = "Analyze this educational video and provide a comprehensive summary. Include key points, main concepts discussed, and a final conclusion. Return the result in JSON format with fields: 'summary', 'keyPoints' (array), and 'concepts' (array).";
+
+        const result = await model.generateContent([
+            {
+                fileData: {
+                    mimeType: uploadResponse.mimeType,
+                    fileUri: uploadResponse.uri
+                }
+            },
+            { text: prompt },
+        ]);
+
+        const response = await result.response;
+        let text = response.text();
+
+        // 4. Cleanup Logic
+        // Clean up local file
+        fs.unlinkSync(videoPath);
+        // Delete from Gemini to save storage
+        try {
+            await fileManager.deleteFile(uploadResponse.name);
+            console.log(`Deleted file ${uploadResponse.name} from Gemini`);
+        } catch (e) {
+            console.warn("Failed to delete file from Gemini:", e.message);
+        }
+
+
+        // 5. Parse JSON
+        text = text.replace(/```json|```/g, "").trim();
+        const firstBracket = text.indexOf('{');
+        const lastBracket = text.lastIndexOf('}');
+        if (firstBracket !== -1 && lastBracket !== -1) {
+            text = text.substring(firstBracket, lastBracket + 1);
+        }
+
+        try {
+            const data = JSON.parse(text);
+            res.json(data);
+        } catch (parseError) {
+            console.error("JSON Parse Error:", parseError);
+            // Fallback to raw text if JSON parsing fails
+            res.json({ summary: text, keyPoints: [], concepts: [] });
+        }
+
+    } catch (err) {
+        console.error("Video Summary Error:", err);
+        // Clean up local file if error occurred and file exists
+        if (req.file && req.file.path && fs.existsSync(req.file.path)) {
+            fs.unlinkSync(req.file.path);
+        }
         res.status(500).json({ message: err.message });
     }
 };
