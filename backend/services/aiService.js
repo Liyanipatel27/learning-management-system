@@ -779,6 +779,52 @@ class AIService {
         }
     }
 
+    // Feature 7: AI Code Execution (Simulated Interpreter)
+    async executeCode(language, code, stdin) {
+        const prompt = `Act as a code interpreter for ${language}.
+        
+        CODE:
+        ${code}
+
+        STDIN:
+        ${stdin || '(No input)'}
+
+        INSTRUCTIONS:
+        1. Analyze the code and determine what the output would be.
+        2. If there are syntax errors, output the error message exactly as a compiler/interpreter would.
+        3. If there is logic, trace it and output the final result (stdout).
+        4. output ONLY the raw output. Do NOT wrap in markdown blocks. Do NOT add explanation.
+        5. If the code is infinite loop or malicious, output "Error: Execution timed out or not allowed."
+        
+        OUTPUT:`;
+
+        try {
+            // Use CV keys (or any available keys) for this utility
+            const response = await this.callLLM(prompt, "You are a code interpreter. Output ONLY raw execution result.", true); // jsonMode=true to force raw text cleanup if needed, but we want raw text
+            // actually callLLM with jsonMode=true strips markdown. suitable enough.
+
+            // Clean up any remaining markdown if Gemini ignores instructions
+            let cleanOutput = response.replace(/^```[a-z]*\n/i, '').replace(/\n```$/, '');
+
+            return {
+                output: cleanOutput,
+                stdout: cleanOutput,
+                stderr: null,
+                code: 0,
+                signal: null
+            };
+        } catch (e) {
+            console.error("AI Code Execution Failed:", e);
+            return {
+                output: "Error: AI Service failed to execute code.",
+                stdout: "",
+                stderr: e.message,
+                code: 1,
+                signal: null
+            };
+        }
+    }
+
     // ============ TEACHER DASHBOARD FEATURES ============
 
     // Feature 1: Assignment Feedback Generator (Gemini)

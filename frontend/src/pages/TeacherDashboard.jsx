@@ -504,9 +504,25 @@ const StudentGradesSection = ({ teacherId, allPublishedCourses }) => {
     const [gradesData, setGradesData] = useState([]);
     const [selectedCourseId, setSelectedCourseId] = useState('all');
 
+    // Pagination States
+    const [coursePage, setCoursePage] = useState(0);
+    const [studentPage, setStudentPage] = useState(0);
+    const STUDENTS_PER_PAGE = 10;
+
     useEffect(() => {
         fetchStudentGrades();
     }, [teacherId]);
+
+    // Reset pagination when filter changes
+    useEffect(() => {
+        setCoursePage(0);
+        setStudentPage(0);
+    }, [selectedCourseId]);
+
+    // Reset student pagination when course page changes
+    useEffect(() => {
+        setStudentPage(0);
+    }, [coursePage]);
 
     const fetchStudentGrades = async () => {
         if (!teacherId || teacherId === 'undefined') {
@@ -532,6 +548,20 @@ const StudentGradesSection = ({ teacherId, allPublishedCourses }) => {
         ? gradesData
         : gradesData.filter(c => c.courseId === selectedCourseId);
 
+    // Get current course to display
+    const currentCourse = filteredData[coursePage];
+    const totalCourses = filteredData.length;
+
+    // Get current students to display for the active course
+    const currentCourseStudents = currentCourse ? currentCourse.students : [];
+    const totalStudents = currentCourseStudents.length;
+    const totalStudentPages = Math.ceil(totalStudents / STUDENTS_PER_PAGE);
+
+    const displayedStudents = currentCourseStudents.slice(
+        studentPage * STUDENTS_PER_PAGE,
+        (studentPage + 1) * STUDENTS_PER_PAGE
+    );
+
     if (loading) return (
         <div style={{ textAlign: 'center', padding: '100px', background: '#fff', borderRadius: '20px' }}>
             <div className="spinner" style={{ border: '4px solid #f3f3f3', borderTop: '4px solid #6366f1', borderRadius: '50%', width: '40px', height: '40px', animation: 'spin 1s linear infinite', margin: '0 auto 20px' }}></div>
@@ -545,7 +575,7 @@ const StudentGradesSection = ({ teacherId, allPublishedCourses }) => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', borderBottom: '1px solid #edf2f7', paddingBottom: '20px' }}>
                 <div>
                     <h2 style={{ fontSize: '1.75rem', fontWeight: '800', color: '#1a202c', margin: 0 }}>Student Performance</h2>
-                    <p style={{ color: '#718096', margin: '5px 0 0 0' }}>Track quiz results across your courses</p>
+                    <p style={{ color: '#718096', margin: '5px 0 0 0' }}>Track quiz results {selectedCourseId === 'all' ? 'across all courses' : 'for selected course'}</p>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '15px', background: '#f8fafc', padding: '10px 20px', borderRadius: '12px' }}>
                     <label style={{ fontSize: '0.9rem', fontWeight: '600', color: '#4a5568' }}>Filter:</label>
@@ -572,13 +602,40 @@ const StudentGradesSection = ({ teacherId, allPublishedCourses }) => {
                 </div>
             ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
-                    {filteredData.map((course) => (
-                        <div key={course.courseId} style={{ border: '1px solid #edf2f7', borderRadius: '15px', overflow: 'hidden' }}>
-                            <div style={{ background: '#f8fafc', padding: '15px 20px', borderBottom: '1px solid #edf2f7' }}>
-                                <h3 style={{ margin: 0, fontSize: '1.1rem', color: '#2d3748' }}>Course: {course.courseName}</h3>
+
+                    {/* Course Pagination Controls (if more than 1 course) */}
+                    {totalCourses > 1 && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#ebf4ff', padding: '10px 20px', borderRadius: '10px' }}>
+                            <button
+                                onClick={() => setCoursePage(p => Math.max(0, p - 1))}
+                                disabled={coursePage === 0}
+                                style={{ padding: '6px 12px', cursor: coursePage === 0 ? 'not-allowed' : 'pointer', opacity: coursePage === 0 ? 0.5 : 1, borderRadius: '6px', border: 'none', background: 'white', color: '#6366f1' }}
+                            >
+                                &larr; Previous Course
+                            </button>
+                            <span style={{ fontWeight: '600', color: '#4a5568' }}>
+                                Course {coursePage + 1} of {totalCourses}
+                            </span>
+                            <button
+                                onClick={() => setCoursePage(p => Math.min(totalCourses - 1, p + 1))}
+                                disabled={coursePage === totalCourses - 1}
+                                style={{ padding: '6px 12px', cursor: coursePage === totalCourses - 1 ? 'not-allowed' : 'pointer', opacity: coursePage === totalCourses - 1 ? 0.5 : 1, borderRadius: '6px', border: 'none', background: 'white', color: '#6366f1' }}
+                            >
+                                Next Course &rarr;
+                            </button>
+                        </div>
+                    )}
+
+                    {currentCourse && (
+                        <div key={currentCourse.courseId} style={{ border: '1px solid #edf2f7', borderRadius: '15px', overflow: 'hidden' }}>
+                            <div style={{ background: '#f8fafc', padding: '15px 20px', borderBottom: '1px solid #edf2f7', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <h3 style={{ margin: 0, fontSize: '1.1rem', color: '#2d3748' }}>Course: {currentCourse.courseName}</h3>
+                                <span style={{ fontSize: '0.85rem', color: '#718096', background: 'white', padding: '4px 10px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                                    Displaying {displayedStudents.length} of {totalStudents} Students
+                                </span>
                             </div>
 
-                            {course.students.length === 0 ? (
+                            {totalStudents === 0 ? (
                                 <div style={{ padding: '20px', textAlign: 'center', color: '#a0aec0' }}>No students have started this course yet.</div>
                             ) : (
                                 <div style={{ overflowX: 'auto' }}>
@@ -594,7 +651,7 @@ const StudentGradesSection = ({ teacherId, allPublishedCourses }) => {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {course.students.map((student) => (
+                                            {displayedStudents.map((student) => (
                                                 <React.Fragment key={student.studentId}>
                                                     {student.quizzes.length === 0 ? (
                                                         <tr style={{ borderBottom: '1px solid #f8fafc' }}>
@@ -658,8 +715,45 @@ const StudentGradesSection = ({ teacherId, allPublishedCourses }) => {
                                     </table>
                                 </div>
                             )}
+
+                            {/* Student Pagination Controls */}
+                            {totalStudents > STUDENTS_PER_PAGE && (
+                                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '15px', padding: '15px', borderTop: '1px solid #edf2f7' }}>
+                                    <button
+                                        onClick={() => setStudentPage(p => Math.max(0, p - 1))}
+                                        disabled={studentPage === 0}
+                                        style={{
+                                            border: '1px solid #e2e8f0',
+                                            background: studentPage === 0 ? '#f7fafc' : 'white',
+                                            color: studentPage === 0 ? '#cbd5e0' : '#4a5568',
+                                            padding: '6px 14px',
+                                            borderRadius: '8px',
+                                            cursor: studentPage === 0 ? 'not-allowed' : 'pointer'
+                                        }}
+                                    >
+                                        &lt; Prev
+                                    </button>
+                                    <span style={{ fontSize: '0.9rem', color: '#718096' }}>
+                                        Page {studentPage + 1} of {totalStudentPages}
+                                    </span>
+                                    <button
+                                        onClick={() => setStudentPage(p => Math.min(totalStudentPages - 1, p + 1))}
+                                        disabled={studentPage === totalStudentPages - 1}
+                                        style={{
+                                            border: '1px solid #e2e8f0',
+                                            background: studentPage === totalStudentPages - 1 ? '#f7fafc' : 'white',
+                                            color: studentPage === totalStudentPages - 1 ? '#cbd5e0' : '#4a5568',
+                                            padding: '6px 14px',
+                                            borderRadius: '8px',
+                                            cursor: studentPage === totalStudentPages - 1 ? 'not-allowed' : 'pointer'
+                                        }}
+                                    >
+                                        Next &gt;
+                                    </button>
+                                </div>
+                            )}
                         </div>
-                    ))}
+                    )}
                 </div>
             )}
         </div>
@@ -988,6 +1082,8 @@ const AssignmentsSection = ({ teacherId, courses }) => {
                     </div>
                 ))}
             </div>
+
+
 
             {/* Create Modal */}
             {showCreateModal && (
@@ -1621,6 +1717,11 @@ const StudentsSection = () => {
     const [riskData, setRiskData] = useState({});
     const [analyzingRisk, setAnalyzingRisk] = useState({});
 
+    // Pagination & Filter State
+    const [currentPage, setCurrentPage] = useState(1);
+    const [filters, setFilters] = useState({ name: '', enrollment: '', subject: '' });
+    const itemsPerPage = 10;
+
     useEffect(() => {
         const fetchStudentData = async () => {
             try {
@@ -1635,6 +1736,7 @@ const StudentsSection = () => {
                                 id: s.studentId,
                                 name: s.studentName,
                                 email: s.studentEmail,
+                                enrollment: s.studentEnrollment || 'N/A',
                                 courses: [],
                                 quizzesTaken: 0,
                                 avgScore: 0
@@ -1672,11 +1774,31 @@ const StudentsSection = () => {
             setRiskData(prev => ({ ...prev, [student.id]: res.data }));
         } catch (err) {
             console.error(err);
-            console.error(err);
             const errorMsg = err.response?.data?.message || err.message || "Unknown error";
             alert(`Risk prediction failed: ${errorMsg}`);
         } finally {
             setAnalyzingRisk(prev => ({ ...prev, [student.id]: false }));
+        }
+    };
+
+    // Filter Logic
+    const filteredStudents = students.filter(student => {
+        const matchesName = student.name.toLowerCase().includes(filters.name.toLowerCase());
+        const matchesEnrollment = String(student.enrollment || '').toLowerCase().includes(filters.enrollment.toLowerCase());
+        const matchesSubject = filters.subject === '' || student.courses.some(c => c.toLowerCase().includes(filters.subject.toLowerCase()));
+        return matchesName && matchesEnrollment && matchesSubject;
+    });
+
+    // Pagination Logic
+    const totalPages = Math.ceil(filteredStudents.length / itemsPerPage);
+    const paginatedStudents = filteredStudents.slice(
+        (currentPage - 1) * itemsPerPage,
+        currentPage * itemsPerPage
+    );
+
+    const handlePageChange = (newPage) => {
+        if (newPage >= 1 && newPage <= totalPages) {
+            setCurrentPage(newPage);
         }
     };
 
@@ -1685,11 +1807,47 @@ const StudentsSection = () => {
     return (
         <div style={{ background: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 4px 6px rgba(0,0,0,0.02)' }}>
             <h2 style={{ fontSize: '1.5rem', marginBottom: '20px' }}>Student Directory & Risk Analysis</h2>
+
+            {/* Filters */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '20px', background: '#f8fafc', padding: '15px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', color: '#4a5568', marginBottom: '5px' }}>Filter by Name</label>
+                    <input
+                        type="text"
+                        placeholder="Search Name..."
+                        value={filters.name}
+                        onChange={(e) => { setFilters({ ...filters, name: e.target.value }); setCurrentPage(1); }}
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e0', outline: 'none' }}
+                    />
+                </div>
+                <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', color: '#4a5568', marginBottom: '5px' }}>Filter by Enrollment ID</label>
+                    <input
+                        type="text"
+                        placeholder="Search Enrollment..."
+                        value={filters.enrollment}
+                        onChange={(e) => { setFilters({ ...filters, enrollment: e.target.value }); setCurrentPage(1); }}
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e0', outline: 'none' }}
+                    />
+                </div>
+                <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', color: '#4a5568', marginBottom: '5px' }}>Filter by Subject</label>
+                    <input
+                        type="text"
+                        placeholder="Search Subject..."
+                        value={filters.subject}
+                        onChange={(e) => { setFilters({ ...filters, subject: e.target.value }); setCurrentPage(1); }}
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e0', outline: 'none' }}
+                    />
+                </div>
+            </div>
+
             <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
                         <tr style={{ background: '#f8fafc', textAlign: 'left' }}>
                             <th style={{ padding: '15px' }}>Name</th>
+                            <th style={{ padding: '15px' }}>Enrollment ID</th>
                             <th style={{ padding: '15px' }}>Email</th>
                             <th style={{ padding: '15px' }}>Enrolled Courses</th>
                             <th style={{ padding: '15px' }}>Avg Score</th>
@@ -1697,28 +1855,65 @@ const StudentsSection = () => {
                         </tr>
                     </thead>
                     <tbody>
-                        {students.map(student => (
-                            <React.Fragment key={student.id}>
-                                <tr style={{ borderBottom: '1px solid #edf2f7' }}>
-                                    <td style={{ padding: '15px', fontWeight: 'bold', color: '#2d3748' }}>{student.name}</td>
-                                    <td style={{ padding: '15px', color: '#718096' }}>{student.email}</td>
-                                    <td style={{ padding: '15px' }}>
-                                        <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
-                                            {student.courses.map((c, i) => (
-                                                <span key={i} style={{ fontSize: '0.75rem', background: '#e0e7ff', color: '#4338ca', padding: '2px 8px', borderRadius: '4px' }}>{c}</span>
-                                            ))}
-                                        </div>
-                                    </td>
-                                    <td style={{ padding: '15px', fontWeight: 'bold' }}>{student.avgScore}%</td>
+                        {paginatedStudents.length === 0 ? (
+                            <tr>
+                                <td colSpan="5" style={{ padding: '30px', textAlign: 'center', color: '#718096' }}>No students found matching filters.</td>
+                            </tr>
+                        ) : (
+                            paginatedStudents.map(student => (
+                                <React.Fragment key={student.id}>
+                                    <tr style={{ borderBottom: '1px solid #edf2f7' }}>
+                                        <td style={{ padding: '15px', fontWeight: 'bold', color: '#2d3748' }}>{student.name}</td>
+                                        <td style={{ padding: '15px', color: '#4a5568', fontFamily: 'monospace' }}>{student.enrollment}</td>
+                                        <td style={{ padding: '15px', color: '#718096' }}>{student.email}</td>
+                                        <td style={{ padding: '15px' }}>
+                                            <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                                                {student.courses.map((c, i) => (
+                                                    <span key={i} style={{ fontSize: '0.75rem', background: '#e0e7ff', color: '#4338ca', padding: '2px 8px', borderRadius: '4px' }}>{c}</span>
+                                                ))}
+                                            </div>
+                                        </td>
+                                        <td style={{ padding: '15px', fontWeight: 'bold' }}>{student.avgScore}%</td>
 
-                                </tr>
+                                    </tr>
 
-                            </React.Fragment>
-                        ))}
+                                </React.Fragment>
+                            ))
+                        )}
                     </tbody>
                 </table>
             </div>
-        </div>
+
+            {/* Pagination Controls */}
+            {
+                filteredStudents.length > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '20px', paddingTop: '15px', borderTop: '1px solid #edf2f7' }}>
+                        <div style={{ fontSize: '0.9rem', color: '#718096' }}>
+                            Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredStudents.length)} of {filteredStudents.length} entries
+                        </div>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                            <button
+                                onClick={() => handlePageChange(currentPage - 1)}
+                                disabled={currentPage === 1}
+                                style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #cbd5e0', background: currentPage === 1 ? '#f1f5f9' : 'white', cursor: currentPage === 1 ? 'not-allowed' : 'pointer', color: '#4a5568' }}
+                            >
+                                Previous
+                            </button>
+                            <span style={{ display: 'flex', alignItems: 'center', padding: '0 10px', fontWeight: 'bold', color: '#4a5568' }}>
+                                Page {currentPage} of {totalPages}
+                            </span>
+                            <button
+                                onClick={() => handlePageChange(currentPage + 1)}
+                                disabled={currentPage === totalPages}
+                                style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #cbd5e0', background: currentPage === totalPages ? '#f1f5f9' : 'white', cursor: currentPage === totalPages ? 'not-allowed' : 'pointer', color: '#4a5568' }}
+                            >
+                                Next
+                            </button>
+                        </div>
+                    </div>
+                )
+            }
+        </div >
     );
 };
 
@@ -1732,6 +1927,10 @@ const StudentAnalyticsSection = ({ teacherId }) => {
     const [classInsights, setClassInsights] = useState(null);
     const [generatingInsights, setGeneratingInsights] = useState(false);
     const [showInsightsModal, setShowInsightsModal] = useState(false);
+
+    // Pagination State
+    const [currentPage, setCurrentPage] = useState(1);
+    const ITEMS_PER_PAGE = 10;
 
     const handleGenerateClassInsights = async () => {
         setGeneratingInsights(true);
@@ -1799,6 +1998,13 @@ const StudentAnalyticsSection = ({ teacherId }) => {
         };
         fetchData();
     }, [teacherId]);
+
+    // Pagination Logic
+    const totalPages = Math.ceil(studentList.length / ITEMS_PER_PAGE);
+    const paginatedStudents = studentList.slice(
+        (currentPage - 1) * ITEMS_PER_PAGE,
+        currentPage * ITEMS_PER_PAGE
+    );
 
     if (loading) return <div>Loading analytics...</div>;
 
@@ -1942,32 +2148,75 @@ const StudentAnalyticsSection = ({ teacherId }) => {
                             </tr>
                         </thead>
                         <tbody>
-                            {studentList.map(student => (
-                                <tr key={student.id}
-                                    style={{ borderBottom: '1px solid #edf2f7', cursor: 'pointer', transition: 'background 0.2s' }}
-                                    onClick={() => setSelectedStudent(student)}
-                                    onMouseEnter={(e) => e.currentTarget.style.background = '#f0f9ff'}
-                                    onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
-                                >
-                                    <td style={{ padding: '15px', fontWeight: 'bold', color: '#2d3748' }}>{student.name}</td>
-                                    <td style={{ padding: '15px', color: '#718096' }}>{student.email}</td>
-                                    <td style={{ padding: '15px' }}>
-                                        <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
-                                            {student.courses.map((c, i) => (
-                                                <span key={i} style={{ fontSize: '0.75rem', background: '#e0e7ff', color: '#4338ca', padding: '2px 8px', borderRadius: '4px' }}>
-                                                    {c.courseName} ({c.progress}%)
-                                                </span>
-                                            ))}
-                                        </div>
-                                    </td>
-                                    <td style={{ padding: '15px' }}>
-                                        <button style={{ padding: '6px 12px', background: '#6366f1', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem' }}>View Graph</button>
-                                    </td>
+                            {paginatedStudents.length === 0 ? (
+                                <tr>
+                                    <td colSpan="4" style={{ padding: '20px', textAlign: 'center', color: '#718096' }}>No students found.</td>
                                 </tr>
-                            ))}
+                            ) : (
+                                paginatedStudents.map(student => (
+                                    <tr key={student.id}
+                                        style={{ borderBottom: '1px solid #edf2f7', cursor: 'pointer', transition: 'background 0.2s' }}
+                                        onClick={() => setSelectedStudent(student)}
+                                        onMouseEnter={(e) => e.currentTarget.style.background = '#f0f9ff'}
+                                        onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+                                    >
+                                        <td style={{ padding: '15px', fontWeight: 'bold', color: '#2d3748' }}>{student.name}</td>
+                                        <td style={{ padding: '15px', color: '#718096' }}>{student.email}</td>
+                                        <td style={{ padding: '15px' }}>
+                                            <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                                                {student.courses.map((c, i) => (
+                                                    <span key={i} style={{ fontSize: '0.75rem', background: '#e0e7ff', color: '#4338ca', padding: '2px 8px', borderRadius: '4px' }}>
+                                                        {c.courseName} ({c.progress}%)
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </td>
+                                        <td style={{ padding: '15px' }}>
+                                            <button style={{ padding: '6px 12px', background: '#6366f1', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem' }}>View Graph</button>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
                         </tbody>
                     </table>
                 </div>
+
+                {/* Pagination Controls */}
+                {studentList.length > ITEMS_PER_PAGE && (
+                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '15px', padding: '15px', borderTop: '1px solid #edf2f7' }}>
+                        <button
+                            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                            disabled={currentPage === 1}
+                            style={{
+                                border: '1px solid #e2e8f0',
+                                background: currentPage === 1 ? '#f7fafc' : 'white',
+                                color: currentPage === 1 ? '#cbd5e0' : '#4a5568',
+                                padding: '6px 14px',
+                                borderRadius: '8px',
+                                cursor: currentPage === 1 ? 'not-allowed' : 'pointer'
+                            }}
+                        >
+                            &lt; Prev
+                        </button>
+                        <span style={{ fontSize: '0.9rem', color: '#718096' }}>
+                            Page {currentPage} of {totalPages}
+                        </span>
+                        <button
+                            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                            disabled={currentPage === totalPages}
+                            style={{
+                                border: '1px solid #e2e8f0',
+                                background: currentPage === totalPages ? '#f7fafc' : 'white',
+                                color: currentPage === totalPages ? '#cbd5e0' : '#4a5568',
+                                padding: '6px 14px',
+                                borderRadius: '8px',
+                                cursor: currentPage === totalPages ? 'not-allowed' : 'pointer'
+                            }}
+                        >
+                            Next &gt;
+                        </button>
+                    </div>
+                )}
             </div>
 
             {/* Student Individual Graph Modal */}
@@ -2137,6 +2386,12 @@ const AnnouncementsSection = ({ announcements, onPost, onDelete }) => {
     const [newAnn, setNewAnn] = useState({ title: '', content: '', target: 'all' });
     const [posting, setPosting] = useState(false);
 
+    // Filter & Pagination State
+    const [filterText, setFilterText] = useState('');
+    const [senderFilter, setSenderFilter] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
+    const ITEMS_PER_PAGE = 10;
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!newAnn.title || !newAnn.content) return alert('Please fill all fields');
@@ -2152,6 +2407,31 @@ const AnnouncementsSection = ({ announcements, onPost, onDelete }) => {
         }
     };
 
+    // Filter Logic
+    const filteredAnnouncements = announcements.filter(ann => {
+        const matchesText = (
+            ann.title.toLowerCase().includes(filterText.toLowerCase()) ||
+            ann.content.toLowerCase().includes(filterText.toLowerCase())
+        );
+        const matchesSender = (
+            !senderFilter ||
+            (ann.author && ann.author.name.toLowerCase().includes(senderFilter.toLowerCase()))
+        );
+        return matchesText && matchesSender;
+    });
+
+    // Pagination Logic
+    const totalPages = Math.ceil(filteredAnnouncements.length / ITEMS_PER_PAGE);
+    const paginatedAnnouncements = filteredAnnouncements.slice(
+        (currentPage - 1) * ITEMS_PER_PAGE,
+        currentPage * ITEMS_PER_PAGE
+    );
+
+    // Reset to page 1 when filters change
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [filterText, senderFilter]);
+
     return (
         <div style={{ padding: '0 10px' }}>
             <div style={{
@@ -2163,7 +2443,9 @@ const AnnouncementsSection = ({ announcements, onPost, onDelete }) => {
                 marginBottom: '30px',
                 display: 'flex',
                 justifyContent: 'space-between',
-                alignItems: 'center'
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '20px'
             }}>
                 <div>
                     <h3 style={{ margin: '0 0 10px 0', color: '#1a202c', fontSize: '1.25rem' }}>Notice Board</h3>
@@ -2184,6 +2466,42 @@ const AnnouncementsSection = ({ announcements, onPost, onDelete }) => {
                 >
                     {showForm ? 'Cancel' : '📢 Create Announcement'}
                 </button>
+            </div>
+
+            {/* Filter Controls */}
+            <div style={{ display: 'flex', gap: '20px', marginBottom: '30px', flexWrap: 'wrap' }}>
+                <div style={{ flex: 1, minWidth: '250px' }}>
+                    <input
+                        type="text"
+                        placeholder="🔍 Search content..."
+                        value={filterText}
+                        onChange={(e) => setFilterText(e.target.value)}
+                        style={{
+                            width: '100%',
+                            padding: '12px 16px',
+                            borderRadius: '12px',
+                            border: '1px solid #e2e8f0',
+                            outline: 'none',
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+                        }}
+                    />
+                </div>
+                <div style={{ flex: 1, minWidth: '250px' }}>
+                    <input
+                        type="text"
+                        placeholder="👤 Filter by sender..."
+                        value={senderFilter}
+                        onChange={(e) => setSenderFilter(e.target.value)}
+                        style={{
+                            width: '100%',
+                            padding: '12px 16px',
+                            borderRadius: '12px',
+                            border: '1px solid #e2e8f0',
+                            outline: 'none',
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+                        }}
+                    />
+                </div>
             </div>
 
             {showForm && (
@@ -2241,84 +2559,125 @@ const AnnouncementsSection = ({ announcements, onPost, onDelete }) => {
                 </div>
             )}
 
-            {announcements.length === 0 ? (
+            {filteredAnnouncements.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '100px 20px', background: 'white', borderRadius: '20px', border: '2px dashed #edf2f7' }}>
                     <div style={{ fontSize: '3.5rem', marginBottom: '20px' }}>📁</div>
-                    <h3 style={{ color: '#2d3748', margin: '0 0 10px 0' }}>No Announcements</h3>
-                    <p style={{ color: '#718096', margin: 0 }}>There are no administrative messages to display at this time.</p>
+                    <h3 style={{ color: '#2d3748', margin: '0 0 10px 0' }}>No Announcements Found</h3>
+                    <p style={{ color: '#718096', margin: 0 }}>Try adjusting your search filters.</p>
                 </div>
             ) : (
-                <div style={{ display: 'grid', gap: '20px' }}>
-                    {announcements.map((ann) => {
-                        const isAuthor = ann.author?._id === (JSON.parse(localStorage.getItem('user'))?.id || JSON.parse(localStorage.getItem('user'))?._id);
-                        return (
-                            <div
-                                key={ann._id}
+                <>
+                    <div style={{ display: 'grid', gap: '20px' }}>
+                        {paginatedAnnouncements.map((ann) => {
+                            const isAuthor = ann.author?._id === (JSON.parse(localStorage.getItem('user'))?.id || JSON.parse(localStorage.getItem('user'))?._id);
+                            return (
+                                <div
+                                    key={ann._id}
+                                    style={{
+                                        background: 'white',
+                                        padding: '30px',
+                                        borderRadius: '20px',
+                                        boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                                        border: '1px solid #edf2f7',
+                                        borderLeft: '5px solid #6366f1'
+                                    }}
+                                >
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                                            <div style={{ width: '45px', height: '45px', borderRadius: '12px', background: 'rgba(99, 102, 241, 0.1)', color: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.2rem' }}>
+                                                📢
+                                            </div>
+                                            <div>
+                                                <h4 style={{ margin: 0, color: '#1a202c', fontSize: '1.2rem', fontWeight: '700' }}>{ann.title}</h4>
+                                                <span style={{ fontSize: '0.75rem', color: '#6366f1', fontWeight: '700', textTransform: 'uppercase' }}>To: {ann.target}</span>
+                                            </div>
+                                        </div>
+                                        <div style={{ textAlign: 'right', display: 'flex', alignItems: 'center', gap: '15px' }}>
+                                            <div style={{ background: '#f8fafc', padding: '8px 15px', borderRadius: '10px' }}>
+                                                <span style={{ fontSize: '0.85rem', color: '#4a5568', fontWeight: '600', display: 'block' }}>
+                                                    {new Date(ann.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                                </span>
+                                            </div>
+                                            {isAuthor && (
+                                                <button
+                                                    onClick={() => onDelete(ann._id)}
+                                                    style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', padding: '5px' }}
+                                                    title="Delete Announcement"
+                                                >
+                                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <p style={{
+                                        margin: 0,
+                                        color: '#4a5568',
+                                        fontSize: '1.05rem',
+                                        lineHeight: '1.7',
+                                        whiteSpace: 'pre-wrap'
+                                    }}>
+                                        {ann.content}
+                                    </p>
+                                    <div style={{
+                                        marginTop: '25px',
+                                        paddingTop: '20px',
+                                        borderTop: '1px solid #f8fafc',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between'
+                                    }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                            <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 'bold' }}>
+                                                {ann.author?.name?.charAt(0).toUpperCase() || 'A'}
+                                            </div>
+                                            <span style={{ fontSize: '0.9rem', color: '#1a202c', fontWeight: '600' }}>{ann.author?.name || 'Unknown Author'}</span>
+                                        </div>
+                                        <span style={{ fontSize: '0.8rem', color: '#a0aec0' }}>Posted at {new Date(ann.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    {/* Pagination Controls */}
+                    {filteredAnnouncements.length > ITEMS_PER_PAGE && (
+                        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '15px', padding: '30px 0', marginTop: '20px' }}>
+                            <button
+                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                disabled={currentPage === 1}
                                 style={{
-                                    background: 'white',
-                                    padding: '30px',
-                                    borderRadius: '20px',
-                                    boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-                                    border: '1px solid #edf2f7',
-                                    borderLeft: '5px solid #6366f1'
+                                    border: '1px solid #e2e8f0',
+                                    background: currentPage === 1 ? '#f7fafc' : 'white',
+                                    color: currentPage === 1 ? '#cbd5e0' : '#4a5568',
+                                    padding: '8px 16px',
+                                    borderRadius: '10px',
+                                    cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                                    fontWeight: '600'
                                 }}
                             >
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                                        <div style={{ width: '45px', height: '45px', borderRadius: '12px', background: 'rgba(99, 102, 241, 0.1)', color: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.2rem' }}>
-                                            📢
-                                        </div>
-                                        <div>
-                                            <h4 style={{ margin: 0, color: '#1a202c', fontSize: '1.2rem', fontWeight: '700' }}>{ann.title}</h4>
-                                            <span style={{ fontSize: '0.75rem', color: '#6366f1', fontWeight: '700', textTransform: 'uppercase' }}>To: {ann.target}</span>
-                                        </div>
-                                    </div>
-                                    <div style={{ textAlign: 'right', display: 'flex', alignItems: 'center', gap: '15px' }}>
-                                        <div style={{ background: '#f8fafc', padding: '8px 15px', borderRadius: '10px' }}>
-                                            <span style={{ fontSize: '0.85rem', color: '#4a5568', fontWeight: '600', display: 'block' }}>
-                                                {new Date(ann.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-                                            </span>
-                                        </div>
-                                        {isAuthor && (
-                                            <button
-                                                onClick={() => onDelete(ann._id)}
-                                                style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', padding: '5px' }}
-                                                title="Delete Announcement"
-                                            >
-                                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
-                                <p style={{
-                                    margin: 0,
-                                    color: '#4a5568',
-                                    fontSize: '1.05rem',
-                                    lineHeight: '1.7',
-                                    whiteSpace: 'pre-wrap'
-                                }}>
-                                    {ann.content}
-                                </p>
-                                <div style={{
-                                    marginTop: '25px',
-                                    paddingTop: '20px',
-                                    borderTop: '1px solid #f8fafc',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'space-between'
-                                }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                        <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 'bold' }}>
-                                            {ann.author?.name?.charAt(0).toUpperCase() || 'A'}
-                                        </div>
-                                        <span style={{ fontSize: '0.9rem', color: '#1a202c', fontWeight: '600' }}>{ann.author?.name || 'Unknown Author'}</span>
-                                    </div>
-                                    <span style={{ fontSize: '0.8rem', color: '#a0aec0' }}>Posted at {new Date(ann.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
+                                &lt; Previous
+                            </button>
+                            <span style={{ fontSize: '0.9rem', color: '#718096', fontWeight: '600' }}>
+                                Page {currentPage} of {totalPages}
+                            </span>
+                            <button
+                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                disabled={currentPage === totalPages}
+                                style={{
+                                    border: '1px solid #e2e8f0',
+                                    background: currentPage === totalPages ? '#f7fafc' : 'white',
+                                    color: currentPage === totalPages ? '#cbd5e0' : '#4a5568',
+                                    padding: '8px 16px',
+                                    borderRadius: '10px',
+                                    cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+                                    fontWeight: '600'
+                                }}
+                            >
+                                Next &gt;
+                            </button>
+                        </div>
+                    )}
+                </>
             )}
         </div>
     );
