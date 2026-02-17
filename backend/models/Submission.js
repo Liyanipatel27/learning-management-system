@@ -57,6 +57,21 @@ const submissionSchema = new mongoose.Schema({
         }],
         isAiVerified: { type: Boolean, default: false },
         checkedAt: Date
+    },
+    archivedPlagiarismResult: {
+        similarityPercentage: { type: Number },
+        riskLevel: { type: String },
+        matchedWith: [{
+            studentId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+            similarity: Number,
+            submissionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Submission' }
+        }],
+        isAiVerified: { type: Boolean },
+        checkedAt: Date
+    },
+    archivedStatus: {
+        type: String,
+        enum: ['Pending', 'Graded']
     }
 }, { timestamps: true });
 
