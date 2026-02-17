@@ -313,199 +313,37 @@ function AdminDashboard() {
                 )}
 
                 {(activeTab === 'students' || activeTab === 'teachers' || activeTab === 'admins') && (
-                    <div style={{ background: 'white', padding: '20px', borderRadius: '15px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '15px' }}>
-                            <button onClick={() => {
-                                const currentRole = activeTab.slice(0, -1); // 'students' -> 'student'
-                                const filteredUsers = users.filter(u => u.role === currentRole);
-
-                                let cols = [
-                                    { header: 'Name', key: 'name' },
-                                    { header: 'Email', key: 'email' },
-                                    { header: 'Role', accessor: (u) => u.role.toUpperCase() }
-                                ];
-
-                                if (currentRole === 'student') {
-                                    cols = [
-                                        { header: 'Enrollment ID', key: 'enrollment' },
-                                        ...cols,
-                                        { header: 'Branch', key: 'branch' }
-                                    ];
-                                } else {
-                                    cols = [
-                                        { header: 'Employee ID', key: 'employeeId' },
-                                        ...cols
-                                    ];
-                                }
-
-                                handleExport(filteredUsers, `${activeTab}_list.csv`, cols);
-                            }} style={btnStyle}>📥 Export {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} List</button>
-                        </div>
-                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                            <thead>
-                                <tr style={{ borderBottom: '2px solid #edf2f7', textAlign: 'left' }}>
-                                    <th style={{ padding: '15px' }}>Name</th>
-                                    <th style={{ padding: '15px' }}>Email</th>
-                                    <th style={{ padding: '15px' }}>Role</th>
-                                    <th style={{ padding: '15px' }}>{activeTab === 'students' ? 'Enrollment' : 'Employee ID'}</th>
-                                    {activeTab === 'students' && <th style={{ padding: '15px' }}>Branch</th>}
-                                    <th style={{ padding: '15px' }}>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {users.filter(u => u.role === activeTab.slice(0, -1)).map(u => (
-                                    <tr key={u._id} style={{ borderBottom: '1px solid #edf2f7' }}>
-                                        <td style={{ padding: '15px' }}>{u.name}</td>
-                                        <td style={{ padding: '15px' }}>{u.email}</td>
-                                        <td style={{ padding: '15px' }}>
-                                            <span style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', background: u.role === 'admin' ? '#fed7d7' : u.role === 'teacher' ? '#feebc8' : '#c6f6d5', color: '#2d3748' }}>
-                                                {u.role.toUpperCase()}
-                                            </span>
-                                        </td>
-                                        <td style={{ padding: '15px' }}>
-                                            {u.role === 'student' ? u.enrollment : (u.employeeId || '-')}
-                                        </td>
-                                        {activeTab === 'students' && (
-                                            <td style={{ padding: '15px' }}>
-                                                {u.branch || '-'}
-                                            </td>
-                                        )}
-                                        <td style={{ padding: '15px' }}>
-                                            <button onClick={() => handleEditUser(u)} style={{ color: '#3182ce', border: 'none', background: 'none', cursor: 'pointer', marginRight: '10px' }}>Edit</button>
-                                            <button onClick={() => handleDeleteUser(u._id)} style={{ color: 'red', border: 'none', background: 'none', cursor: 'pointer' }}>Delete</button>
-                                        </td>
-                                    </tr>
-                                ))}
-                                {users.filter(u => u.role === activeTab.slice(0, -1)).length === 0 && (
-                                    <tr>
-                                        <td colSpan="6" style={{ padding: '20px', textAlign: 'center', color: '#a0aec0' }}>No {activeTab} found.</td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
+                    <UserManagementSection
+                        activeTab={activeTab}
+                        users={users}
+                        handleEditUser={handleEditUser}
+                        handleDeleteUser={handleDeleteUser}
+                        handleExport={handleExport}
+                    />
                 )}
 
                 {activeTab === 'courses' && (
-                    <div style={{ background: 'white', padding: '20px', borderRadius: '15px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                            <thead>
-                                <tr style={{ borderBottom: '2px solid #edf2f7', textAlign: 'left' }}>
-                                    <th style={{ padding: '15px' }}>Title</th>
-                                    <th style={{ padding: '15px' }}>Instructor</th>
-                                    <th style={{ padding: '15px' }}>Content</th>
-                                    <th style={{ padding: '15px' }}>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {courses.map(c => (
-                                    <tr key={c._id} style={{ borderBottom: '1px solid #edf2f7' }}>
-                                        <td style={{ padding: '15px' }}>{c.title}</td>
-                                        <td style={{ padding: '15px' }}>{c.teacher?.name || 'Unknown'}</td>
-                                        <td style={{ padding: '15px' }}>
-                                            <span style={{ fontSize: '0.85rem', color: '#4a5568' }}>
-                                                {c.chapters?.length || 0} Chapters, {c.chapters ? c.chapters.reduce((acc, ch) => acc + (ch.modules?.length || 0), 0) : 0} Modules
-                                            </span>
-                                        </td>
-                                        <td style={{ padding: '15px' }}>
-                                            <button onClick={() => setSelectedCourseContent(c)} style={{ marginRight: '10px', padding: '5px 10px', cursor: 'pointer', backgroundColor: '#4299e1', color: 'white', border: 'none', borderRadius: '4px' }}>View Content</button>
-                                            <button onClick={() => handleTogglePublish(c._id)} style={{ padding: '5px 10px', cursor: 'pointer', backgroundColor: '#f56565', color: 'white', border: 'none', borderRadius: '4px' }}>Unpublish</button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                    <CourseManagementSection
+                        courses={courses}
+                        setSelectedCourseContent={setSelectedCourseContent}
+                        handleTogglePublish={handleTogglePublish}
+                        handleExport={handleExport}
+                    />
                 )}
 
                 {activeTab === 'reports' && (
                     <div style={{ display: 'grid', gap: '30px' }}>
                         {/* Student Progress */}
-                        <div style={{ background: 'white', padding: '25px', borderRadius: '15px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
-                                <h3>Student Progress Report</h3>
-                                <button onClick={() => {
-                                    const cols = [
-                                        { header: 'Enrollment ID', key: 'enrollment' },
-                                        { header: 'Name', key: 'name' },
-                                        { header: 'Completed Courses', key: 'completedCourses' },
-                                        { header: 'Total Courses', key: 'totalCourses' },
-                                        { header: 'Progress (%)', key: 'percentage' }
-                                    ];
-                                    handleExport(studentReports, 'students_progress.csv', cols);
-                                }} style={btnStyle}>📥 Export Excel</button>
-                            </div>
-                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                                <thead>
-                                    <tr style={{ background: '#f7fafc', textAlign: 'left' }}>
-                                        <th style={{ padding: '10px' }}>Enrollment ID</th>
-                                        <th style={{ padding: '10px' }}>Name</th>
-                                        <th style={{ padding: '10px' }}>Course Completion</th>
-                                        <th style={{ padding: '10px' }}>Progress %</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {studentReports.map(s => (
-                                        <tr key={s.id} style={{ borderBottom: '1px solid #edf2f7' }}>
-                                            <td style={{ padding: '10px' }}>{s.enrollment}</td>
-                                            <td style={{ padding: '10px' }}>{s.name}</td>
-                                            <td style={{ padding: '10px' }}>
-                                                {s.completedCourses} / {s.totalCourses} Courses
-                                            </td>
-                                            <td style={{ padding: '10px' }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                                    <div style={{ flex: 1, background: '#e2e8f0', height: '8px', borderRadius: '4px', minWidth: '100px' }}>
-                                                        <div style={{ width: `${s.percentage}%`, background: '#48bb78', height: '100%', borderRadius: '4px' }}></div>
-                                                    </div>
-                                                    <span style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#2d3748' }}>{s.percentage}%</span>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                        <StudentReportsTable
+                            studentReports={studentReports}
+                            handleExport={handleExport}
+                        />
 
                         {/* Teacher Portfolio */}
-                        <div style={{ background: 'white', padding: '25px', borderRadius: '15px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
-                                <h3>Teacher Portfolio</h3>
-                                <button onClick={() => {
-                                    const cols = [
-                                        { header: 'Employee ID', key: 'employeeId' },
-                                        { header: 'Name', key: 'name' },
-                                        { header: 'Email', key: 'email' },
-                                        { header: 'Total Courses', accessor: (row) => row.courses ? row.courses.length : 0 },
-                                        { header: 'Course Titles', accessor: (row) => row.courses ? row.courses.map(c => c.title).join('; ') : '' }
-                                    ];
-                                    handleExport(teacherReports, 'teachers_portfolio.csv', cols);
-                                }} style={btnStyle}>📥 Export Excel</button>
-                            </div>
-                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                                <thead>
-                                    <tr style={{ background: '#f7fafc', textAlign: 'left' }}>
-                                        <th style={{ padding: '10px' }}>Emp ID</th>
-                                        <th style={{ padding: '10px' }}>Name</th>
-                                        <th style={{ padding: '10px' }}>Email</th>
-                                        <th style={{ padding: '10px' }}>Uploaded Courses</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {teacherReports.map(t => (
-                                        <tr key={t.id} style={{ borderBottom: '1px solid #edf2f7' }}>
-                                            <td style={{ padding: '10px' }}>{t.employeeId}</td>
-                                            <td style={{ padding: '10px' }}>{t.name}</td>
-                                            <td style={{ padding: '10px' }}>{t.email}</td>
-                                            <td style={{ padding: '10px' }}>
-                                                <span style={{ padding: '4px 10px', background: '#bee3f8', borderRadius: '12px', fontSize: '0.9rem', color: '#2b6cb0', fontWeight: 'bold' }}>
-                                                    {t.courses ? t.courses.length : 0} Courses
-                                                </span>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                        <TeacherReportsTable
+                            teacherReports={teacherReports}
+                            handleExport={handleExport}
+                        />
                     </div>
                 )}
             </main>
@@ -718,4 +556,586 @@ const btnStyle = {
     fontSize: '0.9rem'
 };
 
+
+const UserManagementSection = ({ activeTab, users, handleEditUser, handleDeleteUser, handleExport }) => {
+    const [filterName, setFilterName] = useState('');
+    const [filterId, setFilterId] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
+    const ITEMS_PER_PAGE = 10;
+    const btnStyle = {
+        padding: '8px 16px',
+        background: '#3182ce',
+        color: 'white',
+        border: 'none',
+        borderRadius: '6px',
+        cursor: 'pointer',
+        fontWeight: '600',
+        fontSize: '0.9rem'
+    };
+
+    // Filter Logic
+    const currentRole = activeTab.slice(0, -1);
+    const filteredUsers = users.filter(u => {
+        if (u.role !== currentRole) return false;
+
+        const matchesName = u.name.toLowerCase().includes(filterName.toLowerCase());
+        const idToSearch = u.role === 'student' ? (u.enrollment || '') : (u.employeeId || '');
+        const matchesId = idToSearch.toString().toLowerCase().includes(filterId.toLowerCase());
+
+        return matchesName && matchesId;
+    });
+
+    // Pagination Logic
+    const totalPages = Math.ceil(filteredUsers.length / ITEMS_PER_PAGE);
+    const paginatedUsers = filteredUsers.slice(
+        (currentPage - 1) * ITEMS_PER_PAGE,
+        currentPage * ITEMS_PER_PAGE
+    );
+
+    // Reset pagination when filters change
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [filterName, filterId, activeTab]);
+
+    return (
+        <div style={{ background: 'white', padding: '20px', borderRadius: '15px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
+
+            {/* Filter Controls */}
+            <div style={{ display: 'flex', gap: '20px', marginBottom: '20px', flexWrap: 'wrap', alignItems: 'center' }}>
+                <div style={{ flex: 1, minWidth: '200px' }}>
+                    <input
+                        type="text"
+                        placeholder="🔍 Search by Name..."
+                        value={filterName}
+                        onChange={(e) => setFilterName(e.target.value)}
+                        style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}
+                    />
+                </div>
+                <div style={{ flex: 1, minWidth: '200px' }}>
+                    <input
+                        type="text"
+                        placeholder={`🔍 Search by ${activeTab === 'students' ? 'Enrollment ID' : 'Employee ID'}...`}
+                        value={filterId}
+                        onChange={(e) => setFilterId(e.target.value)}
+                        style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}
+                    />
+                </div>
+                <button onClick={() => {
+                    let cols = [
+                        { header: 'Name', key: 'name' },
+                        { header: 'Email', key: 'email' },
+                        { header: 'Role', accessor: (u) => u.role.toUpperCase() }
+                    ];
+
+                    if (currentRole === 'student') {
+                        cols = [
+                            { header: 'Enrollment ID', key: 'enrollment' },
+                            ...cols,
+                            { header: 'Branch', key: 'branch' }
+                        ];
+                    } else {
+                        cols = [
+                            { header: 'Employee ID', key: 'employeeId' },
+                            ...cols
+                        ];
+                    }
+                    handleExport(filteredUsers, `${activeTab}_filtered_list.csv`, cols);
+                }} style={btnStyle}>📥 Export List</button>
+            </div>
+
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                    <tr style={{ borderBottom: '2px solid #edf2f7', textAlign: 'left' }}>
+                        <th style={{ padding: '15px' }}>Name</th>
+                        <th style={{ padding: '15px' }}>Email</th>
+                        <th style={{ padding: '15px' }}>Role</th>
+                        <th style={{ padding: '15px' }}>{activeTab === 'students' ? 'Enrollment' : 'Employee ID'}</th>
+                        {activeTab === 'students' && <th style={{ padding: '15px' }}>Branch</th>}
+                        <th style={{ padding: '15px' }}>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {paginatedUsers.map(u => (
+                        <tr key={u._id} style={{ borderBottom: '1px solid #edf2f7' }}>
+                            <td style={{ padding: '15px' }}>{u.name}</td>
+                            <td style={{ padding: '15px' }}>{u.email}</td>
+                            <td style={{ padding: '15px' }}>
+                                <span style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', background: u.role === 'admin' ? '#fed7d7' : u.role === 'teacher' ? '#feebc8' : '#c6f6d5', color: '#2d3748' }}>
+                                    {u.role.toUpperCase()}
+                                </span>
+                            </td>
+                            <td style={{ padding: '15px' }}>
+                                {u.role === 'student' ? u.enrollment : (u.employeeId || '-')}
+                            </td>
+                            {activeTab === 'students' && (
+                                <td style={{ padding: '15px' }}>
+                                    {u.branch || '-'}
+                                </td>
+                            )}
+                            <td style={{ padding: '15px' }}>
+                                <button onClick={() => handleEditUser(u)} style={{ color: '#3182ce', border: 'none', background: 'none', cursor: 'pointer', marginRight: '10px' }}>Edit</button>
+                                <button onClick={() => handleDeleteUser(u._id)} style={{ color: 'red', border: 'none', background: 'none', cursor: 'pointer' }}>Delete</button>
+                            </td>
+                        </tr>
+                    ))}
+                    {paginatedUsers.length === 0 && (
+                        <tr>
+                            <td colSpan="6" style={{ padding: '20px', textAlign: 'center', color: '#a0aec0' }}>No {activeTab} found matching criteria.</td>
+                        </tr>
+                    )}
+                </tbody>
+            </table>
+
+            {/* Pagination Controls */}
+            {filteredUsers.length > ITEMS_PER_PAGE && (
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '15px', marginTop: '20px' }}>
+                    <button
+                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                        disabled={currentPage === 1}
+                        style={{
+                            padding: '6px 12px',
+                            border: '1px solid #e2e8f0',
+                            borderRadius: '6px',
+                            background: currentPage === 1 ? '#f7fafc' : 'white',
+                            color: currentPage === 1 ? '#cbd5e0' : '#4a5568',
+                            cursor: currentPage === 1 ? 'not-allowed' : 'pointer'
+                        }}
+                    >
+                        &lt; Previous
+                    </button>
+                    <span style={{ fontSize: '0.9rem', color: '#718096' }}>
+                        Page {currentPage} of {totalPages}
+                    </span>
+                    <button
+                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                        disabled={currentPage === totalPages}
+                        style={{
+                            padding: '6px 12px',
+                            border: '1px solid #e2e8f0',
+                            borderRadius: '6px',
+                            background: currentPage === totalPages ? '#f7fafc' : 'white',
+                            color: currentPage === totalPages ? '#cbd5e0' : '#4a5568',
+                            cursor: currentPage === totalPages ? 'not-allowed' : 'pointer'
+                        }}
+                    >
+                        Next &gt;
+                    </button>
+                </div>
+            )}
+        </div>
+    );
+};
+
+const CourseManagementSection = ({ courses, setSelectedCourseContent, handleTogglePublish, handleExport }) => {
+    const [filterTitle, setFilterTitle] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
+    const ITEMS_PER_PAGE = 10;
+    const btnStyle = {
+        padding: '8px 16px',
+        background: '#3182ce',
+        color: 'white',
+        border: 'none',
+        borderRadius: '6px',
+        cursor: 'pointer',
+        fontWeight: '600',
+        fontSize: '0.9rem'
+    };
+
+    // Filter Logic
+    const filteredCourses = courses.filter(c =>
+        c.title.toLowerCase().includes(filterTitle.toLowerCase())
+    );
+
+    // Pagination Logic
+    const totalPages = Math.ceil(filteredCourses.length / ITEMS_PER_PAGE);
+    const paginatedCourses = filteredCourses.slice(
+        (currentPage - 1) * ITEMS_PER_PAGE,
+        currentPage * ITEMS_PER_PAGE
+    );
+
+    // Reset pagination when filter changes
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [filterTitle]);
+
+    return (
+        <div style={{ background: 'white', padding: '20px', borderRadius: '15px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
+
+            {/* Filter Controls */}
+            <div style={{ display: 'flex', gap: '20px', marginBottom: '20px', flexWrap: 'wrap', alignItems: 'center' }}>
+                <div style={{ flex: 1, minWidth: '250px' }}>
+                    <input
+                        type="text"
+                        placeholder="🔍 Search by Subject Name..."
+                        value={filterTitle}
+                        onChange={(e) => setFilterTitle(e.target.value)}
+                        style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}
+                    />
+                </div>
+                <button onClick={() => {
+                    const cols = [
+                        { header: 'Title', key: 'title' },
+                        { header: 'Instructor', accessor: (c) => c.teacher?.name || 'Unknown' },
+                        { header: 'Chapters', accessor: (c) => c.chapters?.length || 0 },
+                        { header: 'Modules', accessor: (c) => c.chapters ? c.chapters.reduce((acc, ch) => acc + (ch.modules?.length || 0), 0) : 0 }
+                    ];
+                    handleExport(filteredCourses, 'courses_list.csv', cols);
+                }} style={btnStyle}>📥 Export Course List</button>
+            </div>
+
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                    <tr style={{ borderBottom: '2px solid #edf2f7', textAlign: 'left' }}>
+                        <th style={{ padding: '15px' }}>Title</th>
+                        <th style={{ padding: '15px' }}>Instructor</th>
+                        <th style={{ padding: '15px' }}>Content</th>
+                        <th style={{ padding: '15px' }}>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {paginatedCourses.map(c => (
+                        <tr key={c._id} style={{ borderBottom: '1px solid #edf2f7' }}>
+                            <td style={{ padding: '15px' }}>{c.title}</td>
+                            <td style={{ padding: '15px' }}>{c.teacher?.name || 'Unknown'}</td>
+                            <td style={{ padding: '15px' }}>
+                                <span style={{ fontSize: '0.85rem', color: '#4a5568' }}>
+                                    {c.chapters?.length || 0} Chapters, {c.chapters ? c.chapters.reduce((acc, ch) => acc + (ch.modules?.length || 0), 0) : 0} Modules
+                                </span>
+                            </td>
+                            <td style={{ padding: '15px' }}>
+                                <button onClick={() => setSelectedCourseContent(c)} style={{ marginRight: '10px', padding: '5px 10px', cursor: 'pointer', backgroundColor: '#4299e1', color: 'white', border: 'none', borderRadius: '4px' }}>View Content</button>
+                                <button onClick={() => handleTogglePublish(c._id)} style={{ padding: '5px 10px', cursor: 'pointer', backgroundColor: '#f56565', color: 'white', border: 'none', borderRadius: '4px' }}>Unpublish</button>
+                            </td>
+                        </tr>
+                    ))}
+                    {paginatedCourses.length === 0 && (
+                        <tr>
+                            <td colSpan="4" style={{ padding: '20px', textAlign: 'center', color: '#a0aec0' }}>No courses found.</td>
+                        </tr>
+                    )}
+                </tbody>
+            </table>
+
+            {/* Pagination Controls */}
+            {filteredCourses.length > ITEMS_PER_PAGE && (
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '15px', marginTop: '20px' }}>
+                    <button
+                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                        disabled={currentPage === 1}
+                        style={{
+                            padding: '6px 12px',
+                            border: '1px solid #e2e8f0',
+                            borderRadius: '6px',
+                            background: currentPage === 1 ? '#f7fafc' : 'white',
+                            color: currentPage === 1 ? '#cbd5e0' : '#4a5568',
+                            cursor: currentPage === 1 ? 'not-allowed' : 'pointer'
+                        }}
+                    >
+                        &lt; Previous
+                    </button>
+                    <span style={{ fontSize: '0.9rem', color: '#718096' }}>
+                        Page {currentPage} of {totalPages}
+                    </span>
+                    <button
+                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                        disabled={currentPage === totalPages}
+                        style={{
+                            padding: '6px 12px',
+                            border: '1px solid #e2e8f0',
+                            borderRadius: '6px',
+                            background: currentPage === totalPages ? '#f7fafc' : 'white',
+                            color: currentPage === totalPages ? '#cbd5e0' : '#4a5568',
+                            cursor: currentPage === totalPages ? 'not-allowed' : 'pointer'
+                        }}
+                    >
+                        Next &gt;
+                    </button>
+                </div>
+            )}
+        </div>
+    );
+};
+
+const StudentReportsTable = ({ studentReports, handleExport }) => {
+    const [filterName, setFilterName] = useState('');
+    const [filterEnrollment, setFilterEnrollment] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
+    const ITEMS_PER_PAGE = 10;
+    const btnStyle = {
+        padding: '8px 16px',
+        background: '#3182ce',
+        color: 'white',
+        border: 'none',
+        borderRadius: '6px',
+        cursor: 'pointer',
+        fontWeight: '600',
+        fontSize: '0.9rem'
+    };
+
+    // Filter Logic
+    const filteredReports = studentReports.filter(s => {
+        const matchesName = s.name.toLowerCase().includes(filterName.toLowerCase());
+        const matchesEnrollment = (s.enrollment || '').toString().toLowerCase().includes(filterEnrollment.toLowerCase());
+        return matchesName && matchesEnrollment;
+    });
+
+    // Pagination Logic
+    const totalPages = Math.ceil(filteredReports.length / ITEMS_PER_PAGE);
+    const paginatedReports = filteredReports.slice(
+        (currentPage - 1) * ITEMS_PER_PAGE,
+        currentPage * ITEMS_PER_PAGE
+    );
+
+    // Reset pagination
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [filterName, filterEnrollment]);
+
+    return (
+        <div style={{ background: 'white', padding: '25px', borderRadius: '15px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '15px' }}>
+                <h3 style={{ margin: 0 }}>Student Progress Report</h3>
+                <button onClick={() => {
+                    const cols = [
+                        { header: 'Enrollment ID', key: 'enrollment' },
+                        { header: 'Name', key: 'name' },
+                        { header: 'Completed Courses', key: 'completedCourses' },
+                        { header: 'Total Courses', key: 'totalCourses' },
+                        { header: 'Progress (%)', key: 'percentage' }
+                    ];
+                    handleExport(filteredReports, 'students_progress.csv', cols);
+                }} style={btnStyle}>📥 Export Excel</button>
+            </div>
+
+            {/* Filter Inputs */}
+            <div style={{ display: 'flex', gap: '20px', marginBottom: '20px' }}>
+                <input
+                    type="text"
+                    placeholder="🔍 Filter by Name"
+                    value={filterName}
+                    onChange={(e) => setFilterName(e.target.value)}
+                    style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}
+                />
+                <input
+                    type="text"
+                    placeholder="🔍 Filter by Enrollment ID"
+                    value={filterEnrollment}
+                    onChange={(e) => setFilterEnrollment(e.target.value)}
+                    style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}
+                />
+            </div>
+
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                    <tr style={{ background: '#f7fafc', textAlign: 'left' }}>
+                        <th style={{ padding: '10px' }}>Enrollment ID</th>
+                        <th style={{ padding: '10px' }}>Name</th>
+                        <th style={{ padding: '10px' }}>Course Completion</th>
+                        <th style={{ padding: '10px' }}>Progress %</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {paginatedReports.map(s => (
+                        <tr key={s.id} style={{ borderBottom: '1px solid #edf2f7' }}>
+                            <td style={{ padding: '10px' }}>{s.enrollment}</td>
+                            <td style={{ padding: '10px' }}>{s.name}</td>
+                            <td style={{ padding: '10px' }}>
+                                {s.completedCourses} / {s.totalCourses} Courses
+                            </td>
+                            <td style={{ padding: '10px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <div style={{ flex: 1, background: '#e2e8f0', height: '8px', borderRadius: '4px', minWidth: '100px' }}>
+                                        <div style={{ width: `${s.percentage}%`, background: '#48bb78', height: '100%', borderRadius: '4px' }}></div>
+                                    </div>
+                                    <span style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#2d3748' }}>{s.percentage}%</span>
+                                </div>
+                            </td>
+                        </tr>
+                    ))}
+                    {paginatedReports.length === 0 && (
+                        <tr>
+                            <td colSpan="4" style={{ padding: '20px', textAlign: 'center', color: '#a0aec0' }}>No Match Found</td>
+                        </tr>
+                    )}
+                </tbody>
+            </table>
+
+            {/* Pagination Controls */}
+            {filteredReports.length > ITEMS_PER_PAGE && (
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '15px', marginTop: '20px' }}>
+                    <button
+                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                        disabled={currentPage === 1}
+                        style={{
+                            padding: '6px 12px',
+                            border: '1px solid #e2e8f0',
+                            borderRadius: '6px',
+                            background: currentPage === 1 ? '#f7fafc' : 'white',
+                            color: currentPage === 1 ? '#cbd5e0' : '#4a5568',
+                            cursor: currentPage === 1 ? 'not-allowed' : 'pointer'
+                        }}
+                    >
+                        &lt; Previous
+                    </button>
+                    <span style={{ fontSize: '0.9rem', color: '#718096' }}>
+                        Page {currentPage} of {totalPages}
+                    </span>
+                    <button
+                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                        disabled={currentPage === totalPages}
+                        style={{
+                            padding: '6px 12px',
+                            border: '1px solid #e2e8f0',
+                            borderRadius: '6px',
+                            background: currentPage === totalPages ? '#f7fafc' : 'white',
+                            color: currentPage === totalPages ? '#cbd5e0' : '#4a5568',
+                            cursor: currentPage === totalPages ? 'not-allowed' : 'pointer'
+                        }}
+                    >
+                        Next &gt;
+                    </button>
+                </div>
+            )}
+        </div>
+    );
+};
+
+const TeacherReportsTable = ({ teacherReports, handleExport }) => {
+    const [filterName, setFilterName] = useState('');
+    const [filterEmpId, setFilterEmpId] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
+    const ITEMS_PER_PAGE = 10;
+    const btnStyle = {
+        padding: '8px 16px',
+        background: '#3182ce',
+        color: 'white',
+        border: 'none',
+        borderRadius: '6px',
+        cursor: 'pointer',
+        fontWeight: '600',
+        fontSize: '0.9rem'
+    };
+
+    // Filter Logic
+    const filteredReports = teacherReports.filter(t => {
+        const matchesName = t.name.toLowerCase().includes(filterName.toLowerCase());
+        const matchesEmpId = (t.employeeId || '').toString().toLowerCase().includes(filterEmpId.toLowerCase());
+        return matchesName && matchesEmpId;
+    });
+
+    // Pagination Logic
+    const totalPages = Math.ceil(filteredReports.length / ITEMS_PER_PAGE);
+    const paginatedReports = filteredReports.slice(
+        (currentPage - 1) * ITEMS_PER_PAGE,
+        currentPage * ITEMS_PER_PAGE
+    );
+
+    // Reset pagination
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [filterName, filterEmpId]);
+
+    return (
+        <div style={{ background: 'white', padding: '25px', borderRadius: '15px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '15px' }}>
+                <h3 style={{ margin: 0 }}>Teacher Portfolio</h3>
+                <button onClick={() => {
+                    const cols = [
+                        { header: 'Employee ID', key: 'employeeId' },
+                        { header: 'Name', key: 'name' },
+                        { header: 'Email', key: 'email' },
+                        { header: 'Total Courses', accessor: (row) => row.courses ? row.courses.length : 0 },
+                        { header: 'Course Titles', accessor: (row) => row.courses ? row.courses.map(c => c.title).join('; ') : '' }
+                    ];
+                    handleExport(filteredReports, 'teachers_portfolio.csv', cols);
+                }} style={btnStyle}>📥 Export Excel</button>
+            </div>
+
+            {/* Filter Inputs */}
+            <div style={{ display: 'flex', gap: '20px', marginBottom: '20px' }}>
+                <input
+                    type="text"
+                    placeholder="🔍 Filter by Name"
+                    value={filterName}
+                    onChange={(e) => setFilterName(e.target.value)}
+                    style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}
+                />
+                <input
+                    type="text"
+                    placeholder="🔍 Filter by Employee ID"
+                    value={filterEmpId}
+                    onChange={(e) => setFilterEmpId(e.target.value)}
+                    style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}
+                />
+            </div>
+
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                    <tr style={{ background: '#f7fafc', textAlign: 'left' }}>
+                        <th style={{ padding: '10px' }}>Emp ID</th>
+                        <th style={{ padding: '10px' }}>Name</th>
+                        <th style={{ padding: '10px' }}>Email</th>
+                        <th style={{ padding: '10px' }}>Uploaded Courses</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {paginatedReports.map(t => (
+                        <tr key={t.id} style={{ borderBottom: '1px solid #edf2f7' }}>
+                            <td style={{ padding: '10px' }}>{t.employeeId}</td>
+                            <td style={{ padding: '10px' }}>{t.name}</td>
+                            <td style={{ padding: '10px' }}>{t.email}</td>
+                            <td style={{ padding: '10px' }}>
+                                <span style={{ padding: '4px 10px', background: '#bee3f8', borderRadius: '12px', fontSize: '0.9rem', color: '#2b6cb0', fontWeight: 'bold' }}>
+                                    {t.courses ? t.courses.length : 0} Courses
+                                </span>
+                            </td>
+                        </tr>
+                    ))}
+                    {paginatedReports.length === 0 && (
+                        <tr>
+                            <td colSpan="4" style={{ padding: '20px', textAlign: 'center', color: '#a0aec0' }}>No Match Found</td>
+                        </tr>
+                    )}
+                </tbody>
+            </table>
+
+            {/* Pagination Controls */}
+            {filteredReports.length > ITEMS_PER_PAGE && (
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '15px', marginTop: '20px' }}>
+                    <button
+                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                        disabled={currentPage === 1}
+                        style={{
+                            padding: '6px 12px',
+                            border: '1px solid #e2e8f0',
+                            borderRadius: '6px',
+                            background: currentPage === 1 ? '#f7fafc' : 'white',
+                            color: currentPage === 1 ? '#cbd5e0' : '#4a5568',
+                            cursor: currentPage === 1 ? 'not-allowed' : 'pointer'
+                        }}
+                    >
+                        &lt; Previous
+                    </button>
+                    <span style={{ fontSize: '0.9rem', color: '#718096' }}>
+                        Page {currentPage} of {totalPages}
+                    </span>
+                    <button
+                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                        disabled={currentPage === totalPages}
+                        style={{
+                            padding: '6px 12px',
+                            border: '1px solid #e2e8f0',
+                            borderRadius: '6px',
+                            background: currentPage === totalPages ? '#f7fafc' : 'white',
+                            color: currentPage === totalPages ? '#cbd5e0' : '#4a5568',
+                            cursor: currentPage === totalPages ? 'not-allowed' : 'pointer'
+                        }}
+                    >
+                        Next &gt;
+                    </button>
+                </div>
+            )}
+        </div>
+    );
+};
 export default AdminDashboard;

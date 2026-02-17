@@ -18,6 +18,11 @@ const RoadmapGenerator = ({
     const [showGapModal, setShowGapModal] = useState(false);
     const [missedDaysCount, setMissedDaysCount] = useState(0);
 
+    // Subject Selection Filter & Pagination
+    const [subjectFilter, setSubjectFilter] = useState('');
+    const [currentSubjectPage, setCurrentSubjectPage] = useState(1);
+    const SUBJECTS_PER_PAGE = 9;
+
     const checkStudyGap = () => {
         if (allProgress.length === 0 || selectedCourseIds.length === 0) return;
 
@@ -129,6 +134,23 @@ const RoadmapGenerator = ({
         }
     };
 
+    // --- Filter & Pagination Logic ---
+    const filteredSubjects = courses.filter(course =>
+        course.subject.toLowerCase().includes(subjectFilter.toLowerCase())
+    );
+
+    const totalSubjectPages = Math.ceil(filteredSubjects.length / SUBJECTS_PER_PAGE);
+    const paginatedSubjects = filteredSubjects.slice(
+        (currentSubjectPage - 1) * SUBJECTS_PER_PAGE,
+        currentSubjectPage * SUBJECTS_PER_PAGE
+    );
+
+    // Filter effect handled by state update directly or we can use useEffect
+    // But since we use simple state, we can reset page in the onChange handler or useEffect
+    React.useEffect(() => {
+        setCurrentSubjectPage(1);
+    }, [subjectFilter]);
+
     return (
         <div style={{ background: 'white', padding: '30px', borderRadius: '15px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
             <div style={{ textAlign: 'center', marginBottom: '40px' }}>
@@ -139,9 +161,24 @@ const RoadmapGenerator = ({
 
             <div style={{ maxWidth: '800px', margin: '0 auto', display: 'flex', gap: '20px', marginBottom: '40px', flexDirection: 'column' }}>
                 <div style={{ background: '#f8fafc', padding: '25px', borderRadius: '15px', border: '1px solid #edf2f7' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '10px' }}>
                         <h3 style={{ fontSize: '1.2rem', margin: 0, color: '#2d3748' }}>📚 Select Subjects to Include</h3>
-                        <div style={{ display: 'flex', gap: '10px' }}>
+                        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                            {/* Small Filter Input */}
+                            <input
+                                type="text"
+                                placeholder="🔍 Filter..."
+                                value={subjectFilter}
+                                onChange={(e) => setSubjectFilter(e.target.value)}
+                                style={{
+                                    padding: '6px 12px',
+                                    borderRadius: '8px',
+                                    border: '1px solid #cbd5e0',
+                                    fontSize: '0.85rem',
+                                    width: '120px',
+                                    outline: 'none'
+                                }}
+                            />
                             <button
                                 onClick={() => setSelectedCourseIds(courses.map(c => c._id))}
                                 style={{ background: 'white', border: '1px solid #6C63FF', color: '#6C63FF', padding: '5px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}
@@ -156,8 +193,9 @@ const RoadmapGenerator = ({
                             </button>
                         </div>
                     </div>
+
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '12px' }}>
-                        {courses.map(course => (
+                        {paginatedSubjects.map(course => (
                             <label key={course._id} style={{
                                 display: 'flex',
                                 alignItems: 'center',
@@ -186,8 +224,47 @@ const RoadmapGenerator = ({
                                 </span>
                             </label>
                         ))}
+                        {paginatedSubjects.length === 0 && <p style={{ color: '#a0aec0', fontSize: '0.9rem', gridColumn: '1/-1', textAlign: 'center' }}>No subjects found.</p>}
                     </div>
-                    {courses.length === 0 && <p style={{ color: '#a0aec0', fontSize: '0.9rem' }}>No courses available to select.</p>}
+
+                    {/* Pagination Controls */}
+                    {filteredSubjects.length > SUBJECTS_PER_PAGE && (
+                        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px', marginTop: '15px' }}>
+                            <button
+                                onClick={() => setCurrentSubjectPage(p => Math.max(1, p - 1))}
+                                disabled={currentSubjectPage === 1}
+                                style={{
+                                    border: '1px solid #e2e8f0',
+                                    background: currentSubjectPage === 1 ? '#f7fafc' : 'white',
+                                    color: currentSubjectPage === 1 ? '#cbd5e0' : '#4a5568',
+                                    padding: '4px 8px',
+                                    borderRadius: '6px',
+                                    cursor: currentSubjectPage === 1 ? 'not-allowed' : 'pointer',
+                                    fontSize: '0.8rem'
+                                }}
+                            >
+                                &lt; Prev
+                            </button>
+                            <span style={{ fontSize: '0.8rem', color: '#718096' }}>
+                                {currentSubjectPage} / {totalSubjectPages}
+                            </span>
+                            <button
+                                onClick={() => setCurrentSubjectPage(p => Math.min(totalSubjectPages, p + 1))}
+                                disabled={currentSubjectPage === totalSubjectPages}
+                                style={{
+                                    border: '1px solid #e2e8f0',
+                                    background: currentSubjectPage === totalSubjectPages ? '#f7fafc' : 'white',
+                                    color: currentSubjectPage === totalSubjectPages ? '#cbd5e0' : '#4a5568',
+                                    padding: '4px 8px',
+                                    borderRadius: '6px',
+                                    cursor: currentSubjectPage === totalSubjectPages ? 'not-allowed' : 'pointer',
+                                    fontSize: '0.8rem'
+                                }}
+                            >
+                                Next &gt;
+                            </button>
+                        </div>
+                    )}
                 </div>
 
                 <div style={{ width: '100%' }}>

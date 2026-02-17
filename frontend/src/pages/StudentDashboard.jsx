@@ -508,51 +508,57 @@ function StudentDashboard() {
                                     <span>📢</span> Latest Announcements
                                 </h2>
                                 <div style={{ display: 'grid', gap: '15px' }}>
-                                    {announcements.map((ann, idx) => (
-                                        <div
-                                            key={ann._id}
-                                            style={{
-                                                background: 'linear-gradient(135deg, #ffffff 0%, #f9faff 100%)',
-                                                padding: '20px',
-                                                borderRadius: '16px',
-                                                boxShadow: '0 4px 6px rgba(0,0,0,0.02)',
-                                                border: '1px solid #eef2ff',
-                                                borderLeft: '5px solid #6366f1',
-                                                position: 'relative',
-                                                overflow: 'hidden'
-                                            }}
-                                        >
-                                            <div style={{ position: 'absolute', top: '-10px', right: '-10px', width: '60px', height: '60px', background: 'rgba(99, 102, 241, 0.03)', borderRadius: '50%' }}></div>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
-                                                <h4 style={{ margin: 0, color: '#1e293b', fontSize: '1.1rem', fontWeight: '700' }}>{ann.title}</h4>
-                                                <span style={{ fontSize: '0.75rem', color: '#94a3b8', background: '#f1f5f9', padding: '4px 8px', borderRadius: '6px' }}>
-                                                    {new Date(ann.createdAt).toLocaleDateString('en-GB')}
-                                                </span>
-                                            </div>
-                                            <p style={{ margin: 0, color: '#475569', fontSize: '0.95rem', lineHeight: '1.5' }}>{ann.content}</p>
-                                            <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: '#6c63ff', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem' }}>
-                                                    {ann.author?.name?.charAt(0) || 'A'}
+                                    {announcements
+                                        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+                                        .slice(0, 3)
+                                        .map((ann, idx) => (
+                                            <div
+                                                key={ann._id}
+                                                style={{
+                                                    background: 'linear-gradient(135deg, #ffffff 0%, #f9faff 100%)',
+                                                    padding: '20px',
+                                                    borderRadius: '16px',
+                                                    boxShadow: '0 4px 6px rgba(0,0,0,0.02)',
+                                                    border: '1px solid #eef2ff',
+                                                    borderLeft: '5px solid #6366f1',
+                                                    position: 'relative',
+                                                    overflow: 'hidden'
+                                                }}
+                                            >
+                                                <div style={{ position: 'absolute', top: '-10px', right: '-10px', width: '60px', height: '60px', background: 'rgba(99, 102, 241, 0.03)', borderRadius: '50%' }}></div>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                                                    <h4 style={{ margin: 0, color: '#1e293b', fontSize: '1.1rem', fontWeight: '700' }}>{ann.title}</h4>
+                                                    <span style={{ fontSize: '0.75rem', color: '#94a3b8', background: '#f1f5f9', padding: '4px 8px', borderRadius: '6px' }}>
+                                                        {new Date(ann.createdAt).toLocaleDateString('en-GB')}
+                                                    </span>
                                                 </div>
-                                                <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: '500' }}>{ann.author?.name || 'Admin'}</span>
+                                                <p style={{ margin: 0, color: '#475569', fontSize: '0.95rem', lineHeight: '1.5' }}>{ann.content}</p>
+                                                <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: '#6c63ff', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem' }}>
+                                                        {ann.author?.name?.charAt(0) || 'A'}
+                                                    </div>
+                                                    <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: '500' }}>{ann.author?.name || 'Admin'}</span>
+                                                </div>
                                             </div>
-                                        </div>
-                                    ))}
+                                        ))}
                                 </div>
                             </section>
                         )}
 
                         <section style={{ marginTop: '40px' }}>
-                            <h2 style={{ fontSize: '1.2rem', marginBottom: '20px', color: '#2D3748' }}>Explore Courses</h2>
+                            <h2 style={{ fontSize: '1.2rem', marginBottom: '20px', color: '#2D3748' }}>Explore Latest Courses</h2>
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
-                                {courses.map(course => (
-                                    <div key={course._id} style={{ background: 'white', padding: '20px', borderRadius: '15px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', cursor: 'pointer' }} onClick={() => setSelectedCourse(course)}>
-                                        <h3 style={{ margin: '0 0 10px 0' }}>{course.subject}</h3>
-                                        <div style={{ marginTop: '15px', fontSize: '0.8rem', color: '#555' }}>
-                                            Teacher: {course.teacher?.name || 'Unknown'}
+                                {courses
+                                    .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+                                    .slice(0, 5)
+                                    .map(course => (
+                                        <div key={course._id} style={{ background: 'white', padding: '20px', borderRadius: '15px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', cursor: 'pointer' }} onClick={() => setSelectedCourse(course)}>
+                                            <h3 style={{ margin: '0 0 10px 0' }}>{course.subject}</h3>
+                                            <div style={{ marginTop: '15px', fontSize: '0.8rem', color: '#555' }}>
+                                                Teacher: {course.teacher?.name || 'Unknown'}
+                                            </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    ))}
                                 {courses.length === 0 && <p>No courses available right now.</p>}
                             </div>
                         </section>
@@ -1523,6 +1529,10 @@ const AssignmentsSection = ({ userId, courses }) => {
     const [activeAssignment, setActiveAssignment] = useState(null);
     const [loading, setLoading] = useState(true);
 
+    // Pagination State
+    const [currentPage, setCurrentPage] = useState(1);
+    const ITEMS_PER_PAGE = 12; // Updated for better grid alignment
+
     // Submission states
     const [submitting, setSubmitting] = useState(false);
     const [code, setCode] = useState('');
@@ -1671,78 +1681,119 @@ const AssignmentsSection = ({ userId, courses }) => {
             </div>
 
             {loading ? <p>Loading assignments...</p> : assignments.length === 0 ? <p>No assignments found for this course.</p> : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '20px' }}>
-                    {assignments.map(asgn => {
-                        const sub = submissions[asgn._id];
-                        const isGraded = sub?.status === 'Graded';
-                        const isSubmitted = !!sub;
+                <>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '20px' }}>
+                        {assignments.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE).map(asgn => {
+                            const sub = submissions[asgn._id];
+                            const isGraded = sub?.status === 'Graded';
+                            const isSubmitted = !!sub;
 
-                        return (
-                            <div key={asgn._id} style={{ background: 'white', padding: '24px', borderRadius: '20px', border: '1px solid #edf2f7', position: 'relative' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
-                                    <span style={{
-                                        padding: '4px 10px',
-                                        borderRadius: '6px',
-                                        fontSize: '0.7rem',
-                                        fontWeight: '700',
-                                        background: isGraded ? '#d1fae5' : isSubmitted ? '#dbeafe' : 'rgba(0,0,0,0.05)',
-                                        color: isGraded ? '#065f46' : isSubmitted ? '#1e40af' : '#718096'
-                                    }}>
-                                        {isGraded ? 'GRADED' : isSubmitted ? 'SUBMITTED' : 'NOT STARTED'}
-                                    </span>
-                                    <span style={{ fontSize: '0.8rem', color: '#f87171', fontWeight: 'bold' }}>
-                                        Due: {new Date(asgn.dueDate).toLocaleDateString()}
-                                    </span>
+                            return (
+                                <div key={asgn._id} style={{ background: 'white', padding: '24px', borderRadius: '20px', border: '1px solid #edf2f7', position: 'relative' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
+                                        <span style={{
+                                            padding: '4px 10px',
+                                            borderRadius: '6px',
+                                            fontSize: '0.7rem',
+                                            fontWeight: '700',
+                                            background: isGraded ? '#d1fae5' : isSubmitted ? '#dbeafe' : 'rgba(0,0,0,0.05)',
+                                            color: isGraded ? '#065f46' : isSubmitted ? '#1e40af' : '#718096'
+                                        }}>
+                                            {isGraded ? 'GRADED' : isSubmitted ? 'SUBMITTED' : 'NOT STARTED'}
+                                        </span>
+                                        <span style={{ fontSize: '0.8rem', color: '#f87171', fontWeight: 'bold' }}>
+                                            Due: {new Date(asgn.dueDate).toLocaleDateString()}
+                                        </span>
+                                    </div>
+                                    {asgn.type === 'coding' && (
+                                        <div style={{
+                                            position: 'absolute',
+                                            top: '60px',
+                                            right: '24px',
+                                            background: '#EEF2FF',
+                                            color: '#4338CA',
+                                            padding: '4px 10px',
+                                            borderRadius: '20px',
+                                            fontSize: '0.75rem',
+                                            fontWeight: 'bold',
+                                            border: '1px solid #C7D2FE'
+                                        }}>
+                                            💻 {asgn.codingDetails?.language?.toUpperCase()}
+                                        </div>
+                                    )}
+                                    <h3 style={{ margin: '0 0 10px 0' }}>{asgn.title}</h3>
+                                    <p style={{ color: '#718096', fontSize: '0.9rem', marginBottom: '20px', minHeight: '40px' }}>{asgn.description}</p>
+
+                                    {isGraded && (
+                                        <div style={{ background: '#f0fdf4', padding: '12px', borderRadius: '12px', marginBottom: '15px', border: '1px solid #dcfce7' }}>
+                                            <p style={{ margin: 0, fontWeight: 'bold', color: '#166534', fontSize: '0.9rem' }}>Score: {sub.score}/{asgn.maxPoints}</p>
+                                            <FeedbackReadMore feedback={sub.feedback} />
+                                        </div>
+                                    )}
+
+                                    <button
+                                        onClick={() => {
+                                            setActiveAssignment(asgn);
+                                            setCode(sub?.code || asgn.codingDetails?.starterCode || '');
+                                            setStdin(sub?.stdin || '');
+                                        }}
+                                        style={{
+                                            width: '100%',
+                                            padding: '12px',
+                                            background: sub?.status === 'Re-write' ? '#ea580c' : isSubmitted ? '#f8fafc' : '#6366f1',
+                                            color: sub?.status === 'Re-write' ? 'white' : isSubmitted ? '#4a5568' : 'white',
+                                            border: isSubmitted && sub?.status !== 'Re-write' ? '1px solid #e2e8f0' : 'none',
+                                            borderRadius: '12px',
+                                            fontWeight: 'bold',
+                                            cursor: 'pointer'
+                                        }}
+                                    >
+                                        {sub?.status === 'Re-write' ? 'Resubmit Now' : isSubmitted ? 'View Submission' : 'Start Assignment'}
+                                    </button>
                                 </div>
-                                {asgn.type === 'coding' && (
-                                    <div style={{
-                                        position: 'absolute',
-                                        top: '60px',
-                                        right: '24px',
-                                        background: '#EEF2FF',
-                                        color: '#4338CA',
-                                        padding: '4px 10px',
-                                        borderRadius: '20px',
-                                        fontSize: '0.75rem',
-                                        fontWeight: 'bold',
-                                        border: '1px solid #C7D2FE'
-                                    }}>
-                                        💻 {asgn.codingDetails?.language?.toUpperCase()}
-                                    </div>
-                                )}
-                                <h3 style={{ margin: '0 0 10px 0' }}>{asgn.title}</h3>
-                                <p style={{ color: '#718096', fontSize: '0.9rem', marginBottom: '20px', minHeight: '40px' }}>{asgn.description}</p>
+                            );
+                        })}
+                    </div>
 
-                                {isGraded && (
-                                    <div style={{ background: '#f0fdf4', padding: '12px', borderRadius: '12px', marginBottom: '15px', border: '1px solid #dcfce7' }}>
-                                        <p style={{ margin: 0, fontWeight: 'bold', color: '#166534', fontSize: '0.9rem' }}>Score: {sub.score}/{asgn.maxPoints}</p>
-                                        <FeedbackReadMore feedback={sub.feedback} />
-                                    </div>
-                                )}
-
-                                <button
-                                    onClick={() => {
-                                        setActiveAssignment(asgn);
-                                        setCode(sub?.code || asgn.codingDetails?.starterCode || '');
-                                        setStdin(sub?.stdin || '');
-                                    }}
-                                    style={{
-                                        width: '100%',
-                                        padding: '12px',
-                                        background: sub?.status === 'Re-write' ? '#ea580c' : isSubmitted ? '#f8fafc' : '#6366f1',
-                                        color: sub?.status === 'Re-write' ? 'white' : isSubmitted ? '#4a5568' : 'white',
-                                        border: isSubmitted && sub?.status !== 'Re-write' ? '1px solid #e2e8f0' : 'none',
-                                        borderRadius: '12px',
-                                        fontWeight: 'bold',
-                                        cursor: 'pointer'
-                                    }}
-                                >
-                                    {sub?.status === 'Re-write' ? 'Resubmit Now' : isSubmitted ? 'View Submission' : 'Start Assignment'}
-                                </button>
-                            </div>
-                        );
-                    })}
-                </div>
+                    {/* Pagination Controls */}
+                    {assignments.length > ITEMS_PER_PAGE && (
+                        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '15px', marginTop: '30px' }}>
+                            <button
+                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                disabled={currentPage === 1}
+                                style={{
+                                    padding: '8px 16px',
+                                    borderRadius: '8px',
+                                    border: '1px solid #e2e8f0',
+                                    background: currentPage === 1 ? '#f7fafc' : 'white',
+                                    color: currentPage === 1 ? '#cbd5e0' : '#4a5568',
+                                    cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                                    fontWeight: 'bold'
+                                }}
+                            >
+                                &lt; Previous
+                            </button>
+                            <span style={{ fontSize: '0.9rem', color: '#718096', fontWeight: '600' }}>
+                                Page {currentPage} of {Math.ceil(assignments.length / ITEMS_PER_PAGE)}
+                            </span>
+                            <button
+                                onClick={() => setCurrentPage(p => Math.min(Math.ceil(assignments.length / ITEMS_PER_PAGE), p + 1))}
+                                disabled={currentPage === Math.ceil(assignments.length / ITEMS_PER_PAGE)}
+                                style={{
+                                    padding: '8px 16px',
+                                    borderRadius: '8px',
+                                    border: '1px solid #e2e8f0',
+                                    background: currentPage === Math.ceil(assignments.length / ITEMS_PER_PAGE) ? '#f7fafc' : 'white',
+                                    color: currentPage === Math.ceil(assignments.length / ITEMS_PER_PAGE) ? '#cbd5e0' : '#4a5568',
+                                    cursor: currentPage === Math.ceil(assignments.length / ITEMS_PER_PAGE) ? 'not-allowed' : 'pointer',
+                                    fontWeight: 'bold'
+                                }}
+                            >
+                                Next &gt;
+                            </button>
+                        </div>
+                    )}
+                </>
             )}
 
             {/* Submission Modal */}
@@ -2169,79 +2220,208 @@ const ProfileSection = ({ userId }) => {
 
 
 const AnnouncementsSection = ({ announcements }) => {
+    // Filter & Pagination State
+    const [filterText, setFilterText] = useState('');
+    const [senderFilter, setSenderFilter] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
+    const ITEMS_PER_PAGE = 10;
+
+    // Filter Logic
+    const filteredAnnouncements = announcements.filter(ann => {
+        const matchesText = (
+            ann.title.toLowerCase().includes(filterText.toLowerCase()) ||
+            ann.content.toLowerCase().includes(filterText.toLowerCase())
+        );
+        const matchesSender = (
+            !senderFilter ||
+            (ann.author && ann.author.name.toLowerCase().includes(senderFilter.toLowerCase()))
+        );
+        return matchesText && matchesSender;
+    });
+
+    // Pagination Logic
+    const totalPages = Math.ceil(filteredAnnouncements.length / ITEMS_PER_PAGE);
+    const paginatedAnnouncements = filteredAnnouncements.slice(
+        (currentPage - 1) * ITEMS_PER_PAGE,
+        currentPage * ITEMS_PER_PAGE
+    );
+
+    // Reset to page 1 when filters change
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [filterText, senderFilter]);
+
     return (
-        <div style={{ padding: '20px' }}>
-            {announcements.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '50px', background: 'white', borderRadius: '15px' }}>
-                    <div style={{ fontSize: '3rem', marginBottom: '15px' }}>📢</div>
-                    <h3 style={{ color: '#2d3748' }}>No announcements yet</h3>
-                    <p style={{ color: '#718096' }}>Check back later for updates from the administration.</p>
+        <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
+            <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+                <div style={{ fontSize: '3rem', marginBottom: '15px' }}>📢</div>
+                <h2 style={{ fontSize: '1.8rem', color: '#2D3748', marginBottom: '10px' }}>Latest Announcements</h2>
+                <p style={{ color: '#718096' }}>Stay updated with important news and events</p>
+            </div>
+
+            {/* Filter Controls */}
+            {announcements.length > 0 && (
+                <div style={{ display: 'flex', gap: '20px', marginBottom: '30px', flexWrap: 'wrap' }}>
+                    <div style={{ flex: 1, minWidth: '250px' }}>
+                        <input
+                            type="text"
+                            placeholder="🔍 Search announcements..."
+                            value={filterText}
+                            onChange={(e) => setFilterText(e.target.value)}
+                            style={{
+                                width: '100%',
+                                padding: '12px 16px',
+                                borderRadius: '12px',
+                                border: '1px solid #e2e8f0',
+                                outline: 'none',
+                                boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
+                                fontSize: '1rem'
+                            }}
+                        />
+                    </div>
+                    <div style={{ flex: 1, minWidth: '200px' }}>
+                        <input
+                            type="text"
+                            placeholder="👤 Filter by sender..."
+                            value={senderFilter}
+                            onChange={(e) => setSenderFilter(e.target.value)}
+                            style={{
+                                width: '100%',
+                                padding: '12px 16px',
+                                borderRadius: '12px',
+                                border: '1px solid #e2e8f0',
+                                outline: 'none',
+                                boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
+                                fontSize: '1rem'
+                            }}
+                        />
+                    </div>
+                </div>
+            )}
+
+            {filteredAnnouncements.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '60px', background: 'white', borderRadius: '20px', border: '2px dashed #edf2f7' }}>
+                    <h3 style={{ color: '#2d3748', marginBottom: '10px' }}>No Announcements Found</h3>
+                    <p style={{ color: '#718096', margin: 0 }}>
+                        {announcements.length === 0 ? "Check back later for updates." : "Try adjusting your search filters."}
+                    </p>
                 </div>
             ) : (
-                <div style={{ display: 'grid', gap: '20px' }}>
-                    {announcements.map((ann) => (
+                <div style={{ display: 'grid', gap: '25px' }}>
+                    {paginatedAnnouncements.map((ann) => (
                         <div
                             key={ann._id}
                             style={{
                                 background: 'white',
                                 padding: '30px',
-                                borderRadius: '16px',
+                                borderRadius: '20px',
                                 boxShadow: '0 4px 6px rgba(0,0,0,0.02)',
                                 border: '1px solid #edf2f7',
-                                borderLeft: '6px solid #6366f1'
+                                borderLeft: '6px solid #6366f1',
+                                transition: 'transform 0.2s',
+                                cursor: 'default'
                             }}
+                            onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
+                            onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
                         >
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '15px' }}>
-                                <h3 style={{ margin: 0, color: '#1e293b', fontSize: '1.25rem', fontWeight: '700' }}>{ann.title}</h3>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+                                <div>
+                                    <h3 style={{ margin: '0 0 8px 0', color: '#1e293b', fontSize: '1.25rem', fontWeight: '700' }}>{ann.title}</h3>
+                                    <span style={{ fontSize: '0.75rem', color: '#6366f1', fontWeight: '700', textTransform: 'uppercase', background: '#e0e7ff', padding: '4px 8px', borderRadius: '6px' }}>
+                                        To: {ann.target || 'Everyone'}
+                                    </span>
+                                </div>
                                 <div style={{ textAlign: 'right' }}>
-                                    <div style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: '600' }}>
+                                    <div style={{ fontSize: '0.9rem', color: '#64748b', fontWeight: '600' }}>
                                         {new Date(ann.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
                                     </div>
-                                    <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
+                                    <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
                                         {new Date(ann.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                     </div>
                                 </div>
                             </div>
+
                             <p style={{
-                                margin: 0,
+                                margin: '0 0 25px 0',
                                 color: '#475569',
-                                fontSize: '1.05rem',
-                                lineHeight: '1.6',
+                                fontSize: '1rem',
+                                lineHeight: '1.7',
                                 whiteSpace: 'pre-wrap'
                             }}>
                                 {ann.content}
                             </p>
+
                             <div style={{
-                                marginTop: '20px',
-                                paddingTop: '15px',
+                                paddingTop: '20px',
                                 borderTop: '1px solid #f1f5f9',
                                 display: 'flex',
                                 alignItems: 'center',
-                                gap: '10px'
+                                gap: '12px'
                             }}>
                                 <div style={{
-                                    width: '32px',
-                                    height: '32px',
+                                    width: '36px',
+                                    height: '36px',
                                     borderRadius: '50%',
-                                    background: '#6366f1',
-                                    color: 'white',
+                                    background: '#f1f5f9',
+                                    color: '#6366f1',
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
-                                    fontSize: '0.85rem',
+                                    fontSize: '0.9rem',
                                     fontWeight: 'bold'
                                 }}>
                                     {ann.author?.name?.charAt(0) || 'A'}
                                 </div>
                                 <div>
-                                    <div style={{ fontSize: '0.85rem', fontWeight: '600', color: '#1e293b' }}>
+                                    <div style={{ fontSize: '0.9rem', fontWeight: '600', color: '#1e293b' }}>
                                         {ann.author?.name || 'Administrator'}
                                     </div>
-                                    <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Authorized User</div>
+                                    <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Authorized Staff</div>
                                 </div>
                             </div>
                         </div>
                     ))}
+
+                    {/* Pagination Controls */}
+                    {filteredAnnouncements.length > ITEMS_PER_PAGE && (
+                        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '15px', marginTop: '30px' }}>
+                            <button
+                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                disabled={currentPage === 1}
+                                style={{
+                                    padding: '8px 16px',
+                                    borderRadius: '10px',
+                                    border: '1px solid #e2e8f0',
+                                    background: currentPage === 1 ? '#f7fafc' : 'white',
+                                    color: currentPage === 1 ? '#cbd5e0' : '#4a5568',
+                                    cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                                    fontWeight: 'bold',
+                                    fontSize: '0.9rem'
+                                }}
+                            >
+                                &lt; Previous
+                            </button>
+                            <span style={{ fontSize: '0.9rem', color: '#718096', fontWeight: '600' }}>
+                                Page {currentPage} of {totalPages}
+                            </span>
+                            <button
+                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                disabled={currentPage === totalPages}
+                                style={{
+                                    padding: '8px 16px',
+                                    borderRadius: '10px',
+                                    border: '1px solid #e2e8f0',
+                                    background: currentPage === totalPages ? '#f7fafc' : 'white',
+                                    color: currentPage === totalPages ? '#cbd5e0' : '#4a5568',
+                                    cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+                                    fontWeight: 'bold',
+                                    fontSize: '0.9rem'
+                                }}
+                            >
+                                Next &gt;
+                            </button>
+                        </div>
+                    )}
                 </div>
             )}
         </div>
@@ -2480,65 +2660,144 @@ const CertificatesSection = ({ courses, allProgress, user }) => {
         }
     }, [completedCourses, allProgress, user]);
 
+    const [searchTerm, setSearchTerm] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
+    const ITEMS_PER_PAGE = 12;
+
+    const filteredCertificates = completedCourses.filter(course =>
+        course.subject.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    const totalPages = Math.ceil(filteredCertificates.length / ITEMS_PER_PAGE);
+    const paginatedCertificates = filteredCertificates.slice(
+        (currentPage - 1) * ITEMS_PER_PAGE,
+        currentPage * ITEMS_PER_PAGE
+    );
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm]);
+
     return (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '25px' }}>
-            {completedCourses.length > 0 ? (
-                completedCourses.map(course => (
-                    <div
-                        key={course._id}
+        <div>
+            {/* Search Bar */}
+            <div style={{ marginBottom: '25px' }}>
+                <input
+                    type="text"
+                    placeholder="🔍 Search certificates..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    style={{
+                        width: '100%',
+                        maxWidth: '400px',
+                        padding: '12px 16px',
+                        borderRadius: '12px',
+                        border: '1px solid #e2e8f0',
+                        outline: 'none',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
+                        fontSize: '1rem'
+                    }}
+                />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '25px' }}>
+                {paginatedCertificates.length > 0 ? (
+                    paginatedCertificates.map(course => (
+                        <div
+                            key={course._id}
+                            style={{
+                                background: 'white',
+                                padding: '25px',
+                                borderRadius: '15px',
+                                boxShadow: '0 4px 6px rgba(0,0,0,0.05)',
+                                border: '1px solid #edf2f7',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                textAlign: 'center'
+                            }}
+                        >
+                            <div style={{ fontSize: '3rem', marginBottom: '15px' }}>🏆</div>
+                            <h3 style={{ margin: '0 0 10px 0', fontSize: '1.2rem', color: '#2d3748' }}>{course.subject}</h3>
+                            <p style={{ fontSize: '0.85rem', color: '#718096', marginBottom: '20px' }}>
+                                {completionDates[course._id]
+                                    ? `Completed on: ${new Date(completionDates[course._id]).toLocaleDateString('en-GB')}`
+                                    : 'Congratulations! You have successfully mastered this course.'}
+                            </p>
+                            <button
+                                onClick={() => generateCertificate(user.name, course.subject, completionDates[course._id])}
+                                style={{
+                                    background: '#6C63FF',
+                                    color: 'white',
+                                    border: 'none',
+                                    padding: '10px 20px',
+                                    borderRadius: '8px',
+                                    cursor: 'pointer',
+                                    fontWeight: 'bold',
+                                    width: '100%',
+                                    transition: 'background 0.2s'
+                                }}
+                                onMouseEnter={e => e.currentTarget.style.background = '#5A52E5'}
+                                onMouseLeave={e => e.currentTarget.style.background = '#6C63FF'}
+                            >
+                                Download Certificate (PDF)
+                            </button>
+                        </div>
+                    ))
+                ) : (
+                    <div style={{
+                        gridColumn: '1 / -1',
+                        padding: '60px',
+                        textAlign: 'center',
+                        background: '#fff',
+                        borderRadius: '15px',
+                        border: '2px dashed #edf2f7'
+                    }}>
+                        <div style={{ fontSize: '3rem', marginBottom: '20px' }}>🎓</div>
+                        <h3 style={{ color: '#2d3748', marginBottom: '10px' }}>No Certificates Found</h3>
+                        <p style={{ color: '#a0aec0', margin: 0 }}>
+                            {searchTerm ? `No certificates match "${searchTerm}".` : "Complete all modules and quizzes in a course to unlock your official certificate."}
+                        </p>
+                    </div>
+                )}
+            </div>
+
+            {/* Pagination Controls */}
+            {filteredCertificates.length > ITEMS_PER_PAGE && (
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '15px', padding: '30px 0', marginTop: '20px' }}>
+                    <button
+                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                        disabled={currentPage === 1}
                         style={{
-                            background: 'white',
-                            padding: '25px',
-                            borderRadius: '15px',
-                            boxShadow: '0 4px 6px rgba(0,0,0,0.05)',
-                            border: '1px solid #edf2f7',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            textAlign: 'center'
+                            border: '1px solid #e2e8f0',
+                            background: currentPage === 1 ? '#f7fafc' : 'white',
+                            color: currentPage === 1 ? '#cbd5e0' : '#4a5568',
+                            padding: '8px 16px',
+                            borderRadius: '10px',
+                            cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                            fontWeight: '600'
                         }}
                     >
-                        <div style={{ fontSize: '3rem', marginBottom: '15px' }}>🏆</div>
-                        <h3 style={{ margin: '0 0 10px 0', fontSize: '1.2rem', color: '#2d3748' }}>{course.subject}</h3>
-                        <p style={{ fontSize: '0.85rem', color: '#718096', marginBottom: '20px' }}>
-                            {completionDates[course._id]
-                                ? `Completed on: ${new Date(completionDates[course._id]).toLocaleDateString('en-GB')}`
-                                : 'Congratulations! You have successfully mastered this course.'}
-                        </p>
-                        <button
-                            onClick={() => generateCertificate(user.name, course.subject, completionDates[course._id])}
-                            style={{
-                                background: '#6C63FF',
-                                color: 'white',
-                                border: 'none',
-                                padding: '10px 20px',
-                                borderRadius: '8px',
-                                cursor: 'pointer',
-                                fontWeight: 'bold',
-                                width: '100%',
-                                transition: 'background 0.2s'
-                            }}
-                            onMouseEnter={e => e.currentTarget.style.background = '#5A52E5'}
-                            onMouseLeave={e => e.currentTarget.style.background = '#6C63FF'}
-                        >
-                            Download Certificate (PDF)
-                        </button>
-                    </div>
-                ))
-            ) : (
-                <div style={{
-                    gridColumn: '1 / -1',
-                    padding: '60px',
-                    textAlign: 'center',
-                    background: '#fff',
-                    borderRadius: '15px',
-                    border: '2px dashed #edf2f7'
-                }}>
-                    <div style={{ fontSize: '3rem', marginBottom: '20px' }}>🎓</div>
-                    <h3 style={{ color: '#2d3748', marginBottom: '10px' }}>No Certificates Yet</h3>
-                    <p style={{ color: '#a0aec0', margin: 0 }}>
-                        Complete all modules and quizzes in a course to unlock your official certificate.
-                    </p>
+                        &lt; Previous
+                    </button>
+                    <span style={{ fontSize: '0.9rem', color: '#718096', fontWeight: '600' }}>
+                        Page {currentPage} of {totalPages}
+                    </span>
+                    <button
+                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                        disabled={currentPage === totalPages}
+                        style={{
+                            border: '1px solid #e2e8f0',
+                            background: currentPage === totalPages ? '#f7fafc' : 'white',
+                            color: currentPage === totalPages ? '#cbd5e0' : '#4a5568',
+                            padding: '8px 16px',
+                            borderRadius: '10px',
+                            cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+                            fontWeight: '600'
+                        }}
+                    >
+                        Next &gt;
+                    </button>
                 </div>
             )}
         </div>
@@ -2546,6 +2805,10 @@ const CertificatesSection = ({ courses, allProgress, user }) => {
 };
 
 const MyCoursesSection = ({ courses, allProgress, onSelectCourse }) => {
+    const [currentPage, setCurrentPage] = useState(1);
+    const [searchTerm, setSearchTerm] = useState('');
+    const ITEMS_PER_PAGE = 12;
+
     const calculateProgress = (course) => {
         const progress = allProgress.find(p => p.course.toString() === course._id.toString());
         if (!progress) return 0;
@@ -2580,94 +2843,172 @@ const MyCoursesSection = ({ courses, allProgress, onSelectCourse }) => {
         return 0;
     });
 
+    const filteredCourses = sortedCourses.filter(course =>
+        course.subject.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    const totalPages = Math.ceil(filteredCourses.length / ITEMS_PER_PAGE);
+    const paginatedCourses = filteredCourses.slice(
+        (currentPage - 1) * ITEMS_PER_PAGE,
+        currentPage * ITEMS_PER_PAGE
+    );
+
+    // Reset page on search
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm]);
+
     return (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '25px' }}>
-            {sortedCourses.length > 0 ? (
-                sortedCourses.map(course => {
-                    const progressPercent = calculateProgress(course);
-                    return (
-                        <div
-                            key={course._id}
-                            style={{
-                                background: 'white',
-                                padding: '25px',
-                                borderRadius: '15px',
-                                boxShadow: '0 4px 6px rgba(0,0,0,0.05)',
-                                border: '1px solid #edf2f7',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                transition: 'transform 0.2s, box-shadow 0.2s',
-                                cursor: 'pointer'
-                            }}
-                            onClick={() => onSelectCourse(course)}
-                            onMouseEnter={e => {
-                                e.currentTarget.style.transform = 'translateY(-5px)';
-                                e.currentTarget.style.boxShadow = '0 10px 15px rgba(0,0,0,0.1)';
-                            }}
-                            onMouseLeave={e => {
-                                e.currentTarget.style.transform = 'translateY(0)';
-                                e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.05)';
-                            }}
-                        >
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '15px' }}>
-                                <h3 style={{ margin: 0, fontSize: '1.2rem', color: '#2d3748', fontWeight: '700' }}>{course.subject}</h3>
-                                <span style={{ padding: '4px 10px', background: progressPercent === 100 ? '#C6F6D5' : '#EBF8FF', color: progressPercent === 100 ? '#22543D' : '#2B6CB0', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 'bold' }}>
-                                    {progressPercent === 100 ? 'Completed' : 'In Progress'}
-                                </span>
-                            </div>
+        <div>
+            {/* Search Bar */}
+            <div style={{ marginBottom: '25px' }}>
+                <input
+                    type="text"
+                    placeholder="🔍 Search your courses..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    style={{
+                        width: '100%',
+                        maxWidth: '400px',
+                        padding: '12px 16px',
+                        borderRadius: '12px',
+                        border: '1px solid #e2e8f0',
+                        outline: 'none',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
+                        fontSize: '1rem'
+                    }}
+                />
+            </div>
 
-                            <p style={{ fontSize: '0.85rem', color: '#718096', marginBottom: '20px', flex: 1 }}>
-                                Teacher: {course.teacher?.name || 'Assigned Instructor'}
-                            </p>
-
-                            <div style={{ marginBottom: '10px' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                                    <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#4a5568' }}>Progress</span>
-                                    <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#6C63FF' }}>{progressPercent}%</span>
-                                </div>
-                                <div style={{ height: '8px', background: '#edf2f7', borderRadius: '4px', overflow: 'hidden' }}>
-                                    <div style={{
-                                        height: '100%',
-                                        width: `${progressPercent}%`,
-                                        background: 'linear-gradient(90deg, #6C63FF, #4834d4)',
-                                        borderRadius: '4px',
-                                        transition: 'width 0.5s ease'
-                                    }}></div>
-                                </div>
-                            </div>
-
-                            <button
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '25px' }}>
+                {paginatedCourses.length > 0 ? (
+                    paginatedCourses.map(course => {
+                        const progressPercent = calculateProgress(course);
+                        return (
+                            <div
+                                key={course._id}
                                 style={{
-                                    marginTop: '10px',
-                                    padding: '12px',
-                                    background: '#f8fafc',
-                                    color: '#6C63FF',
-                                    border: '1px solid #6C63FF',
-                                    borderRadius: '10px',
-                                    fontWeight: 'bold',
-                                    cursor: 'pointer',
-                                    fontSize: '0.9rem',
-                                    transition: 'all 0.2s'
+                                    background: 'white',
+                                    padding: '25px',
+                                    borderRadius: '15px',
+                                    boxShadow: '0 4px 6px rgba(0,0,0,0.05)',
+                                    border: '1px solid #edf2f7',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    transition: 'transform 0.2s, box-shadow 0.2s',
+                                    cursor: 'pointer'
                                 }}
+                                onClick={() => onSelectCourse(course)}
                                 onMouseEnter={e => {
-                                    e.currentTarget.style.background = '#6C63FF';
-                                    e.currentTarget.style.color = 'white';
+                                    e.currentTarget.style.transform = 'translateY(-5px)';
+                                    e.currentTarget.style.boxShadow = '0 10px 15px rgba(0,0,0,0.1)';
                                 }}
                                 onMouseLeave={e => {
-                                    e.currentTarget.style.background = '#f8fafc';
-                                    e.currentTarget.style.color = '#6C63FF';
+                                    e.currentTarget.style.transform = 'translateY(0)';
+                                    e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.05)';
                                 }}
                             >
-                                Continue Learning
-                            </button>
-                        </div>
-                    );
-                })
-            ) : (
-                <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '100px 20px' }}>
-                    <div style={{ fontSize: '4rem', marginBottom: '20px' }}>📚</div>
-                    <h2 style={{ color: '#2d3748' }}>No Courses Enrolled</h2>
-                    <p style={{ color: '#718096' }}>You haven't enrolled in any courses yet. Visit the Dashboard to find and start a course!</p>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '15px' }}>
+                                    <h3 style={{ margin: 0, fontSize: '1.2rem', color: '#2d3748', fontWeight: '700' }}>{course.subject}</h3>
+                                    <span style={{ padding: '4px 10px', background: progressPercent === 100 ? '#C6F6D5' : '#EBF8FF', color: progressPercent === 100 ? '#22543D' : '#2B6CB0', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 'bold' }}>
+                                        {progressPercent === 100 ? 'Completed' : 'In Progress'}
+                                    </span>
+                                </div>
+
+                                <p style={{ fontSize: '0.85rem', color: '#718096', marginBottom: '20px', flex: 1 }}>
+                                    Teacher: {course.teacher?.name || 'Assigned Instructor'}
+                                </p>
+
+                                <div style={{ marginBottom: '10px' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                        <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#4a5568' }}>Progress</span>
+                                        <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#6C63FF' }}>{progressPercent}%</span>
+                                    </div>
+                                    <div style={{ height: '8px', background: '#edf2f7', borderRadius: '4px', overflow: 'hidden' }}>
+                                        <div style={{
+                                            height: '100%',
+                                            width: `${progressPercent}%`,
+                                            background: 'linear-gradient(90deg, #6C63FF, #4834d4)',
+                                            borderRadius: '4px',
+                                            transition: 'width 0.5s ease'
+                                        }}></div>
+                                    </div>
+                                </div>
+
+                                <button
+                                    style={{
+                                        marginTop: '10px',
+                                        padding: '12px',
+                                        background: '#f8fafc',
+                                        color: '#6C63FF',
+                                        border: '1px solid #6C63FF',
+                                        borderRadius: '10px',
+                                        fontWeight: 'bold',
+                                        cursor: 'pointer',
+                                        fontSize: '0.9rem',
+                                        transition: 'all 0.2s'
+                                    }}
+                                    onMouseEnter={e => {
+                                        e.currentTarget.style.background = '#6C63FF';
+                                        e.currentTarget.style.color = 'white';
+                                    }}
+                                    onMouseLeave={e => {
+                                        e.currentTarget.style.background = '#f8fafc';
+                                        e.currentTarget.style.color = '#6C63FF';
+                                    }}
+                                >
+                                    Continue Learning
+                                </button>
+                            </div>
+                        );
+                    })
+                ) : (
+                    <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '100px 20px' }}>
+                        <div style={{ fontSize: '4rem', marginBottom: '20px' }}>📚</div>
+                        <h2 style={{ color: '#2d3748' }}>No Courses Found</h2>
+                        <p style={{ color: '#718096' }}>
+                            {searchTerm ? `No courses match "${searchTerm}".` : "You haven't enrolled in any courses yet."}
+                        </p>
+                    </div>
+                )}
+            </div>
+
+            {/* Pagination Controls */}
+            {filteredCourses.length > ITEMS_PER_PAGE && (
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '15px', padding: '30px 0', marginTop: '20px' }}>
+                    <button
+                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                        disabled={currentPage === 1}
+                        style={{
+                            border: '1px solid #e2e8f0',
+                            background: currentPage === 1 ? '#f7fafc' : 'white',
+                            color: currentPage === 1 ? '#cbd5e0' : '#4a5568',
+                            padding: '8px 16px',
+                            borderRadius: '10px',
+                            cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                            fontWeight: '600'
+                        }}
+                    >
+                        &lt; Previous
+                    </button>
+                    <span style={{ fontSize: '0.9rem', color: '#718096', fontWeight: '600' }}>
+                        Page {currentPage} of {totalPages}
+                    </span>
+                    <button
+                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                        disabled={currentPage === totalPages}
+                        style={{
+                            border: '1px solid #e2e8f0',
+                            background: currentPage === totalPages ? '#f7fafc' : 'white',
+                            color: currentPage === totalPages ? '#cbd5e0' : '#4a5568',
+                            padding: '8px 16px',
+                            borderRadius: '10px',
+                            cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+                            fontWeight: '600'
+                        }}
+                    >
+                        Next &gt;
+                    </button>
                 </div>
             )}
         </div>
@@ -2709,6 +3050,15 @@ const GradesSection = ({ courses, allProgress }) => {
         };
     }).filter(course => course.moduleGrades.length > 0); // Only show courses with quizzes
 
+    const [currentPage, setCurrentPage] = useState(1);
+    const ITEMS_PER_PAGE = 3;
+
+    const totalPages = Math.ceil(gradeData.length / ITEMS_PER_PAGE);
+    const paginatedGrades = gradeData.slice(
+        (currentPage - 1) * ITEMS_PER_PAGE,
+        currentPage * ITEMS_PER_PAGE
+    );
+
     return (
         <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
             <div style={{ textAlign: 'center', marginBottom: '40px' }}>
@@ -2717,9 +3067,9 @@ const GradesSection = ({ courses, allProgress }) => {
                 <p style={{ color: '#718096' }}>View your quiz scores across all courses</p>
             </div>
 
-            {gradeData.length > 0 ? (
+            {paginatedGrades.length > 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
-                    {gradeData.map((courseData, idx) => (
+                    {paginatedGrades.map((courseData, idx) => (
                         <div
                             key={idx}
                             style={{
@@ -2758,61 +3108,29 @@ const GradesSection = ({ courses, allProgress }) => {
                                                 key={mIdx}
                                                 style={{
                                                     borderBottom: '1px solid #edf2f7',
-                                                    transition: 'background 0.2s'
+                                                    background: mIdx % 2 === 0 ? 'white' : '#fcfcfc'
                                                 }}
-                                                onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
-                                                onMouseLeave={e => e.currentTarget.style.background = 'white'}
                                             >
-                                                <td style={{ padding: '15px', fontSize: '0.9rem', color: '#4a5568' }}>
-                                                    {module.chapterTitle}
+                                                <td style={{ padding: '12px', fontSize: '0.9rem', color: '#2d3748' }}>{module.chapterTitle}</td>
+                                                <td style={{ padding: '12px', fontSize: '0.9rem', color: '#4a5568' }}>{module.moduleTitle}</td>
+                                                <td style={{ padding: '12px', textAlign: 'center', fontWeight: 'bold', color: module.score !== null ? '#2d3748' : '#cbd5e0' }}>
+                                                    {module.score !== null ? `${module.score}%` : '-'}
                                                 </td>
-                                                <td style={{ padding: '15px', fontSize: '0.9rem', color: '#2d3748', fontWeight: '600' }}>
-                                                    {module.moduleTitle}
+                                                <td style={{ padding: '12px', textAlign: 'center' }}>
+                                                    <span style={{
+                                                        padding: '4px 10px',
+                                                        borderRadius: '20px',
+                                                        fontSize: '0.75rem',
+                                                        fontWeight: 'bold',
+                                                        background: module.score !== null ? (module.score >= 50 ? '#def7ec' : '#fde8e8') : '#edf2f7',
+                                                        color: module.score !== null ? (module.score >= 50 ? '#03543f' : '#9b1c1c') : '#718096'
+                                                    }}>
+                                                        {module.score !== null ? (module.score >= 50 ? 'Passed' : 'Failed') : 'Pending'}
+                                                        {module.isFastTracked && ' (Fast-Tracked)'}
+                                                    </span>
                                                 </td>
-                                                <td style={{ padding: '15px', textAlign: 'center' }}>
-                                                    {module.score !== null ? (
-                                                        <span style={{
-                                                            fontSize: '1.1rem',
-                                                            fontWeight: 'bold',
-                                                            color: module.score >= 70 ? '#38A169' : '#E53E3E'
-                                                        }}>
-                                                            {module.score}%
-                                                        </span>
-                                                    ) : (
-                                                        <span style={{ fontSize: '0.85rem', color: '#a0aec0', fontStyle: 'italic' }}>
-                                                            Not Attempted
-                                                        </span>
-                                                    )}
-                                                </td>
-                                                <td style={{ padding: '15px', textAlign: 'center' }}>
-                                                    {module.score !== null ? (
-                                                        <span style={{
-                                                            padding: '4px 12px',
-                                                            borderRadius: '20px',
-                                                            fontSize: '0.75rem',
-                                                            fontWeight: 'bold',
-                                                            background: module.score >= 70 ? '#C6F6D5' : '#FED7D7',
-                                                            color: module.score >= 70 ? '#22543D' : '#742A2A'
-                                                        }}>
-                                                            {module.score >= 70 ? (module.isFastTracked ? '⚡ Fast Track' : '✓ Passed') : '✗ Failed'}
-                                                        </span>
-                                                    ) : (
-                                                        <span style={{
-                                                            padding: '4px 12px',
-                                                            borderRadius: '20px',
-                                                            fontSize: '0.75rem',
-                                                            fontWeight: 'bold',
-                                                            background: '#EDF2FF',
-                                                            color: '#4338CA'
-                                                        }}>
-                                                            Pending
-                                                        </span>
-                                                    )}
-                                                </td>
-                                                <td style={{ padding: '15px', textAlign: 'center', fontSize: '0.85rem', color: '#718096' }}>
-                                                    {module.completedAt
-                                                        ? new Date(module.completedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-                                                        : '—'}
+                                                <td style={{ padding: '12px', textAlign: 'center', fontSize: '0.85rem', color: '#718096' }}>
+                                                    {module.completedAt ? new Date(module.completedAt).toLocaleDateString() : '-'}
                                                 </td>
                                             </tr>
                                         ))}
@@ -2848,6 +3166,47 @@ const GradesSection = ({ courses, allProgress }) => {
                             </div>
                         </div>
                     ))}
+
+                    {/* Pagination Controls for Subject List */}
+                    {gradeData.length > ITEMS_PER_PAGE && (
+                        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '15px', marginTop: '30px' }}>
+                            <button
+                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                disabled={currentPage === 1}
+                                style={{
+                                    padding: '6px 12px',
+                                    borderRadius: '8px',
+                                    border: '1px solid #e2e8f0',
+                                    background: currentPage === 1 ? '#f7fafc' : 'white',
+                                    color: currentPage === 1 ? '#cbd5e0' : '#4a5568',
+                                    cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                                    fontSize: '0.85rem',
+                                    fontWeight: 'bold'
+                                }}
+                            >
+                                &lt; Previous
+                            </button>
+                            <span style={{ fontSize: '0.9rem', color: '#718096', fontWeight: '600' }}>
+                                Page {currentPage} of {totalPages}
+                            </span>
+                            <button
+                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                disabled={currentPage === totalPages}
+                                style={{
+                                    padding: '6px 12px',
+                                    borderRadius: '8px',
+                                    border: '1px solid #e2e8f0',
+                                    background: currentPage === totalPages ? '#f7fafc' : 'white',
+                                    color: currentPage === totalPages ? '#cbd5e0' : '#4a5568',
+                                    cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+                                    fontSize: '0.85rem',
+                                    fontWeight: 'bold'
+                                }}
+                            >
+                                Next &gt;
+                            </button>
+                        </div>
+                    )}
                 </div>
             ) : (
                 <div style={{
