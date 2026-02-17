@@ -273,4 +273,62 @@ router.post('/forgot-password', forgotPassword);
 router.post('/verify-otp', verifyOTP);
 router.post('/reset-password', resetPassword);
 
+// --- ACCOUNT REQUEST ROUTE ---
+const AccountRequest = require('../models/AccountRequest');
+const aiServiceInstance = require('../services/aiService'); // IT EXPORTS AN INSTANCE
+
+router.post('/request-account', async (req, res) => {
+    try {
+        const { name, email, mobile, role, course, qualification, reason } = req.body;
+
+        console.log('[ACCOUNT REQUEST] Received:', req.body);
+
+        // 1. Basic Validation
+        if (!name || !email || !mobile || !role || !reason) {
+            return res.status(400).json({ message: 'All mandatory fields are required' });
+        }
+
+        // 2. Duplicate Check (User Table + Request Table)
+        const existingUser = await User.findOne({ email });
+        if (existingUser) return res.status(400).json({ message: 'Email already registered as a User.' });
+
+        const existingRequest = await AccountRequest.findOne({ email, status: 'Pending' });
+        if (existingRequest) return res.status(400).json({ message: 'A pending request already exists for this email.' });
+
+        // 3. AI Verification
+        console.log('[ACCOUNT REQUEST] Calling AI Verification...');
+        const aiResult = await aiServiceInstance.verifyRegistrationRequest({
+            name, email, mobile, role, reason, course, qualification
+        });
+        console.log('[ACCOUNT REQUEST] AI Result:', aiResult);
+
+        // 4. Save Request
+        const newRequest = new AccountRequest({
+            name,
+            email,
+            mobile,
+            role,
+            course: role === 'student' ? course : undefined,
+            qualification: role === 'teacher' ? qualification : undefined,
+            reason,
+            status: 'Pending',
+            aiTrustScore: aiResult.trustScore,
+            aiRiskLevel: aiResult.riskLevel,
+            aiAnalysis: aiResult.analysis
+        });
+
+        await newRequest.save();
+
+        res.status(201).json({
+            message: 'Request submitted successfully. Admin will review it shortly.',
+            requestId: newRequest._id,
+            trustScore: aiResult.trustScore // Optional: return to UI for demo purposes? Maybe not.
+        });
+
+    } catch (err) {
+        console.error('[ACCOUNT REQUEST ERROR]', err);
+        res.status(500).json({ message: err.message });
+    }
+});
+
 module.exports = router;
