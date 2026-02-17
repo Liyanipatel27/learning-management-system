@@ -522,7 +522,27 @@ class AIService {
             const responseText = completion.choices[0].message.content;
             // Clean markdown if present
             const jsonStr = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
-            return JSON.parse(jsonStr);
+            const data = JSON.parse(jsonStr);
+
+            // SANITIZATION: Ensure simple arrays of strings
+            const sanitizeArray = (arr) => {
+                if (!Array.isArray(arr)) return [];
+                return arr.map(item => {
+                    if (typeof item === 'string') return item;
+                    if (typeof item === 'object' && item !== null) {
+                        // If AI returns object { area, example }, convert to string
+                        const parts = Object.values(item);
+                        return parts.join(': ');
+                    }
+                    return String(item);
+                });
+            };
+
+            data.strengths = sanitizeArray(data.strengths);
+            data.weaknesses = sanitizeArray(data.weaknesses);
+            data.improvementSuggestions = sanitizeArray(data.improvementSuggestions);
+
+            return data;
 
         } catch (e) {
             console.error("Failed to analyze performance with OpenAI:", e.message);
@@ -548,7 +568,25 @@ class AIService {
 
         try {
             const response = await this.callLLM(prompt, "You are a performance analyst. Return ONLY valid JSON.", true);
-            return JSON.parse(response);
+            const data = JSON.parse(response);
+
+            // SANITIZATION: Ensure simple arrays of strings
+            const sanitizeArray = (arr) => {
+                if (!Array.isArray(arr)) return [];
+                return arr.map(item => {
+                    if (typeof item === 'string') return item;
+                    if (typeof item === 'object' && item !== null) {
+                        return Object.values(item).join(': ');
+                    }
+                    return String(item);
+                });
+            };
+
+            data.strengths = sanitizeArray(data.strengths);
+            data.weaknesses = sanitizeArray(data.weaknesses);
+            data.improvementSuggestions = sanitizeArray(data.improvementSuggestions);
+
+            return data;
         } catch (e) {
             console.error("Failed to parse performance analysis JSON", e);
             // Return fallback static analysis if both APIs fail
