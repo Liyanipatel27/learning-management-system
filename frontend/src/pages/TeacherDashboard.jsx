@@ -1725,36 +1725,56 @@ const StudentsSection = () => {
     useEffect(() => {
         const fetchStudentData = async () => {
             try {
-                const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/courses/grades/teacher/${user.id || user._id}`);
+                const [allStudentsRes, gradesRes] = await Promise.all([
+                    axios.get(`${import.meta.env.VITE_API_URL}/api/auth/students`),
+                    axios.get(`${import.meta.env.VITE_API_URL}/api/courses/grades/teacher/${user.id || user._id}`)
+                ]);
 
-                // Aggregate students across courses
+                // Create a map of all students first
                 const studentMap = new Map();
-                res.data.forEach(course => {
-                    course.students.forEach(s => {
-                        if (!studentMap.has(s.studentId)) {
-                            studentMap.set(s.studentId, {
-                                id: s.studentId,
-                                name: s.studentName,
-                                email: s.studentEmail,
-                                enrollment: s.studentEnrollment || 'N/A',
-                                courses: [],
-                                quizzesTaken: 0,
-                                avgScore: 0
-                            });
-                        }
-                        const existing = studentMap.get(s.studentId);
-                        existing.courses.push(course.courseName);
 
-                        const scores = s.quizzes.map(q => q.score).filter(sc => sc !== null);
-                        if (scores.length > 0) {
-                            const sum = scores.reduce((a, b) => a + b, 0);
-                            const totalQuizzes = existing.quizzesTaken + scores.length;
-                            const currentTotalScore = (existing.avgScore * existing.quizzesTaken) + sum;
-                            existing.avgScore = Math.round(currentTotalScore / totalQuizzes);
-                            existing.quizzesTaken = totalQuizzes;
+                // Initialize with all students (including those with 0 progress)
+                allStudentsRes.data.forEach(s => {
+                    studentMap.set(s._id, {
+                        id: s._id,
+                        name: s.name,
+                        email: s.email,
+                        enrollment: s.enrollment || 'N/A',
+                        courses: [],
+                        quizzesTaken: 0,
+                        avgScore: 0
+                    });
+                });
+
+                // Merge progress data
+                gradesRes.data.forEach(course => {
+                    course.students.forEach(s => {
+                        // If student exists in our map (which they should), update their progress
+                        // If not (maybe deleted?), we might skip or add them logic dependent.
+                        // Ideally they are in the allStudents list.
+                        if (studentMap.has(s.studentId)) {
+                            const existing = studentMap.get(s.studentId);
+                            existing.courses.push(course.courseName);
+
+                            const scores = s.quizzes.map(q => q.score).filter(sc => sc !== null);
+                            if (scores.length > 0) {
+                                const sum = scores.reduce((a, b) => a + b, 0);
+                                const totalQuizzes = existing.quizzesTaken + scores.length;
+                                // Recalculate weighted average if needed, simplify for now:
+                                // We are aggregating across courses. 
+                                // Current logic in original code was: 
+                                // currentTotalScore = (existing.avgScore * existing.quizzesTaken) + sum;
+                                // existing.avgScore = Math.round(currentTotalScore / totalQuizzes);
+
+                                const previousTotalScore = existing.avgScore * existing.quizzesTaken;
+                                const newTotalScore = previousTotalScore + sum;
+                                existing.avgScore = Math.round(newTotalScore / totalQuizzes);
+                                existing.quizzesTaken = totalQuizzes;
+                            }
                         }
                     });
                 });
+
                 setStudents(Array.from(studentMap.values()));
             } catch (err) {
                 console.error("Error fetching students:", err);
@@ -1999,9 +2019,17 @@ const StudentAnalyticsSection = ({ teacherId }) => {
         fetchData();
     }, [teacherId]);
 
+    // Filter State
+    const [filterName, setFilterName] = useState('');
+
+    // Filter Logic
+    const filteredStudents = studentList.filter(student =>
+        student.name.toLowerCase().includes(filterName.toLowerCase())
+    );
+
     // Pagination Logic
-    const totalPages = Math.ceil(studentList.length / ITEMS_PER_PAGE);
-    const paginatedStudents = studentList.slice(
+    const totalPages = Math.ceil(filteredStudents.length / ITEMS_PER_PAGE);
+    const paginatedStudents = filteredStudents.slice(
         (currentPage - 1) * ITEMS_PER_PAGE,
         currentPage * ITEMS_PER_PAGE
     );
@@ -2135,7 +2163,16 @@ const StudentAnalyticsSection = ({ teacherId }) => {
 
             {/* Student List Section */}
             <div style={{ background: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 4px 6px rgba(0,0,0,0.02)' }}>
-                <h3 style={{ color: '#2d3748', marginBottom: '20px' }}>Student Performance Directory</h3>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                    <h3 style={{ color: '#2d3748', margin: 0 }}>Student Performance Directory</h3>
+                    <input
+                        type="text"
+                        placeholder="Search by Name..."
+                        value={filterName}
+                        onChange={(e) => { setFilterName(e.target.value); setCurrentPage(1); }}
+                        style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e0', outline: 'none' }}
+                    />
+                </div>
                 <p style={{ color: '#718096', marginBottom: '20px' }}>Click on a student to view their individual performance graph.</p>
                 <div style={{ overflowX: 'auto' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
