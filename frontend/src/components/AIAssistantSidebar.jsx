@@ -13,6 +13,30 @@ const AIAssistantSidebar = ({ content, activeFeature, aiSummary, setAiSummary, i
     const [doubtInput, setDoubtInput] = useState('');
     const [isSendingDoubt, setIsSendingDoubt] = useState(false);
 
+    // Video Summary State
+    const [videoFile, setVideoFile] = useState(null);
+    const [videoSummaryResult, setVideoSummaryResult] = useState(null);
+    const [isVideoProcessing, setIsVideoProcessing] = useState(false);
+
+    const handleVideoUpload = async () => {
+        if (!videoFile) return;
+        setIsVideoProcessing(true);
+        const formData = new FormData();
+        formData.append('video', videoFile);
+
+        try {
+            const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/ai/video-summary`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            setVideoSummaryResult(res.data);
+        } catch (err) {
+            console.error(err);
+            alert('Failed to generate video summary. Please try again.');
+        } finally {
+            setIsVideoProcessing(false);
+        }
+    };
+
     useEffect(() => {
         if (activeFeature === 'summary' && !aiSummary && !isGeneratingSummary) {
             generateSummary();
@@ -104,10 +128,10 @@ const AIAssistantSidebar = ({ content, activeFeature, aiSummary, setAiSummary, i
         <div style={{ padding: '20px', height: '100%', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px', borderBottom: '1px solid #edf2f7', paddingBottom: '15px' }}>
                 <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: '#e0e7ff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem' }}>
-                    {activeFeature === 'summary' ? '📝' : activeFeature === 'quiz' ? '✅' : '🤔'}
+                    {activeFeature === 'summary' ? '📝' : activeFeature === 'quiz' ? '✅' : activeFeature === 'videoSummary' ? '🎥' : '🤔'}
                 </div>
                 <h3 style={{ margin: 0, color: '#2d3748' }}>
-                    {activeFeature === 'summary' ? 'AI Summary' : activeFeature === 'quiz' ? 'AI Quiz' : 'AI Doubt Solver'}
+                    {activeFeature === 'summary' ? 'AI Summary' : activeFeature === 'quiz' ? 'AI Quiz' : activeFeature === 'videoSummary' ? 'Video Summary' : 'AI Doubt Solver'}
                 </h3>
             </div>
 
@@ -354,6 +378,81 @@ const AIAssistantSidebar = ({ content, activeFeature, aiSummary, setAiSummary, i
                             ➤
                         </button>
                     </div>
+                </div>
+            )}
+
+            {/* VIDEO SUMMARY TAB */}
+            {activeFeature === 'videoSummary' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                    {!videoSummaryResult && !isVideoProcessing && (
+                        <div style={{ padding: '20px', background: '#fefcbf', borderRadius: '12px', border: '1px solid #fbd38d', textAlign: 'center' }}>
+                            <p style={{ margin: '0 0 15px 0', color: '#744210', fontWeight: 'bold' }}>Upload an educational video to get a summary.</p>
+                            <input
+                                type="file"
+                                accept="video/*"
+                                onChange={(e) => setVideoFile(e.target.files[0])}
+                                style={{ marginBottom: '15px', width: '100%' }}
+                            />
+                            <button
+                                onClick={handleVideoUpload}
+                                disabled={!videoFile}
+                                style={{
+                                    padding: '10px 20px',
+                                    background: !videoFile ? '#cbd5e0' : '#d69e2e',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '8px',
+                                    fontWeight: 'bold',
+                                    cursor: !videoFile ? 'not-allowed' : 'pointer',
+                                    width: '100%'
+                                }}
+                            >
+                                Generate Summary 🎥
+                            </button>
+                        </div>
+                    )}
+
+                    {isVideoProcessing && (
+                        <div style={{ textAlign: 'center', padding: '40px 0' }}>
+                            <div className="loading-spinner" style={{ width: '40px', height: '40px', border: '4px solid #fbd38d', borderTop: '4px solid #d69e2e', borderRadius: '50%', animation: 'spin 1.5s linear infinite', margin: '0 auto' }}></div>
+                            <p style={{ marginTop: '20px', color: '#744210', fontWeight: 'bold' }}>Analyzing video content...</p>
+                            <p style={{ fontSize: '0.8rem', color: '#975a16' }}>This may take a minute depending on video size.</p>
+                        </div>
+                    )}
+
+                    {videoSummaryResult && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                            <div style={{ background: '#fffaf0', padding: '15px', borderRadius: '12px', border: '1px solid #feebc8' }}>
+                                <h4 style={{ margin: '0 0 10px 0', color: '#744210', borderBottom: '1px solid #fbd38d', paddingBottom: '5px' }}>📌 Summary</h4>
+                                <p style={{ fontSize: '0.9rem', lineHeight: '1.6', color: '#2d3748' }}>{videoSummaryResult.summary}</p>
+                            </div>
+
+                            <div style={{ background: '#fffaf0', padding: '15px', borderRadius: '12px', border: '1px solid #feebc8' }}>
+                                <h4 style={{ margin: '0 0 10px 0', color: '#744210', borderBottom: '1px solid #fbd38d', paddingBottom: '5px' }}>🔑 Key Points</h4>
+                                <ul style={{ paddingLeft: '20px', margin: 0 }}>
+                                    {videoSummaryResult.keyPoints?.map((kp, idx) => (
+                                        <li key={idx} style={{ marginBottom: '8px', fontSize: '0.9rem', color: '#2d3748' }}>{kp}</li>
+                                    ))}
+                                </ul>
+                            </div>
+
+                            <div style={{ background: '#fffaf0', padding: '15px', borderRadius: '12px', border: '1px solid #feebc8' }}>
+                                <h4 style={{ margin: '0 0 10px 0', color: '#744210', borderBottom: '1px solid #fbd38d', paddingBottom: '5px' }}>🧠 Key Concepts</h4>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                    {videoSummaryResult.concepts?.map((c, idx) => (
+                                        <span key={idx} style={{ padding: '4px 10px', background: '#feebc8', color: '#744210', borderRadius: '15px', fontSize: '0.8rem', fontWeight: 'bold' }}>{c}</span>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <button
+                                onClick={() => { setVideoSummaryResult(null); setVideoFile(null); }}
+                                style={{ padding: '10px', background: '#edf2f7', color: '#4a5568', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
+                            >
+                                Analyze Another Video
+                            </button>
+                        </div>
+                    )}
                 </div>
             )}
 

@@ -1330,6 +1330,25 @@ const CourseViewer = ({ course, user, setCourses, setSelectedCourse, isCinemaMod
                                             ✨ AI Summary
                                         </button>
                                         <button
+                                            onClick={() => setActiveAIFeature(activeAIFeature === 'videoSummary' ? null : 'videoSummary')}
+                                            style={{
+                                                padding: '8px 12px',
+                                                background: activeAIFeature === 'videoSummary' ? '#D69E2E' : '#ECC94B',
+                                                color: activeAIFeature === 'videoSummary' ? 'white' : 'black',
+                                                border: 'none',
+                                                borderRadius: '8px',
+                                                fontSize: '0.8rem',
+                                                fontWeight: 'bold',
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '6px',
+                                                boxShadow: '0 2px 4px rgba(214, 158, 46, 0.3)'
+                                            }}
+                                        >
+                                            🎥 Video Summary
+                                        </button>
+                                        <button
                                             onClick={() => setActiveAIFeature(activeAIFeature === 'quiz' ? null : 'quiz')}
                                             style={{
                                                 padding: '8px 12px',

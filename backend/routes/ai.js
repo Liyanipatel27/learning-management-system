@@ -2,9 +2,14 @@ const express = require('express');
 const router = express.Router();
 const aiController = require('../controllers/aiController');
 const { verifyToken } = require('../middleware/authMiddleware');
+const upload = require('../middleware/uploadMiddleware');
 
 // 1. Subject & Video Summary
+// 1. Subject & Video Summary
 router.post('/summary', aiController.getSummary);
+
+// 1b. Video To Summary
+router.post('/video-summary', upload.single('video'), aiController.generateVideoSummary);
 
 // 2. Study Roadmap
 router.post('/roadmap', aiController.createRoadmap);
