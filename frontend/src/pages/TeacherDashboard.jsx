@@ -1430,6 +1430,18 @@ ${aiFeedback.detailedFeedback || ''}
         }
     };
 
+    const handleRevertRewrite = async (submissionId) => {
+        if (!confirm("Are you sure you want to revert the re-write request?")) return;
+        try {
+            await axios.put(`${import.meta.env.VITE_API_URL}/api/assignments/revert-rewrite/${submissionId}`);
+            alert("Re-write reverted successfully.");
+            fetchSubmissions();
+        } catch (err) {
+            console.error(err);
+            alert("Failed to revert re-write: " + (err.response?.data?.message || err.message));
+        }
+    };
+
     return (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
             <div style={{ background: 'white', padding: '32px', borderRadius: '24px', width: '100%', maxWidth: '900px', maxHeight: '90vh', overflowY: 'auto' }}>
@@ -1527,13 +1539,22 @@ ${aiFeedback.detailedFeedback || ''}
                                         >
                                             {sub.status === 'Graded' ? 'Edit Grade' : 'Grade'}
                                         </button>
-                                        {sub.plagiarismResult && sub.plagiarismResult.similarityPercentage > 25 && sub.status !== 'Re-write' && (
+                                        {sub.plagiarismResult && ['High Risk', 'Low Risk'].includes(sub.plagiarismResult.riskLevel) && sub.status !== 'Re-write' && (
                                             <button
                                                 onClick={() => handleRequestRewrite(sub._id)}
                                                 style={{ padding: '6px 12px', background: '#f59e0b', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem' }}
                                                 title="Request Re-write"
                                             >
                                                 Re-write
+                                            </button>
+                                        )}
+                                        {sub.status === 'Re-write' && (
+                                            <button
+                                                onClick={() => handleRevertRewrite(sub._id)}
+                                                style={{ padding: '6px 12px', background: '#64748b', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem' }}
+                                                title="Revert Re-write"
+                                            >
+                                                ↩ Revert
                                             </button>
                                         )}
                                     </td>
