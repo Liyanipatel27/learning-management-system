@@ -1,5 +1,6 @@
 const aiService = require('../services/aiService');
 const Course = require('../models/Course');
+const Submission = require('../models/Submission');
 const Progress = require('../models/Progress');
 const { extractTextFromUrl } = require('../utils/contentProcessor');
 const { GoogleGenerativeAI } = require("@google/generative-ai");
@@ -288,12 +289,29 @@ exports.createQuiz = async (req, res) => {
 // ============ TEACHER DASHBOARD CONTROLLERS ============
 
 // 7. Assignment Feedback
+// 7. Assignment Feedback
 exports.getAssignmentFeedback = async (req, res) => {
     try {
-        const { question, answer, plagiarismScore } = req.body;
+        const { question, answer, plagiarismScore, submissionId } = req.body;
         if (!question || !answer) return res.status(400).json({ message: "Question and Answer are required." });
 
         const feedback = await aiService.generateAssignmentFeedback(question, answer, plagiarismScore || 0);
+
+        // [MODIFIED] Save feedback if submissionId is provided
+        if (submissionId) {
+            try {
+                await Submission.findByIdAndUpdate(submissionId, {
+                    aiFeedback: {
+                        ...feedback,
+                        generatedAt: new Date()
+                    }
+                });
+            } catch (dbErr) {
+                console.error("Failed to save AI feedback to database:", dbErr);
+                // Continue to return feedback even if saving fails
+            }
+        }
+
         res.json(feedback);
     } catch (err) {
         res.status(500).json({ message: err.message });

@@ -57,6 +57,13 @@ const submissionSchema = new mongoose.Schema({
         }],
         isAiVerified: { type: Boolean, default: false },
         checkedAt: Date
+    },
+    aiFeedback: {
+        score: Number,
+        strengths: [String],
+        areasForImprovement: [String],
+        detailedFeedback: String,
+        generatedAt: Date
     }
 }, { timestamps: true });
 

@@ -1301,6 +1301,14 @@ const SubmissionsModal = ({ assignment, onClose }) => {
         fetchSubmissions();
     }, []);
 
+    useEffect(() => {
+        if (gradingSubmission?.aiFeedback) {
+            setAiFeedback(gradingSubmission.aiFeedback);
+        } else {
+            setAiFeedback(null);
+        }
+    }, [gradingSubmission]);
+
     const handleRunCode = async (code, language) => {
         setExecutingCode(true);
         setExecutionResult(null);
@@ -1356,9 +1364,11 @@ const SubmissionsModal = ({ assignment, onClose }) => {
             const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/ai/teacher/feedback`, {
                 question: assignment.description,
                 answer: answer,
-                plagiarismScore: plagiarismScore
+                plagiarismScore: plagiarismScore,
+                submissionId: gradingSubmission._id
             });
             setAiFeedback(res.data);
+            setGradingSubmission(prev => ({ ...prev, aiFeedback: res.data }));
         } catch (err) {
             console.error(err);
             alert("Failed to generate AI feedback: " + (err.response?.data?.message || err.message));
