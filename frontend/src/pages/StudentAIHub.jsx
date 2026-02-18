@@ -66,7 +66,7 @@ const StudentAIHub = ({
                 setWeekendHours={setWeekendHours}
             />
         },
-        { id: 'performance', label: '📊 Performance', component: <PerformanceAnalyzer studentId={student._id} courses={courses} allProgress={allProgress} /> },
+        { id: 'performance', label: '📊 Performance', component: <PerformanceAnalyzer studentId={student._id || student.id} courses={courses} allProgress={allProgress} /> },
         { id: 'aitutor', label: '🤖 AI Tutor', component: <AIChatbot studentName={student.name} embedded={true} /> }
     ];
 

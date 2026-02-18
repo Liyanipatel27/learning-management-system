@@ -282,7 +282,7 @@ const RoadmapGenerator = ({
                     {/* Time Inputs Row - Always Visible */}
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
                         <div>
-                            <label style={{ fontSize: '0.85rem', fontWeight: '700', display: 'block', marginBottom: '8px', color: '#4a5568' }}>📅 Weekday Study (Hours)</label>
+                            <label style={{ fontSize: '0.85rem', fontWeight: '700', display: 'block', marginBottom: '8px', color: '#4a5568' }}>📅 Weekday Study (Days)</label>
                             <input
                                 type="number"
                                 min="1"

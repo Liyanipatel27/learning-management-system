@@ -6,6 +6,8 @@ const { extractTextFromUrl } = require('../utils/contentProcessor');
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { GoogleAIFileManager } = require("@google/generative-ai/server");
 const fs = require('fs');
+const crypto = require('crypto');
+const User = require('../models/User');
 
 // Initialize Gemini for Quiz Generation (using specific key if available, or fallback)
 // Initialize Gemini
@@ -166,11 +168,63 @@ exports.getGrades = async (req, res) => {
 exports.analyzePerformanceNew = async (req, res) => {
     try {
         const { studentId, performanceData } = req.body;
+        console.log(`[Performance Analysis] Request received for studentId: ${studentId}`);
 
-        // Analyze the performance data with AI
-        const analysis = await aiService.analyzePerformance(performanceData);
+        if (!studentId) {
+            console.warn('[Performance Analysis] Missing studentId in request body');
+            return res.status(400).json({ message: "Student ID is required for performance analysis." });
+        }
+
+        // 1. Generate Hash of current performance data
+        const dataString = JSON.stringify(performanceData);
+        const currentHash = crypto.createHash('sha256').update(dataString).digest('hex');
+
+        let analysis = null;
+
+        // 2. Check User's Cached Analysis
+        const user = await User.findById(studentId);
+        if (user && user.performanceAnalysis && user.performanceAnalysis.hash === currentHash) {
+            console.log(`[AI Cache] Returning cached analysis for student ${studentId}`);
+            analysis = user.performanceAnalysis.data;
+        } else {
+            console.log(`[AI Cache] Miss or Stale for student ${studentId}. Generating new analysis...`);
+
+            // 3. Generate New Analysis (Cache Miss)
+            analysis = await aiService.analyzePerformance(performanceData);
+
+            // 4. Update Cache
+            if (user) {
+                user.performanceAnalysis = {
+                    hash: currentHash,
+                    data: analysis,
+                    lastAnalyzed: new Date()
+                };
+                await user.save();
+                console.log(`[AI Cache] Saved new analysis for student ${studentId}`);
+            }
+        }
+
+        // SANITIZATION (Safety Net for Frontend)
+        const sanitizeArray = (arr) => {
+            if (!Array.isArray(arr)) return [];
+            return arr.map(item => {
+                if (typeof item === 'string') return item;
+                if (typeof item === 'object' && item !== null) {
+                    return Object.values(item).join(': ');
+                }
+                return String(item);
+            });
+        };
+
+        if (analysis) {
+            analysis.strengths = sanitizeArray(analysis.strengths);
+            analysis.weaknesses = sanitizeArray(analysis.weaknesses);
+            analysis.improvementSuggestions = sanitizeArray(analysis.improvementSuggestions);
+        }
+
         res.json(analysis);
     } catch (err) {
+        console.error("Performance Analysis Error:", err);
         res.status(500).json({ message: err.message });
     }
 };

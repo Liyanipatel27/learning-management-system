@@ -20,6 +20,8 @@ function AdminDashboard() {
     const [selectedCourseContent, setSelectedCourseContent] = useState(null);
     const [announcements, setAnnouncements] = useState([]);
 
+    const [accountRequests, setAccountRequests] = useState([]);
+
     // Modal States
     const [showUserModal, setShowUserModal] = useState(false);
     const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
@@ -40,6 +42,7 @@ function AdminDashboard() {
         if (activeTab === 'overview') {
             fetchStats();
             fetchAnnouncements();
+            fetchAccountRequests(); // Fetch requests to check for pending ones
         }
         if (activeTab === 'students' || activeTab === 'teachers' || activeTab === 'admins') fetchUsers();
         if (activeTab === 'courses') fetchCourses();
@@ -47,6 +50,7 @@ function AdminDashboard() {
             fetchStudentReports();
             fetchTeacherReports();
         }
+        if (activeTab === 'requests') fetchAccountRequests();
     }, [activeTab, navigate, token]);
 
     const getAuthHeader = () => ({ headers: { Authorization: `Bearer ${token}` } });
@@ -79,6 +83,33 @@ function AdminDashboard() {
     const fetchStudentReports = async () => axios.get(`${API_URL}/api/admin/reports/student-progress`, getAuthHeader()).then(res => setStudentReports(res.data));
     const fetchTeacherReports = async () => axios.get(`${API_URL}/api/admin/reports/teachers`, getAuthHeader()).then(res => setTeacherReports(res.data));
     const fetchAnnouncements = async () => axios.get(`${API_URL}/api/announcements`, getAuthHeader()).then(res => setAnnouncements(res.data));
+    const fetchAccountRequests = async () => axios.get(`${API_URL}/api/admin/account-requests`, getAuthHeader())
+        .then(res => setAccountRequests(res.data))
+        .catch(err => console.error("Failed to fetch requests", err));
+
+    // --- Request Handlers ---
+    const handleApproveRequest = async (id) => {
+        if (!window.confirm("Approve this request? This will generate credentials and email them.")) return;
+        try {
+            await axios.post(`${API_URL}/api/admin/approve-request/${id}`, {}, getAuthHeader());
+            alert("Request Approved & User Created!");
+            fetchAccountRequests();
+        } catch (err) {
+            alert(err.response?.data?.message || "Approval Failed");
+        }
+    };
+
+    const handleRejectRequest = async (id) => {
+        if (!window.confirm("Reject this request?")) return;
+        try {
+            await axios.post(`${API_URL}/api/admin/reject-request/${id}`, {}, getAuthHeader());
+            alert("Request Rejected");
+            fetchAccountRequests();
+        } catch (err) {
+            alert(err.response?.data?.message || "Rejection Failed");
+        }
+    };
+
 
     const handleAddUser = async (e) => {
         e.preventDefault();
@@ -240,6 +271,7 @@ function AdminDashboard() {
                     <NavItem label="Manage Teachers" active={activeTab === 'teachers'} onClick={() => { setActiveTab('teachers'); fetchUsers(); }} />
                     <NavItem label="Manage Admins" active={activeTab === 'admins'} onClick={() => { setActiveTab('admins'); fetchUsers(); }} />
                     <NavItem label="Course Management" active={activeTab === 'courses'} onClick={() => setActiveTab('courses')} />
+                    <NavItem label="Account Requests" active={activeTab === 'requests'} onClick={() => { setActiveTab('requests'); fetchAccountRequests(); }} />
                     <NavItem label="Analytics & Reports" active={activeTab === 'reports'} onClick={() => setActiveTab('reports')} />
                 </nav>
                 <div
@@ -275,6 +307,42 @@ function AdminDashboard() {
                 {/* CONTENT AREA */}
                 {activeTab === 'overview' && (
                     <>
+                        {/* PENDING REQUESTS NOTIFICATION */}
+                        {accountRequests.length > 0 && (
+                            <div style={{
+                                background: '#fffaf0',
+                                border: '1px solid #feebc8',
+                                padding: '15px',
+                                borderRadius: '10px',
+                                marginBottom: '20px',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                color: '#744210'
+                            }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <span style={{ fontSize: '1.5rem' }}>🔔</span>
+                                    <div>
+                                        <strong>Action Required:</strong> You have {accountRequests.length} pending account request{accountRequests.length > 1 ? 's' : ''}.
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => setActiveTab('requests')}
+                                    style={{
+                                        padding: '8px 16px',
+                                        background: '#ed8936',
+                                        color: 'white',
+                                        border: 'none',
+                                        borderRadius: '5px',
+                                        cursor: 'pointer',
+                                        fontWeight: 'bold'
+                                    }}
+                                >
+                                    Review Now
+                                </button>
+                            </div>
+                        )}
+
                         <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginBottom: '40px' }}>
                             <StatCard title="Total Students" value={stats.totalStudents} color="#4299e1" />
                             <StatCard title="Total Teachers" value={stats.totalTeachers} color="#ed8936" />
@@ -344,6 +412,64 @@ function AdminDashboard() {
                             teacherReports={teacherReports}
                             handleExport={handleExport}
                         />
+                    </div>
+                )}
+
+                {activeTab === 'requests' && (
+                    <div style={{ background: 'white', padding: '20px', borderRadius: '15px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
+                        <h3 style={{ marginBottom: '20px', color: '#2d3748' }}>Pending Account Requests</h3>
+                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                            <thead>
+                                <tr style={{ borderBottom: '2px solid #edf2f7', textAlign: 'left' }}>
+                                    <th style={{ padding: '15px' }}>Date</th>
+                                    <th style={{ padding: '15px' }}>Name</th>
+                                    <th style={{ padding: '15px' }}>Role</th>
+                                    <th style={{ padding: '15px' }}>Details</th>
+                                    <th style={{ padding: '15px' }}>AI Trust Score</th>
+                                    <th style={{ padding: '15px' }}>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {accountRequests.map(req => (
+                                    <tr key={req._id} style={{ borderBottom: '1px solid #edf2f7' }}>
+                                        <td style={{ padding: '15px', fontSize: '0.85rem' }}>{new Date(req.createdAt).toLocaleDateString()}</td>
+                                        <td style={{ padding: '15px' }}>
+                                            <div style={{ fontWeight: 'bold' }}>{req.name}</div>
+                                            <div style={{ fontSize: '0.8rem', color: '#718096' }}>{req.email}</div>
+                                        </td>
+                                        <td style={{ padding: '15px' }}>
+                                            <span style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', background: req.role === 'teacher' ? '#feebc8' : '#c6f6d5', color: '#2d3748' }}>
+                                                {req.role.toUpperCase()}
+                                            </span>
+                                        </td>
+                                        <td style={{ padding: '15px', maxWidth: '300px' }}>
+                                            <div style={{ fontSize: '0.9rem' }}><strong>Reason:</strong> {req.reason}</div>
+                                            {req.course && <div style={{ fontSize: '0.8rem', color: '#718096' }}>Course: {req.course}</div>}
+                                            {req.qualification && <div style={{ fontSize: '0.8rem', color: '#718096' }}>Qual: {req.qualification}</div>}
+                                        </td>
+                                        <td style={{ padding: '15px' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: req.aiTrustScore > 75 ? '#c6f6d5' : req.aiTrustScore > 50 ? '#feebc8' : '#fed7d7', display: 'flex', justifyContent: 'center', alignItems: 'center', fontWeight: 'bold', color: req.aiTrustScore > 75 ? '#22543d' : req.aiTrustScore > 50 ? '#744210' : '#822727' }}>
+                                                    {req.aiTrustScore}
+                                                </div>
+                                                <div style={{ fontSize: '0.8rem' }}>
+                                                    <div style={{ fontWeight: 'bold' }}>{req.aiRiskLevel} Risk</div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td style={{ padding: '15px' }}>
+                                            <button onClick={() => handleApproveRequest(req._id)} style={{ marginRight: '10px', padding: '6px 12px', cursor: 'pointer', backgroundColor: '#48bb78', color: 'white', border: 'none', borderRadius: '4px', fontSize: '0.9rem' }}>Approve</button>
+                                            <button onClick={() => handleRejectRequest(req._id)} style={{ padding: '6px 12px', cursor: 'pointer', backgroundColor: '#f56565', color: 'white', border: 'none', borderRadius: '4px', fontSize: '0.9rem' }}>Reject</button>
+                                        </td>
+                                    </tr>
+                                ))}
+                                {accountRequests.length === 0 && (
+                                    <tr>
+                                        <td colSpan="6" style={{ padding: '30px', textAlign: 'center', color: '#a0aec0' }}>No pending requests.</td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
                     </div>
                 )}
             </main>

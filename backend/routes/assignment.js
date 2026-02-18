@@ -269,19 +269,51 @@ router.post('/submit', async (req, res) => {
 router.put('/request-rewrite/:submissionId', async (req, res) => {
     try {
         const { feedback } = req.body;
+
+        // Find current submission to get its status
+        const currentSub = await Submission.findById(req.params.submissionId);
+        if (!currentSub) return res.status(404).json({ message: 'Submission not found' });
+
         const submission = await Submission.findByIdAndUpdate(
             req.params.submissionId,
             {
                 $set: {
                     status: 'Re-write',
-                    feedback: feedback || 'Please re-write this assignment due to high plagiarism detected.'
+                    feedback: feedback || 'Please re-write this assignment due to high plagiarism detected.',
+                    archivedStatus: currentSub.status // Save current status
                 },
-                $unset: { plagiarismResult: 1 }
+                $rename: { plagiarismResult: 'archivedPlagiarismResult' }
             },
             { new: true }
         );
         res.json(submission);
     } catch (err) {
+        console.error(err);
+        res.status(400).json({ message: err.message });
+    }
+});
+
+// Revert Re-write request (Teacher)
+router.put('/revert-rewrite/:submissionId', async (req, res) => {
+    try {
+        const currentSub = await Submission.findById(req.params.submissionId);
+        if (!currentSub) return res.status(404).json({ message: 'Submission not found' });
+
+        // Restore status from archivedStatus, or default to 'Pending' if not found
+        const restoredStatus = currentSub.archivedStatus || 'Pending';
+
+        const submission = await Submission.findByIdAndUpdate(
+            req.params.submissionId,
+            {
+                $set: { status: restoredStatus },
+                $unset: { feedback: 1, archivedStatus: 1 },
+                $rename: { archivedPlagiarismResult: 'plagiarismResult' }
+            },
+            { new: true }
+        );
+        res.json(submission);
+    } catch (err) {
+        console.error(err);
         res.status(400).json({ message: err.message });
     }
 });

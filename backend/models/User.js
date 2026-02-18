@@ -37,6 +37,11 @@ const userSchema = new mongoose.Schema({
   },
   resetOTPExpire: {
     type: Date
+  },
+  performanceAnalysis: {
+    hash: String,
+    data: Object,
+    lastAnalyzed: Date
   }
 }, { timestamps: true });
 

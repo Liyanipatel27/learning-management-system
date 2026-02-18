@@ -97,6 +97,32 @@ function Login() {
                         </button>
                     </form>
 
+                    <div style={{ marginTop: '1.5rem', textAlign: 'center', borderTop: '1px solid #e5e7eb', paddingTop: '1.5rem' }}>
+                        <p style={{ color: '#6b7280', fontSize: '0.875rem', marginBottom: '1rem' }}>
+                            Need an account?
+                        </p>
+                        <button
+                            type="button"
+                            onClick={() => navigate('/request-account')}
+                            className="btn-secondary"
+                            style={{
+                                width: '100%',
+                                padding: '0.75rem',
+                                background: '#f3f4f6',
+                                color: '#374151',
+                                border: '1px solid #d1d5db',
+                                borderRadius: '0.375rem',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s',
+                                fontWeight: '500'
+                            }}
+                            onMouseOver={(e) => e.currentTarget.style.background = '#e5e7eb'}
+                            onMouseOut={(e) => e.currentTarget.style.background = '#f3f4f6'}
+                        >
+                            Request Access
+                        </button>
+                    </div>
+
                 </div>
             </div>
         </div>
