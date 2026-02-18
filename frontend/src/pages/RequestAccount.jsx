@@ -12,7 +12,7 @@ function RequestAccount() {
         role: 'student',
         course: '',
         qualification: '',
-        reason: ''
+        qualification: ''
     });
     const [loading, setLoading] = useState(false);
     const [submitted, setSubmitted] = useState(false);
@@ -172,19 +172,7 @@ function RequestAccount() {
                             </div>
                         )}
 
-                        <div className="form-group">
-                            <label className="form-label">Reason for Joining</label>
-                            <textarea
-                                name="reason"
-                                className="form-input"
-                                value={formData.reason}
-                                onChange={handleChange}
-                                rows="3"
-                                placeholder="Why do you want to join? (This helps us verify your request)"
-                                required
-                                style={{ resize: 'vertical' }}
-                            />
-                        </div>
+
 
                         <button
                             type="submit"

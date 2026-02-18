@@ -279,12 +279,12 @@ const aiServiceInstance = require('../services/aiService'); // IT EXPORTS AN INS
 
 router.post('/request-account', async (req, res) => {
     try {
-        const { name, email, mobile, role, course, qualification, reason } = req.body;
+        const { name, email, mobile, role, course, qualification } = req.body;
 
         console.log('[ACCOUNT REQUEST] Received:', req.body);
 
         // 1. Basic Validation
-        if (!name || !email || !mobile || !role || !reason) {
+        if (!name || !email || !mobile || !role) {
             return res.status(400).json({ message: 'All mandatory fields are required' });
         }
 
@@ -298,7 +298,7 @@ router.post('/request-account', async (req, res) => {
         // 3. AI Verification
         console.log('[ACCOUNT REQUEST] Calling AI Verification...');
         const aiResult = await aiServiceInstance.verifyRegistrationRequest({
-            name, email, mobile, role, reason, course, qualification
+            name, email, mobile, role, course, qualification
         });
         console.log('[ACCOUNT REQUEST] AI Result:', aiResult);
 
@@ -310,7 +310,7 @@ router.post('/request-account', async (req, res) => {
             role,
             course: role === 'student' ? course : undefined,
             qualification: role === 'teacher' ? qualification : undefined,
-            reason,
+
             status: 'Pending',
             aiTrustScore: aiResult.trustScore,
             aiRiskLevel: aiResult.riskLevel,

@@ -810,7 +810,7 @@ class AIService {
 
     // Feature 7: AI Verification for Account Requests
     async verifyRegistrationRequest(data) {
-        const { name, email, mobile, role, reason, course, qualification } = data;
+        const { name, email, mobile, role, course, qualification } = data;
 
         const prompt = `Analyze this account registration request for an LMS and provide a Trust Score (0-100) and Risk Level.
         
@@ -819,21 +819,21 @@ class AIService {
         - Email: ${email}
         - Mobile: ${mobile}
         - Requested Role: ${role}
-        - Reason for Joining: "${reason}"
+
         - Course/Subject: ${course || 'N/A'}
         - Qualification: ${qualification || 'N/A'}
 
         Check for:
-        1. **Gibberish Names/Reasons**: e.g., "dadsad", "123123" -> Low Trust.
+        1. **Gibberish Names**: e.g., "dadsad", "123123" -> Low Trust.
         2. **Email Format**: Valid format? (Simple check).
-        3. **Role Consistency**: Does the reason match the role? (e.g., A teacher saying "I want to study math" -> Suspicious).
+        3. **Role Consistency**: Check if Course/Qualification matches Role.
         4. **Bot behavior**: All lowercase, random strings.
         
         Output ONLY valid JSON:
         {
             "trustScore": 85,
             "riskLevel": "Low", // Low, Medium, High
-            "analysis": "Reason aligns with role. text looks organic.",
+            "analysis": "Role aligns with details. text looks organic.",
             "recommendation": "Approve" // Approve, Reject, Manual Review
         }`;
 

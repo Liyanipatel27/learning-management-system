@@ -29,10 +29,7 @@ const accountRequestSchema = new mongoose.Schema({
         type: String
         // required if role is teacher
     },
-    reason: {
-        type: String,
-        required: true
-    },
+
     idProofUrl: {
         type: String // URL to uploaded ID proof
     },
