@@ -745,7 +745,7 @@ function AdminDashboard() {
                 >
                     <InputGroup label="Full Name" value={newUser.name} onChange={e => setNewUser({ ...newUser, name: e.target.value })} placeholder="John Doe" />
                     <InputGroup label="Email Address" type="email" value={newUser.email} onChange={e => setNewUser({ ...newUser, email: e.target.value })} placeholder="john@example.com" />
-                    {!isEditing && <InputGroup label="Password" type="password" value={newUser.password} onChange={e => setNewUser({ ...newUser, password: e.target.value })} placeholder="********" />}
+                    <InputGroup label="Password" type="password" value={newUser.password} onChange={e => setNewUser({ ...newUser, password: e.target.value })} placeholder={isEditing ? "Leave blank to keep unchanged" : "********"} />
                     <InputGroup label="Role" type="select" value={newUser.role} onChange={e => setNewUser({ ...newUser, role: e.target.value })} options={[
                         { label: 'Student', value: 'student' },
                         { label: 'Teacher', value: 'teacher' },
@@ -864,20 +864,56 @@ const Modal = ({ title, onClose, onSubmit, children }) => (
     </div>
 );
 
-const InputGroup = ({ label, type = "text", value, onChange, placeholder, options }) => (
-    <div style={{ marginBottom: '15px' }}>
-        <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.9rem', color: '#4a5568' }}>{label}</label>
-        {type === 'select' ? (
-            <select value={value} onChange={onChange} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-                {options.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-            </select>
-        ) : type === 'textarea' ? (
-            <textarea value={value} onChange={onChange} placeholder={placeholder} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', minHeight: '100px' }} />
-        ) : (
-            <input type={type} value={value} onChange={onChange} placeholder={placeholder} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0' }} />
-        )}
-    </div>
-);
+const InputGroup = ({ label, type = "text", value, onChange, placeholder, options }) => {
+    const [showPassword, setShowPassword] = useState(false);
+    const isPassword = type === 'password';
+    const inputType = isPassword ? (showPassword ? 'text' : 'password') : type;
+
+    return (
+        <div style={{ marginBottom: '15px' }}>
+            <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.9rem', color: '#4a5568' }}>{label}</label>
+            {type === 'select' ? (
+                <select value={value} onChange={onChange} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                    {options.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                </select>
+            ) : type === 'textarea' ? (
+                <textarea value={value} onChange={onChange} placeholder={placeholder} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', minHeight: '100px' }} />
+            ) : (
+                <div style={{ position: 'relative' }}>
+                    <input
+                        type={inputType}
+                        value={value}
+                        onChange={onChange}
+                        placeholder={placeholder}
+                        style={{ width: '100%', padding: '8px', paddingRight: isPassword ? '35px' : '8px', borderRadius: '6px', border: '1px solid #e2e8f0' }}
+                    />
+                    {isPassword && (
+                        <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            style={{
+                                position: 'absolute',
+                                right: '10px',
+                                top: '50%',
+                                transform: 'translateY(-50%)',
+                                background: 'none',
+                                border: 'none',
+                                cursor: 'pointer',
+                                fontSize: '1rem',
+                                color: '#a0aec0',
+                                padding: 0,
+                                display: 'flex',
+                                alignItems: 'center'
+                            }}
+                        >
+                            {showPassword ? '👁️' : '🔒'}
+                        </button>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+};
 
 const NavItem = ({ label, active, onClick }) => (
     <div

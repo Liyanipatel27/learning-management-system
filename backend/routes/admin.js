@@ -41,14 +41,25 @@ router.get('/users', async (req, res) => {
     }
 });
 
-// Update user (Role, Ban/Active status)
+const bcrypt = require('bcryptjs');
+
+// Update user (Role, Ban/Active status, Password)
 router.put('/users/:id', async (req, res) => {
     console.log(`[DEBUG] Updating user ${req.params.id}`, req.body);
     try {
-        const { role, name, email, enrollment, branch, employeeId } = req.body;
+        const { role, name, email, enrollment, branch, employeeId, password } = req.body;
+
+        let updateData = { role, name, email, enrollment, branch, employeeId };
+
+        // If password is provided and not empty, hash it and add to updateData
+        if (password && password.trim() !== '') {
+            const salt = await bcrypt.genSalt(10);
+            updateData.password = await bcrypt.hash(password, salt);
+        }
+
         const updatedUser = await User.findByIdAndUpdate(
             req.params.id,
-            { role, name, email, enrollment, branch, employeeId },
+            updateData,
             { new: true }
         ).select('-password');
 
