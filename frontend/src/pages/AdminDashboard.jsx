@@ -32,7 +32,7 @@ function AdminDashboard() {
     const [importPassword, setImportPassword] = useState('Welcome@123');
     const [newUser, setNewUser] = useState({
         name: '', email: '', password: '', role: 'student',
-        enrollment: '', branch: '', employeeId: ''
+        enrollment: '', branch: '', employeeId: '', qualification: ''
     });
     const [newAnnouncement, setNewAnnouncement] = useState({ title: '', content: '', target: 'all' });
     const [isEditing, setIsEditing] = useState(false);
@@ -160,7 +160,7 @@ function AdminDashboard() {
             }
             setNewUser({
                 name: '', email: '', password: '', role: 'student',
-                enrollment: '', branch: '', employeeId: ''
+                enrollment: '', branch: '', employeeId: '', qualification: ''
             });
             setIsEditing(false);
             setEditingUserId(null);
@@ -178,7 +178,8 @@ function AdminDashboard() {
             role: u.role,
             enrollment: u.enrollment || '',
             branch: u.branch || '',
-            employeeId: u.employeeId || ''
+            employeeId: u.employeeId || '',
+            qualification: u.qualification || ''
         });
         setIsEditing(true);
         setEditingUserId(u._id);
@@ -581,7 +582,7 @@ function AdminDashboard() {
                         setEditingUserId(null);
                         setNewUser({
                             name: '', email: '', password: '', role: 'student',
-                            enrollment: '', branch: '', employeeId: ''
+                            enrollment: '', branch: '', employeeId: '', qualification: ''
                         });
                     }}
                     onSubmit={handleAddUser}
@@ -602,6 +603,9 @@ function AdminDashboard() {
                     )}
                     {(newUser.role === 'teacher' || newUser.role === 'admin') && (
                         <InputGroup label="Employee ID" type="number" value={newUser.employeeId} onChange={e => setNewUser({ ...newUser, employeeId: e.target.value })} placeholder="101" />
+                    )}
+                    {newUser.role === 'teacher' && (
+                        <InputGroup label="Qualification / Specialization" value={newUser.qualification} onChange={e => setNewUser({ ...newUser, qualification: e.target.value })} placeholder="PhD in Physics" />
                     )}
                 </Modal>
             )}
@@ -876,6 +880,9 @@ const UserManagementSection = ({ activeTab, users, handleEditUser, handleDeleteU
                             { header: 'Employee ID', key: 'employeeId' },
                             ...cols
                         ];
+                        if (currentRole === 'teacher') {
+                            cols.push({ header: 'Qualification', key: 'qualification' });
+                        }
                     }
                     handleExport(filteredUsers, `${activeTab}_filtered_list.csv`, cols);
                 }} style={btnStyle}>📥 Export List</button>
@@ -889,6 +896,7 @@ const UserManagementSection = ({ activeTab, users, handleEditUser, handleDeleteU
                         <th style={{ padding: '15px' }}>Role</th>
                         <th style={{ padding: '15px' }}>{activeTab === 'students' ? 'Enrollment' : 'Employee ID'}</th>
                         {activeTab === 'students' && <th style={{ padding: '15px' }}>Branch</th>}
+                        {activeTab === 'teachers' && <th style={{ padding: '15px' }}>Qualification</th>}
                         <th style={{ padding: '15px' }}>Actions</th>
                     </tr>
                 </thead>
@@ -908,6 +916,11 @@ const UserManagementSection = ({ activeTab, users, handleEditUser, handleDeleteU
                             {activeTab === 'students' && (
                                 <td style={{ padding: '15px' }}>
                                     {u.branch || '-'}
+                                </td>
+                            )}
+                            {activeTab === 'teachers' && (
+                                <td style={{ padding: '15px' }}>
+                                    {u.qualification || '-'}
                                 </td>
                             )}
                             <td style={{ padding: '15px' }}>

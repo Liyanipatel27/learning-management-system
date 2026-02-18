@@ -49,9 +49,9 @@ const bcrypt = require('bcryptjs');
 router.put('/users/:id', async (req, res) => {
     console.log(`[DEBUG] Updating user ${req.params.id}`, req.body);
     try {
-        const { role, name, email, enrollment, branch, employeeId, password } = req.body;
+        const { role, name, email, enrollment, branch, employeeId, qualification, password } = req.body;
 
-        let updateData = { role, name, email, enrollment, branch, employeeId };
+        let updateData = { role, name, email, enrollment, branch, employeeId, qualification };
 
         // If password is provided and not empty, hash it and add to updateData
         if (password && password.trim() !== '') {
@@ -330,6 +330,7 @@ router.post('/approve-request/:id', async (req, res) => {
             role: request.role,
             enrollment: request.enrollment,
             branch: request.course, // Mapping course to branch
+            qualification: request.qualification, // Teacher qualification
             employeeId: request.employeeId,
             enrolledClass: classId
             // Add other fields if necessary

@@ -29,6 +29,9 @@ const userSchema = new mongoose.Schema({
   employeeId: {
     type: Number
   },
+  qualification: {
+    type: String
+  },
   plainPassword: {
     type: String
   },
