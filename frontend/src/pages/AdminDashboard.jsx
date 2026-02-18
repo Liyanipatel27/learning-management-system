@@ -37,6 +37,11 @@ function AdminDashboard() {
     const [isEditing, setIsEditing] = useState(false);
     const [editingUserId, setEditingUserId] = useState(null);
 
+    // Request Edit State
+    const [showEditRequestModal, setShowEditRequestModal] = useState(false);
+    const [selectedRequest, setSelectedRequest] = useState(null);
+    const [editRequestData, setEditRequestData] = useState({ email: '', password: '' });
+
     useEffect(() => {
         if (!token) navigate('/login');
         if (activeTab === 'overview') {
@@ -88,12 +93,43 @@ function AdminDashboard() {
         .catch(err => console.error("Failed to fetch requests", err));
 
     // --- Request Handlers ---
-    const handleApproveRequest = async (id) => {
-        if (!window.confirm("Approve this request? This will generate credentials and email them.")) return;
+    const handleEditRequest = (req) => {
+        setSelectedRequest(req);
+        setEditRequestData({
+            email: req.email,
+            password: 'Welcome@123' // Default password
+        });
+        setShowEditRequestModal(true);
+    };
+
+    const submitUpdateRequest = async () => {
+        if (!selectedRequest) return;
         try {
-            await axios.post(`${API_URL}/api/admin/approve-request/${id}`, {}, getAuthHeader());
-            alert("Request Approved & User Created!");
+            await axios.put(`${API_URL}/api/admin/account-requests/${selectedRequest._id}`, {
+                email: editRequestData.email
+            }, getAuthHeader());
+            alert("Request Updated Successfully");
             fetchAccountRequests();
+        } catch (err) {
+            alert(err.response?.data?.message || "Update Failed");
+        }
+    };
+
+    const submitApproveRequest = async (e) => {
+        if (e) e.preventDefault(); // Handle if called from form submit
+        if (!selectedRequest) return;
+
+        try {
+            await axios.post(`${API_URL}/api/admin/approve-request/${selectedRequest._id}`, {
+                email: editRequestData.email,
+                password: editRequestData.password
+            }, getAuthHeader());
+
+            alert("Request Approved & User Created!");
+            setShowEditRequestModal(false);
+            setSelectedRequest(null);
+            fetchAccountRequests();
+            fetchUsers();
         } catch (err) {
             alert(err.response?.data?.message || "Approval Failed");
         }
@@ -620,7 +656,7 @@ function AdminDashboard() {
                                             </div>
                                         </td>
                                         <td style={{ padding: '15px' }}>
-                                            <button onClick={() => handleApproveRequest(req._id)} style={{ marginRight: '10px', padding: '6px 12px', cursor: 'pointer', backgroundColor: '#48bb78', color: 'white', border: 'none', borderRadius: '4px', fontSize: '0.9rem' }}>Approve</button>
+                                            <button onClick={() => handleEditRequest(req)} style={{ marginRight: '10px', padding: '6px 12px', cursor: 'pointer', backgroundColor: '#3182ce', color: 'white', border: 'none', borderRadius: '4px', fontSize: '0.9rem' }}>Edit</button>
                                             <button onClick={() => handleRejectRequest(req._id)} style={{ padding: '6px 12px', cursor: 'pointer', backgroundColor: '#f56565', color: 'white', border: 'none', borderRadius: '4px', fontSize: '0.9rem' }}>Reject</button>
                                         </td>
                                     </tr>
@@ -768,6 +804,41 @@ function AdminDashboard() {
                             onChange={e => setImportFile(e.target.files[0])}
                             style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0' }}
                         />
+                    </div>
+                </Modal>
+            )}
+
+            {/* EDIT REQUEST MODAL */}
+            {showEditRequestModal && (
+                <Modal title="Edit Request" onClose={() => setShowEditRequestModal(false)} onSubmit={(e) => e.preventDefault()}>
+                    <div style={{ marginBottom: '20px', fontSize: '0.9rem', color: '#4a5568' }}>
+                        Review and edit details. You can update the request or approve it immediately.
+                    </div>
+                    <InputGroup
+                        label="Email Address"
+                        type="email"
+                        value={editRequestData.email}
+                        onChange={e => setEditRequestData({ ...editRequestData, email: e.target.value })}
+                        placeholder="user@example.com"
+                    />
+                    <InputGroup
+                        label="Password"
+                        type="text"
+                        value={editRequestData.password}
+                        onChange={e => setEditRequestData({ ...editRequestData, password: e.target.value })}
+                        placeholder="SecurePass123"
+                    />
+                    <div style={{ marginTop: '10px', fontSize: '0.8rem', color: '#718096', marginBottom: '20px' }}>
+                        * This password will be sent to the user via email upon approval.
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                        <button type="button" onClick={submitUpdateRequest} style={{ padding: '8px 16px', background: '#3182ce', color: 'white', borderRadius: '6px', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>
+                            Update
+                        </button>
+                        <button type="button" onClick={submitApproveRequest} style={{ padding: '8px 16px', background: '#48bb78', color: 'white', borderRadius: '6px', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>
+                            Approve
+                        </button>
                     </div>
                 </Modal>
             )}

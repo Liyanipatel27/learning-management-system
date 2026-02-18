@@ -228,6 +228,27 @@ router.get('/account-requests', async (req, res) => {
     }
 });
 
+// Update Request Details
+router.put('/account-requests/:id', async (req, res) => {
+    try {
+        const { email, password } = req.body; // We can update email. Password isn't stored in request, but good to know if we want to. 
+        // Actually, AccountRequest model doesn't store password. We only use it during approval.
+        // So we only update fields that exist in AccountRequest model.
+
+        const request = await AccountRequest.findById(req.params.id);
+        if (!request) return res.status(404).json({ message: 'Request not found' });
+
+        if (email) request.email = email;
+        // If we want to persist other fields like name, we can add them here.
+        // request.name = req.body.name; 
+
+        await request.save();
+        res.json({ message: 'Request updated successfully', request });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
 // Approve Request
 router.post('/approve-request/:id', async (req, res) => {
     try {
@@ -237,10 +258,12 @@ router.post('/approve-request/:id', async (req, res) => {
         if (request.status !== 'Pending') return res.status(400).json({ message: 'Request already processed' });
 
         // Generate Credentials
+        const { email, password: providedPassword } = req.body;
+
         const createUsername = (name) => {
             const cleanName = name.toLowerCase().replace(/\s+/g, '');
             const year = new Date().getFullYear();
-            return `${cleanName}.${request.role}.${year}`; // e.g., john.student.2024
+            return `${cleanName}.${request.role}.${year}`;
         };
 
         const generatePassword = () => {
@@ -253,8 +276,9 @@ router.post('/approve-request/:id', async (req, res) => {
             return retVal;
         };
 
-        const username = createUsername(request.name); // Not used as login is email, but maybe useful? User model doesn't strictly have username, it uses email.
-        const password = generatePassword();
+        const username = createUsername(request.name);
+        const finalEmail = email || request.email;
+        const password = providedPassword || generatePassword();
 
         // Hash password
         const bcrypt = require('bcryptjs'); // Need to import this at top if not present, but locally ok here
@@ -264,7 +288,7 @@ router.post('/approve-request/:id', async (req, res) => {
         // Create User
         const newUser = new User({
             name: request.name,
-            email: request.email,
+            email: finalEmail,
             password: hashedPassword,
             role: request.role,
             // Add other fields if necessary
@@ -279,9 +303,9 @@ router.post('/approve-request/:id', async (req, res) => {
         // Send Email
         const mailOptions = {
             from: process.env.EMAIL_USER,
-            to: request.email,
+            to: finalEmail,
             subject: 'LMS Account Approved - Login Credentials',
-            text: `Dear ${request.name},\n\nYour request for an LMS account has been approved.\n\nHere are your login credentials:\nEmail: ${request.email}\nPassword: ${password}\n\nPlease change your password after your first login.\n\nLogin here: http://localhost:5173/login\n\nBest regards,\nLMS Admin Team`
+            text: `Dear ${request.name},\n\nYour request for an LMS account has been approved.\n\nHere are your login credentials:\nEmail: ${finalEmail}\nPassword: ${password}\n\nPlease change your password after your first login.\n\nLogin here: http://localhost:5173/login\n\nBest regards,\nLMS Admin Team`
         };
 
         transporter.sendMail(mailOptions, (error, info) => {
