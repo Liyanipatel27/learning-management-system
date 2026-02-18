@@ -39,6 +39,7 @@ console.log('Mounting /api/courses routes...');
 app.use('/api/courses', require('./routes/course'));
 
 app.use('/api/ai', require('./routes/ai')); // [NEW] AI Routes
+app.use('/api/classes', require('./routes/classRoutes'));
 
 console.log('Mounting /api/assignments routes...');
 app.use('/api/assignments', require('./routes/assignment'));

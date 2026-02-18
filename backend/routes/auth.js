@@ -11,6 +11,8 @@ const {
     verifyOTP,
     resetPassword,
 } = require("../controllers/authController");
+const { normalizeBranch } = require('../utils/branchHelpers');
+const Class = require('../models/Class'); // Ensure Class model is imported
 
 // Multer setup
 const storage = multer.memoryStorage();
@@ -48,6 +50,21 @@ router.post('/register', async (req, res) => {
         const hashedPassword = await bcrypt.hash(password, salt);
         console.log(`[REGISTER DEBUG] Hashing password for ${email}. Hash: ${hashedPassword}`);
 
+        // Find or create Class based on branch for students
+        let classId;
+        if (role === 'student' && branch) {
+            const normalizedBranchName = normalizeBranch(branch);
+            console.log(`[REGISTER DEBUG] Normalized branch '${branch}' to '${normalizedBranchName}'`);
+
+            let studentClass = await Class.findOne({ name: normalizedBranchName });
+            if (!studentClass) {
+                studentClass = new Class({ name: normalizedBranchName, type: 'Branch' });
+                await studentClass.save();
+                console.log(`[REGISTER DEBUG] Created new class for normalized branch: ${normalizedBranchName}`);
+            }
+            classId = studentClass._id;
+        }
+
         // Create new user
         const user = new User({
             name,
@@ -57,11 +74,12 @@ router.post('/register', async (req, res) => {
             enrollment,
             branch,
             employeeId,
-            plainPassword: password
+            plainPassword: password,
+            enrolledClass: classId
         });
 
         console.log('[REGISTER DEBUG] Saving user with fields:', {
-            name, email, role, enrollment, branch, employeeId
+            name, email, role, enrollment, branch, employeeId, enrolledClass: classId
         });
         await user.save();
         console.log('[REGISTER DEBUG] User saved successfully:', user._id);
@@ -208,15 +226,30 @@ router.post('/bulk-import', upload.single('file'), async (req, res) => {
                     throw new Error('User already exists');
                 }
 
+                // Find or create Class based on branch for students
+                let classId;
+                const userBranch = role === 'student' ? branch : (branch || undefined);
+
+                if (role === 'student' && userBranch) {
+                    const normalizedBranchName = normalizeBranch(userBranch);
+                    let studentClass = await Class.findOne({ name: normalizedBranchName });
+                    if (!studentClass) {
+                        studentClass = new Class({ name: normalizedBranchName, type: 'Branch' });
+                        await studentClass.save();
+                    }
+                    classId = studentClass._id;
+                }
+
                 const user = new User({
                     name,
                     email,
                     password: hashedPassword,
                     role,
                     enrollment: role === 'student' ? enrollment : undefined,
-                    branch: role === 'student' ? branch : (branch || undefined),
+                    branch: userBranch,
                     employeeId: role === 'teacher' ? employeeId : undefined,
-                    plainPassword: commonPassword
+                    plainPassword: commonPassword,
+                    enrolledClass: classId
                 });
 
                 await user.save();
@@ -279,13 +312,20 @@ const aiServiceInstance = require('../services/aiService'); // IT EXPORTS AN INS
 
 router.post('/request-account', async (req, res) => {
     try {
-        const { name, email, mobile, role, course, qualification, reason } = req.body;
+        const { name, email, role, course, qualification, enrollment, employeeId } = req.body;
 
         console.log('[ACCOUNT REQUEST] Received:', req.body);
 
-        // 1. Basic Validation
-        if (!name || !email || !mobile || !role || !reason) {
-            return res.status(400).json({ message: 'All mandatory fields are required' });
+        if (!name || !email || !role) {
+            return res.status(400).json({ message: 'Name, Email, and Role are mandatory' });
+        }
+
+        if (role === 'student' && !enrollment) {
+            return res.status(400).json({ message: 'Enrollment Number is required for Students' });
+        }
+
+        if (role === 'teacher' && !employeeId) {
+            return res.status(400).json({ message: 'Employee ID is required for Teachers' });
         }
 
         // 2. Duplicate Check (User Table + Request Table)
@@ -298,7 +338,7 @@ router.post('/request-account', async (req, res) => {
         // 3. AI Verification
         console.log('[ACCOUNT REQUEST] Calling AI Verification...');
         const aiResult = await aiServiceInstance.verifyRegistrationRequest({
-            name, email, mobile, role, reason, course, qualification
+            name, email, role, course, qualification, enrollment, employeeId
         });
         console.log('[ACCOUNT REQUEST] AI Result:', aiResult);
 
@@ -306,11 +346,12 @@ router.post('/request-account', async (req, res) => {
         const newRequest = new AccountRequest({
             name,
             email,
-            mobile,
+            enrollment: role === 'student' ? enrollment : undefined,
+            employeeId: role === 'teacher' ? employeeId : undefined,
             role,
             course: role === 'student' ? course : undefined,
             qualification: role === 'teacher' ? qualification : undefined,
-            reason,
+
             status: 'Pending',
             aiTrustScore: aiResult.trustScore,
             aiRiskLevel: aiResult.riskLevel,

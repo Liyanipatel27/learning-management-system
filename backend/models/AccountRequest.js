@@ -10,9 +10,13 @@ const accountRequestSchema = new mongoose.Schema({
         required: true,
         unique: true // Prevent duplicate pending requests
     },
-    mobile: {
-        type: String,
-        required: true
+    enrollment: {
+        type: String
+        // required if role is student
+    },
+    employeeId: {
+        type: String
+        // required if role is teacher
     },
     role: {
         type: String,
@@ -29,10 +33,7 @@ const accountRequestSchema = new mongoose.Schema({
         type: String
         // required if role is teacher
     },
-    reason: {
-        type: String,
-        required: true
-    },
+
     idProofUrl: {
         type: String // URL to uploaded ID proof
     },

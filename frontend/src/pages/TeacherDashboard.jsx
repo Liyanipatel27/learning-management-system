@@ -5,6 +5,7 @@ import * as XLSX from 'xlsx';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line, RadialBarChart, RadialBar } from 'recharts';
 import CourseBuilder from './CourseBuilder';
 import StudentRiskAnalysis from './StudentRiskAnalysis';
+import ClassManager from '../components/ClassManager';
 
 
 function TeacherDashboard() {
@@ -115,7 +116,24 @@ function TeacherDashboard() {
 
     return (
         <div className="dashboard-container">
-            <aside className="sidebar" style={{
+            <style>
+                {`
+                    .teacher-sidebar-scroll::-webkit-scrollbar {
+                        width: 6px;
+                    }
+                    .teacher-sidebar-scroll::-webkit-scrollbar-track {
+                        background: #1a202c;
+                    }
+                    .teacher-sidebar-scroll::-webkit-scrollbar-thumb {
+                        background: #4a5568;
+                        border-radius: 3px;
+                    }
+                    .teacher-sidebar-scroll::-webkit-scrollbar-thumb:hover {
+                        background: #718096;
+                    }
+                `}
+            </style>
+            <aside className="sidebar teacher-sidebar-scroll" style={{
                 width: '260px',
                 background: '#1a202c',
                 color: 'white',
@@ -125,7 +143,8 @@ function TeacherDashboard() {
                 boxShadow: '4px 0 10px rgba(0,0,0,0.05)',
                 position: 'fixed',
                 height: '100vh',
-                zIndex: 100
+                zIndex: 100,
+                overflowY: 'auto'
             }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '40px', padding: '0 10px' }}>
                     <div style={{ width: '32px', height: '32px', background: '#6366f1', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -139,6 +158,7 @@ function TeacherDashboard() {
                             { id: 'dashboard', label: 'Dashboard', icon: '🏠' },
                             { id: 'my-courses', label: 'My Courses', icon: '📚' },
                             { id: 'create-course', label: 'Create Course', icon: '➕' },
+                            { id: 'class-roster', label: 'Class Roster', icon: '📋' },
                             { id: 'students', label: 'Students List', icon: '👥' },
                             { id: 'assignments', label: 'Assignments', icon: '📝' },
                             { id: 'live-class', label: 'Live Classes', icon: '📽️' },
@@ -225,6 +245,8 @@ function TeacherDashboard() {
                             fetchCourses(user.id || user._id);
                         }}
                     />
+                ) : activeTab === 'class-roster' ? (
+                    <ClassManager />
                 ) : activeTab === 'students' ? (
                     <StudentsSection />
                 ) : activeTab === 'student-grades' ? (

@@ -797,16 +797,46 @@ class AIService {
 
         prompt += `
         Output ONLY valid JSON with 5 questions:
-        Output ONLY valid JSON with 5 questions:
+
+        [
+            {
+                "question": "Question text",
+                "options": ["Option A", "Option B", "Option C", "Option D"],
+                "correctAnswer": "Option A" // Or index
+            }
+        ]`;
+
+        return await this.callCVLLM(prompt, "You are a quiz generator. Return ONLY valid JSON.", true);
+    }
+
+    // Feature 7: AI Verification for Account Requests
+    async verifyRegistrationRequest(data) {
+        const { name, email, role, course, qualification, enrollment, employeeId } = data;
+
+        const prompt = `Analyze this account registration request for an LMS and provide a Trust Score (0-100) and Risk Level.
+        
+        User Details:
+        - Name: ${name}
+        - Email: ${email}
+        - Enrollment/EmployeeID: ${role === 'student' ? enrollment : employeeId}
+        - Requested Role: ${role}
+
+        - Course/Subject: ${course || 'N/A'}
+        - Qualification: ${qualification || 'N/A'}
+
+        Check for:
+        1. **Gibberish Names**: e.g., "dadsad", "123123" -> Low Trust.
+        2. **Email Format**: Valid format? (Simple check).
+        3. **Role Consistency**: Check if Course/Qualification matches Role.
+        4. **Bot behavior**: All lowercase, random strings.
+        
+        Output ONLY valid JSON:
         {
-            "questions": [
-                {
-                    "question": "...",
-                    "options": ["A", "B", "C", "D"],
-                    "correctAnswerIndex": 0,
-                    "explanation": "..."
-                }
-            ]
+            "trustScore": 85,
+            "riskLevel": "Low", // Low, Medium, High
+            "analysis": "Role aligns with details. text looks organic.",
+            "recommendation": "Approve" // Approve, Reject, Manual Review
+
         }`;
 
         try {

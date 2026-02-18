@@ -42,6 +42,10 @@ const userSchema = new mongoose.Schema({
     hash: String,
     data: Object,
     lastAnalyzed: Date
+  },
+  enrolledClass: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Class'
   }
 }, { timestamps: true });
 
