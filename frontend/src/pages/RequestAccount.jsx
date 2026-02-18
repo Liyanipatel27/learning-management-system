@@ -123,10 +123,9 @@ function RequestAccount() {
                             <label className="form-label">I am a...</label>
                             <select
                                 name="role"
-                                className="form-input"
+                                className="form-select"
                                 value={formData.role}
                                 onChange={handleChange}
-                                style={{ background: 'white' }}
                             >
                                 <option value="student">Student</option>
                                 <option value="teacher">Teacher</option>
