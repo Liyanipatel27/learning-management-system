@@ -279,13 +279,20 @@ const aiServiceInstance = require('../services/aiService'); // IT EXPORTS AN INS
 
 router.post('/request-account', async (req, res) => {
     try {
-        const { name, email, mobile, role, course, qualification } = req.body;
+        const { name, email, role, course, qualification, enrollment, employeeId } = req.body;
 
         console.log('[ACCOUNT REQUEST] Received:', req.body);
 
-        // 1. Basic Validation
-        if (!name || !email || !mobile || !role) {
-            return res.status(400).json({ message: 'All mandatory fields are required' });
+        if (!name || !email || !role) {
+            return res.status(400).json({ message: 'Name, Email, and Role are mandatory' });
+        }
+
+        if (role === 'student' && !enrollment) {
+            return res.status(400).json({ message: 'Enrollment Number is required for Students' });
+        }
+
+        if (role === 'teacher' && !employeeId) {
+            return res.status(400).json({ message: 'Employee ID is required for Teachers' });
         }
 
         // 2. Duplicate Check (User Table + Request Table)
@@ -298,7 +305,7 @@ router.post('/request-account', async (req, res) => {
         // 3. AI Verification
         console.log('[ACCOUNT REQUEST] Calling AI Verification...');
         const aiResult = await aiServiceInstance.verifyRegistrationRequest({
-            name, email, mobile, role, course, qualification
+            name, email, role, course, qualification, enrollment, employeeId
         });
         console.log('[ACCOUNT REQUEST] AI Result:', aiResult);
 
@@ -306,7 +313,8 @@ router.post('/request-account', async (req, res) => {
         const newRequest = new AccountRequest({
             name,
             email,
-            mobile,
+            enrollment: role === 'student' ? enrollment : undefined,
+            employeeId: role === 'teacher' ? employeeId : undefined,
             role,
             course: role === 'student' ? course : undefined,
             qualification: role === 'teacher' ? qualification : undefined,

@@ -810,14 +810,14 @@ class AIService {
 
     // Feature 7: AI Verification for Account Requests
     async verifyRegistrationRequest(data) {
-        const { name, email, mobile, role, course, qualification } = data;
+        const { name, email, role, course, qualification, enrollment, employeeId } = data;
 
         const prompt = `Analyze this account registration request for an LMS and provide a Trust Score (0-100) and Risk Level.
         
         User Details:
         - Name: ${name}
         - Email: ${email}
-        - Mobile: ${mobile}
+        - Enrollment/EmployeeID: ${role === 'student' ? enrollment : employeeId}
         - Requested Role: ${role}
 
         - Course/Subject: ${course || 'N/A'}

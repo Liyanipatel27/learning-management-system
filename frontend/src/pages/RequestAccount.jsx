@@ -8,7 +8,8 @@ function RequestAccount() {
     const [formData, setFormData] = useState({
         name: '',
         email: '',
-        mobile: '',
+        enrollment: '',
+        employeeId: '',
         role: 'student',
         course: '',
         qualification: '',
@@ -116,17 +117,7 @@ function RequestAccount() {
                             />
                         </div>
 
-                        <div className="form-group">
-                            <label className="form-label">Mobile Number</label>
-                            <input
-                                type="tel"
-                                name="mobile"
-                                className="form-input"
-                                value={formData.mobile}
-                                onChange={handleChange}
-                                required
-                            />
-                        </div>
+
 
                         <div className="form-group">
                             <label className="form-label">I am a...</label>
@@ -143,33 +134,59 @@ function RequestAccount() {
                         </div>
 
                         {formData.role === 'student' && (
-                            <div className="form-group">
-                                <label className="form-label">Course / Branch</label>
-                                <input
-                                    type="text"
-                                    name="course"
-                                    className="form-input"
-                                    value={formData.course}
-                                    onChange={handleChange}
-                                    placeholder="e.g. Computer Science"
-                                    required
-                                />
-                            </div>
+                            <>
+                                <div className="form-group">
+                                    <label className="form-label">Enrollment Number</label>
+                                    <input
+                                        type="text"
+                                        name="enrollment"
+                                        className="form-input"
+                                        value={formData.enrollment}
+                                        onChange={handleChange}
+                                        required
+                                    />
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">Course / Branch</label>
+                                    <input
+                                        type="text"
+                                        name="course"
+                                        className="form-input"
+                                        value={formData.course}
+                                        onChange={handleChange}
+                                        placeholder="e.g. Computer Science"
+                                        required
+                                    />
+                                </div>
+                            </>
                         )}
 
                         {formData.role === 'teacher' && (
-                            <div className="form-group">
-                                <label className="form-label">Qualification / Specialization</label>
-                                <input
-                                    type="text"
-                                    name="qualification"
-                                    className="form-input"
-                                    value={formData.qualification}
-                                    onChange={handleChange}
-                                    placeholder="e.g. PhD in Physics"
-                                    required
-                                />
-                            </div>
+                            <>
+                                <div className="form-group">
+                                    <label className="form-label">Employee ID</label>
+                                    <input
+                                        type="text"
+                                        name="employeeId"
+                                        className="form-input"
+                                        value={formData.employeeId}
+                                        onChange={handleChange}
+                                        required
+                                    />
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">Qualification / Specialization</label>
+                                    <input
+                                        type="text"
+                                        name="qualification"
+                                        className="form-input"
+                                        value={formData.qualification}
+                                        onChange={handleChange}
+                                        placeholder="e.g. PhD in Physics"
+                                        required
+                                    />
+                                </div>
+                            </>
                         )}
 
 
