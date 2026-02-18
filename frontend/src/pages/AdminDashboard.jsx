@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import ClassManager from '../components/ClassManager';
 
 const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/api$/, '');
 
@@ -306,6 +307,7 @@ function AdminDashboard() {
                     <NavItem label="Manage Students" active={activeTab === 'students'} onClick={() => { setActiveTab('students'); fetchUsers(); }} />
                     <NavItem label="Manage Teachers" active={activeTab === 'teachers'} onClick={() => { setActiveTab('teachers'); fetchUsers(); }} />
                     <NavItem label="Manage Admins" active={activeTab === 'admins'} onClick={() => { setActiveTab('admins'); fetchUsers(); }} />
+                    <NavItem label="Class Management" active={activeTab === 'classes'} onClick={() => setActiveTab('classes')} />
                     <NavItem label="Course Management" active={activeTab === 'courses'} onClick={() => setActiveTab('courses')} />
                     <NavItem label="Account Requests" active={activeTab === 'requests'} onClick={() => { setActiveTab('requests'); fetchAccountRequests(); }} />
                     <NavItem label="Analytics & Reports" active={activeTab === 'reports'} onClick={() => setActiveTab('reports')} />
@@ -326,6 +328,7 @@ function AdminDashboard() {
                         {activeTab === 'students' && 'Manage Students'}
                         {activeTab === 'teachers' && 'Manage Teachers'}
                         {activeTab === 'admins' && 'Manage Admins'}
+                        {activeTab === 'classes' && 'Class Management'}
                         {activeTab === 'courses' && 'Course Management'}
                         {activeTab === 'reports' && 'Reports & Analytics'}
                     </h1>
@@ -489,6 +492,8 @@ function AdminDashboard() {
                         </table>
                     </div>
                 )}
+
+                {activeTab === 'classes' && <ClassManager />}
 
                 {activeTab === 'courses' && (
                     <div style={{ background: 'white', padding: '20px', borderRadius: '15px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>

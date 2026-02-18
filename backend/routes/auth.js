@@ -11,6 +11,8 @@ const {
     verifyOTP,
     resetPassword,
 } = require("../controllers/authController");
+const { normalizeBranch } = require('../utils/branchHelpers');
+const Class = require('../models/Class'); // Ensure Class model is imported
 
 // Multer setup
 const storage = multer.memoryStorage();
@@ -48,6 +50,21 @@ router.post('/register', async (req, res) => {
         const hashedPassword = await bcrypt.hash(password, salt);
         console.log(`[REGISTER DEBUG] Hashing password for ${email}. Hash: ${hashedPassword}`);
 
+        // Find or create Class based on branch for students
+        let classId;
+        if (role === 'student' && branch) {
+            const normalizedBranchName = normalizeBranch(branch);
+            console.log(`[REGISTER DEBUG] Normalized branch '${branch}' to '${normalizedBranchName}'`);
+
+            let studentClass = await Class.findOne({ name: normalizedBranchName });
+            if (!studentClass) {
+                studentClass = new Class({ name: normalizedBranchName, type: 'Branch' });
+                await studentClass.save();
+                console.log(`[REGISTER DEBUG] Created new class for normalized branch: ${normalizedBranchName}`);
+            }
+            classId = studentClass._id;
+        }
+
         // Create new user
         const user = new User({
             name,
@@ -57,11 +74,12 @@ router.post('/register', async (req, res) => {
             enrollment,
             branch,
             employeeId,
-            plainPassword: password
+            plainPassword: password,
+            enrolledClass: classId
         });
 
         console.log('[REGISTER DEBUG] Saving user with fields:', {
-            name, email, role, enrollment, branch, employeeId
+            name, email, role, enrollment, branch, employeeId, enrolledClass: classId
         });
         await user.save();
         console.log('[REGISTER DEBUG] User saved successfully:', user._id);
@@ -208,15 +226,30 @@ router.post('/bulk-import', upload.single('file'), async (req, res) => {
                     throw new Error('User already exists');
                 }
 
+                // Find or create Class based on branch for students
+                let classId;
+                const userBranch = role === 'student' ? branch : (branch || undefined);
+
+                if (role === 'student' && userBranch) {
+                    const normalizedBranchName = normalizeBranch(userBranch);
+                    let studentClass = await Class.findOne({ name: normalizedBranchName });
+                    if (!studentClass) {
+                        studentClass = new Class({ name: normalizedBranchName, type: 'Branch' });
+                        await studentClass.save();
+                    }
+                    classId = studentClass._id;
+                }
+
                 const user = new User({
                     name,
                     email,
                     password: hashedPassword,
                     role,
                     enrollment: role === 'student' ? enrollment : undefined,
-                    branch: role === 'student' ? branch : (branch || undefined),
+                    branch: userBranch,
                     employeeId: role === 'teacher' ? employeeId : undefined,
-                    plainPassword: commonPassword
+                    plainPassword: commonPassword,
+                    enrolledClass: classId
                 });
 
                 await user.save();

@@ -4,6 +4,8 @@ const User = require('../models/User');
 const Course = require('../models/Course');
 const Progress = require('../models/Progress');
 const Announcement = require('../models/Announcement');
+const Class = require('../models/Class');
+const { normalizeBranch } = require('../utils/branchHelpers');
 const { verifyToken, isAdmin } = require('../middleware/authMiddleware');
 
 // Middleware to protect all admin routes
@@ -55,6 +57,18 @@ router.put('/users/:id', async (req, res) => {
         if (password && password.trim() !== '') {
             const salt = await bcrypt.genSalt(10);
             updateData.password = await bcrypt.hash(password, salt);
+        }
+
+        // If branch is being updated, we must update enrolledClass
+        if (role === 'student' && branch) {
+            const normalizedBranch = normalizeBranch(branch);
+            let studentClass = await Class.findOne({ name: normalizedBranch });
+            if (!studentClass) {
+                studentClass = new Class({ name: normalizedBranch, type: 'Branch' });
+                await studentClass.save();
+            }
+            updateData.enrolledClass = studentClass._id;
+            updateData.branch = branch; // Keep original if needed, or normalized? Usually keep original input but link to normalized class
         }
 
         const updatedUser = await User.findByIdAndUpdate(
@@ -296,12 +310,28 @@ router.post('/approve-request/:id', async (req, res) => {
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
 
+        // Determine Class for Student
+        let classId;
+        if (request.role === 'student' && request.course) { // utilizing 'course' field as 'branch' for students from request
+            const normalizedBranch = normalizeBranch(request.course);
+            let studentClass = await Class.findOne({ name: normalizedBranch });
+            if (!studentClass) {
+                studentClass = new Class({ name: normalizedBranch, type: 'Branch' });
+                await studentClass.save();
+            }
+            classId = studentClass._id;
+        }
+
         // Create User
         const newUser = new User({
             name: request.name,
             email: finalEmail,
             password: hashedPassword,
             role: request.role,
+            enrollment: request.enrollment,
+            branch: request.course, // Mapping course to branch
+            employeeId: request.employeeId,
+            enrolledClass: classId
             // Add other fields if necessary
         });
 

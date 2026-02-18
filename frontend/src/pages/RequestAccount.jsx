@@ -12,7 +12,6 @@ function RequestAccount() {
         employeeId: '',
         role: 'student',
         course: '',
-        qualification: '',
         qualification: ''
     });
     const [loading, setLoading] = useState(false);
