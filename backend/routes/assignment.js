@@ -326,11 +326,24 @@ router.get('/assignment/:assignmentId', async (req, res) => {
 router.put('/grade/:submissionId', async (req, res) => {
     try {
         const { score, feedback } = req.body;
-        const submission = await Submission.findByIdAndUpdate(
-            req.params.submissionId,
-            { score, feedback, status: 'Graded' },
-            { new: true }
-        );
+
+        // Fetch submission with assignment details
+        const submission = await Submission.findById(req.params.submissionId).populate('assignment');
+        if (!submission) return res.status(404).json({ message: 'Submission not found' });
+
+        const assignment = submission.assignment;
+        if (!assignment) return res.status(404).json({ message: 'Associated assignment not found' });
+
+        // Backend Validation
+        if (score > assignment.maxPoints) {
+            return res.status(400).json({ message: `Score (${score}) cannot exceed max points (${assignment.maxPoints})` });
+        }
+
+        submission.score = score;
+        submission.feedback = feedback;
+        submission.status = 'Graded';
+
+        await submission.save();
         res.json(submission);
     } catch (err) {
         res.status(400).json({ message: err.message });

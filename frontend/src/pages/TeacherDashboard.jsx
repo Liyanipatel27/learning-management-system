@@ -1339,13 +1339,21 @@ const SubmissionsModal = ({ assignment, onClose }) => {
     };
 
     const handleGrade = async (score, feedback) => {
+        const numericScore = Number(score);
+        if (isNaN(numericScore) || numericScore < 0) {
+            return alert('Please enter a valid positive score.');
+        }
+        if (numericScore > assignment.maxPoints) {
+            return alert(`Score cannot exceed max points (${assignment.maxPoints}).`);
+        }
+
         try {
-            await axios.put(`${import.meta.env.VITE_API_URL}/api/assignments/grade/${gradingSubmission._id}`, { score, feedback });
+            await axios.put(`${import.meta.env.VITE_API_URL}/api/assignments/grade/${gradingSubmission._id}`, { score: numericScore, feedback });
             setGradingSubmission(null);
             setAiFeedback(null); // Reset AI feedback
             fetchSubmissions();
         } catch (err) {
-            alert('Error grading submission');
+            alert('Error grading submission: ' + (err.response?.data?.message || err.message));
         }
     };
 
