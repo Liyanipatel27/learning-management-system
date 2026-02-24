@@ -82,16 +82,24 @@ const AIAssistantSidebar = ({ content, activeFeature, aiSummary, setAiSummary, i
         try {
             const fileUrl = getFileUrl();
             const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/ai/quiz`, {
-                subject: content.title, // Use title as subject/topic context
+                subject: content.title,
                 topic: content.title,
                 difficulty: 'medium',
                 fileUrl: fileUrl,
                 content: content.description || content.title
             });
-            setQuizQuestions(res.data.questions);
+            // Backend may return array directly OR { questions: [...] }
+            const questions = Array.isArray(res.data)
+                ? res.data
+                : (res.data.questions || []);
+            if (!questions.length) {
+                setQuizError("No questions were generated. Please try again.");
+            } else {
+                setQuizQuestions(questions);
+            }
         } catch (err) {
             console.error(err);
-            setQuizError("Failed to generate quiz.");
+            setQuizError("Failed to generate quiz. Please try again.");
         } finally {
             setIsGeneratingQuiz(false);
         }
@@ -184,26 +192,42 @@ const AIAssistantSidebar = ({ content, activeFeature, aiSummary, setAiSummary, i
 
                     {quizQuestions.length > 0 && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                            {quizQuestions.map((q, idx) => (
-                                <div key={idx} style={{ background: '#f7fafc', padding: '15px', borderRadius: '10px' }}>
-                                    <p style={{ fontWeight: 'bold', marginBottom: '10px', color: '#2d3748' }}>{idx + 1}. {q.question}</p>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                        {q.options.map((opt, oIdx) => (
-                                            <div key={oIdx} style={{ padding: '8px', background: 'white', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.9rem' }}>
-                                                {opt}
-                                            </div>
-                                        ))}
+                            {quizQuestions.map((q, idx) => {
+                                // Support both correctAnswer (string) and correctAnswerIndex (number)
+                                const correctDisplay = q.correctAnswer
+                                    || (q.options && q.correctAnswerIndex != null ? q.options[q.correctAnswerIndex] : '');
+                                return (
+                                    <div key={idx} style={{ background: '#f7fafc', padding: '15px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                                        <p style={{ fontWeight: 'bold', marginBottom: '10px', color: '#2d3748' }}>{idx + 1}. {q.question}</p>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                            {(q.options || []).map((opt, oIdx) => (
+                                                <div
+                                                    key={oIdx}
+                                                    style={{
+                                                        padding: '8px 12px',
+                                                        background: opt === correctDisplay ? '#C6F6D5' : 'white',
+                                                        border: opt === correctDisplay ? '1px solid #68D391' : '1px solid #e2e8f0',
+                                                        borderRadius: '6px',
+                                                        fontSize: '0.9rem',
+                                                        color: opt === correctDisplay ? '#276749' : '#4a5568',
+                                                        fontWeight: opt === correctDisplay ? 'bold' : 'normal'
+                                                    }}
+                                                >
+                                                    {opt === correctDisplay ? '✅ ' : ''}{opt}
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div style={{ marginTop: '10px', fontSize: '0.8rem', color: '#38A169', fontWeight: 'bold' }}>
+                                            ✔ Answer: {correctDisplay}
+                                        </div>
                                     </div>
-                                    <div style={{ marginTop: '10px', fontSize: '0.8rem', color: '#38A169' }}>
-                                        Correct: {q.options[q.correctAnswerIndex]}
-                                    </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                             <button
                                 onClick={() => setQuizQuestions([])}
-                                style={{ marginTop: '10px', padding: '8px', background: '#e2e8f0', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
+                                style={{ marginTop: '10px', padding: '8px 16px', background: '#e2e8f0', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
                             >
-                                Clear Quiz
+                                🔄 Try Another Quiz
                             </button>
                         </div>
                     )}

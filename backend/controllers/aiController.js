@@ -370,8 +370,25 @@ exports.createQuiz = async (req, res) => {
         // Prioritize fileUrl if available
         const contextData = fileUrl || content;
 
-        const quiz = await aiService.generateQuiz(subject, topic, difficulty || 'medium', contextData);
-        res.json(quiz);
+        const quizRaw = await aiService.generateQuiz(subject, topic, difficulty || 'medium', contextData);
+
+        // aiService returns a raw JSON string — parse it before sending
+        let questions = [];
+        if (typeof quizRaw === 'string') {
+            try {
+                const parsed = JSON.parse(quizRaw);
+                questions = Array.isArray(parsed) ? parsed : (parsed.questions || []);
+            } catch (parseErr) {
+                console.error('Quiz JSON parse error:', parseErr.message);
+                return res.status(500).json({ message: 'Failed to parse quiz response from AI.' });
+            }
+        } else if (Array.isArray(quizRaw)) {
+            questions = quizRaw;
+        } else if (quizRaw && quizRaw.questions) {
+            questions = quizRaw.questions;
+        }
+
+        res.json({ questions });
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
