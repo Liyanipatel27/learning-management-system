@@ -24,11 +24,13 @@
     "mongoose": "^9.1.2",
     "multer": "^2.0.2",
     "multer-storage-cloudinary": "^4.0.0",
+    "natural": "^8.1.0",
     "nodemailer": "^7.0.13",
     "nodemon": "^3.1.11",
     "openai": "^6.17.0",
     "pdf-parse": "^1.1.1",
     "socket.io": "^4.8.3",
+    "stopword": "^3.1.5",
     "xlsx": "^0.18.5"
   }
 }

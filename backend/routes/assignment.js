@@ -2,7 +2,6 @@ const express = require('express');
 const router = express.Router();
 const Assignment = require('../models/Assignment');
 const Submission = require('../models/Submission');
-const axios = require('axios');
 const { deleteFile } = require('../utils/cloudinaryHelper');
 const cloudinary = require('cloudinary').v2;
 const multer = require('multer');
@@ -16,6 +15,7 @@ const https = require('https'); // To download file for parsing if needed, but p
 
 const upload = multer({ storage: storage });
 const aiService = require('../services/aiService');
+const plagiarismService = require('../services/plagiarismService');
 
 // Single file upload endpoint for assignments
 router.post('/upload', upload.single('file'), (req, res) => {
@@ -132,23 +132,21 @@ router.post('/:id/check-plagiarism', async (req, res) => {
             }));
 
             try {
-                // Call AI Service (Python)
-                const aiResponse = await axios.post('http://127.0.0.1:8001/plagiarism/check', {
-                    target_text: currentSub.extractedText,
-                    corpus: corpus
-                });
+                // Call local plagiarism service
+                const plagiarismResult = plagiarismService.checkPlagiarism(
+                    currentSub.extractedText,
+                    corpus
+                );
 
-                if (aiResponse.data) {
-                    currentSub.plagiarismResult = {
-                        similarityPercentage: aiResponse.data.highest_similarity,
-                        riskLevel: aiResponse.data.risk_level,
-                        matchedWith: aiResponse.data.matches,
-                        isAiVerified: aiResponse.data.is_ai_verified,
-                        checkedAt: new Date()
-                    };
-                    await currentSub.save();
-                    updatedCount++;
-                }
+                currentSub.plagiarismResult = {
+                    similarityPercentage: plagiarismResult.highest_similarity,
+                    riskLevel: plagiarismResult.risk_level,
+                    matchedWith: plagiarismResult.matches,
+                    isAiVerified: plagiarismResult.is_ai_verified,
+                    checkedAt: new Date()
+                };
+                await currentSub.save();
+                updatedCount++;
             } catch (aiErr) {
                 console.error(`Plagiarism check failed for submission ${currentSub._id}:`, aiErr.message);
                 // Continue to next submission even if one fails
@@ -220,23 +218,20 @@ router.post('/submit', async (req, res) => {
                         text: sub.extractedText
                     }));
 
-                    console.log('Calling AI Service for Plagiarism Check...');
-                    // Call AI Service
-                    const aiResponse = await axios.post('http://127.0.0.1:8001/plagiarism/check', {
-                        target_text: extractedText,
-                        corpus: corpus
-                    });
+                    console.log('Calling Local Plagiarism Service...');
+                    // Call local plagiarism service
+                    const plagiarismResult = plagiarismService.checkPlagiarism(
+                        extractedText,
+                        corpus
+                    );
 
-
-                    if (aiResponse.data) {
-                        submissionData.plagiarismResult = {
-                            similarityPercentage: aiResponse.data.highest_similarity,
-                            riskLevel: aiResponse.data.risk_level,
-                            matchedWith: aiResponse.data.matches, // Expecting array of { studentId, similarity }
-                            isAiVerified: aiResponse.data.is_ai_verified,
-                            checkedAt: new Date()
-                        };
-                    }
+                    submissionData.plagiarismResult = {
+                        similarityPercentage: plagiarismResult.highest_similarity,
+                        riskLevel: plagiarismResult.risk_level,
+                        matchedWith: plagiarismResult.matches, // Expecting array of { studentId, similarity }
+                        isAiVerified: plagiarismResult.is_ai_verified,
+                        checkedAt: new Date()
+                    };
                 }
             } catch (aiErr) {
                 console.error('Plagiarism check failed:', aiErr.message);
