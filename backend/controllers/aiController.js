@@ -561,73 +561,87 @@ exports.generateClassInsights = async (req, res) => {
     }
 };
 
-// 11. Video Summary
+// 11. Video Summary (uses Groq AI with video metadata - no file upload needed)
 exports.generateVideoSummary = async (req, res) => {
     try {
-        if (!req.file) {
-            return res.status(400).json({ message: "No video file uploaded." });
+        const { title, description, videoUrl, contentType } = req.body;
+
+        if (!title && !videoUrl) {
+            return res.status(400).json({ message: "Video title or URL is required." });
         }
 
-        const videoPath = req.file.path;
-        console.log("Processing video:", videoPath);
+        console.log("[Video Summary] Generating summary for:", title || videoUrl);
 
-        // 1. Upload to Gemini
-        const uploadResponse = await uploadToGemini(videoPath, req.file.mimetype);
+        // Build prompt using video metadata
+        const prompt = `You are an expert educational content summarizer.
 
-        // 2. Wait for processing (Gemini needs time to process video)
-        await waitForFilesActive([uploadResponse]);
+Analyze the following educational video content and provide a comprehensive summary.
 
-        // 3. Generate Content
-        const prompt = "Analyze this educational video and provide a comprehensive summary. Include key points, main concepts discussed, and a final conclusion. Return the result in JSON format with fields: 'summary', 'keyPoints' (array), and 'concepts' (array).";
+Video Title: "${title || 'Educational Video'}"
+Video Description: "${description || 'No description provided'}"
+Video URL: "${videoUrl || 'N/A'}"
+Content Type: "${contentType || 'video'}"
 
-        const result = await model.generateContent([
-            {
-                fileData: {
-                    mimeType: uploadResponse.mimeType,
-                    fileUri: uploadResponse.uri
-                }
-            },
-            { text: prompt },
-        ]);
+Based on the title and description, generate a detailed educational summary as if you watched the full video. Include:
+1. A comprehensive summary of what the video likely covers
+2. Key learning points students should take away
+3. Main concepts/topics covered
 
-        const response = await result.response;
-        let text = response.text();
+Return ONLY valid JSON with this exact structure (no markdown, no extra text):
+{
+  "summary": "A comprehensive 3-4 sentence summary of the video content",
+  "keyPoints": ["Key point 1", "Key point 2", "Key point 3", "Key point 4", "Key point 5"],
+  "concepts": ["Concept 1", "Concept 2", "Concept 3", "Concept 4"]
+}`;
 
-        // 4. Cleanup Logic
-        // Clean up local file
-        fs.unlinkSync(videoPath);
-        // Delete from Gemini to save storage
-        try {
-            await fileManager.deleteFile(uploadResponse.name);
-            console.log(`Deleted file ${uploadResponse.name} from Gemini`);
-        } catch (e) {
-            console.warn("Failed to delete file from Gemini:", e.message);
+        // Use Groq with CV_API_KEYS (same keys used for My Courses features)
+        const groqKeys = (process.env.CV_API_KEYS || process.env.API_KEYS || '').split(',').map(k => k.trim()).filter(k => k);
+        const groqKey = groqKeys[0];
+
+        if (!groqKey) {
+            return res.status(500).json({ message: "AI service not configured. Please contact admin." });
         }
 
+        const OpenAI = require('openai');
+        const groqClient = new OpenAI({
+            apiKey: groqKey,
+            baseURL: 'https://api.groq.com/openai/v1'
+        });
 
-        // 5. Parse JSON
+        const completion = await groqClient.chat.completions.create({
+            model: 'llama-3.3-70b-versatile',
+            messages: [
+                {
+                    role: 'system',
+                    content: 'You are an expert educational content summarizer. Return ONLY valid JSON. No markdown, no extra text.'
+                },
+                { role: 'user', content: prompt }
+            ],
+            temperature: 0.5,
+            max_tokens: 1500
+        });
+
+        let text = completion.choices[0].message.content;
+        console.log("[Video Summary] Groq response received");
+
+        // Clean and parse JSON
         text = text.replace(/```json|```/g, "").trim();
-        const firstBracket = text.indexOf('{');
-        const lastBracket = text.lastIndexOf('}');
-        if (firstBracket !== -1 && lastBracket !== -1) {
-            text = text.substring(firstBracket, lastBracket + 1);
+        const firstBrace = text.indexOf('{');
+        const lastBrace = text.lastIndexOf('}');
+        if (firstBrace !== -1 && lastBrace !== -1) {
+            text = text.substring(firstBrace, lastBrace + 1);
         }
 
         try {
             const data = JSON.parse(text);
             res.json(data);
         } catch (parseError) {
-            console.error("JSON Parse Error:", parseError);
-            // Fallback to raw text if JSON parsing fails
+            console.error("[Video Summary] JSON Parse Error:", parseError);
             res.json({ summary: text, keyPoints: [], concepts: [] });
         }
 
     } catch (err) {
-        console.error("Video Summary Error:", err);
-        // Clean up local file if error occurred and file exists
-        if (req.file && req.file.path && fs.existsSync(req.file.path)) {
-            fs.unlinkSync(req.file.path);
-        }
+        console.error("[Video Summary] Error:", err);
         res.status(500).json({ message: err.message });
     }
 };

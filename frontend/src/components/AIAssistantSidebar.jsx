@@ -14,19 +14,20 @@ const AIAssistantSidebar = ({ content, activeFeature, aiSummary, setAiSummary, i
     const [isSendingDoubt, setIsSendingDoubt] = useState(false);
 
     // Video Summary State
-    const [videoFile, setVideoFile] = useState(null);
     const [videoSummaryResult, setVideoSummaryResult] = useState(null);
     const [isVideoProcessing, setIsVideoProcessing] = useState(false);
 
-    const handleVideoUpload = async () => {
-        if (!videoFile) return;
+    const handleVideoSummary = async () => {
+        if (!content) return;
         setIsVideoProcessing(true);
-        const formData = new FormData();
-        formData.append('video', videoFile);
+        setVideoSummaryResult(null);
 
         try {
-            const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/ai/video-summary`, formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
+            const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/ai/video-summary`, {
+                title: content.title,
+                description: content.description || content.title,
+                videoUrl: content.url,
+                contentType: content.type
             });
             setVideoSummaryResult(res.data);
         } catch (err) {
@@ -410,28 +411,22 @@ const AIAssistantSidebar = ({ content, activeFeature, aiSummary, setAiSummary, i
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                     {!videoSummaryResult && !isVideoProcessing && (
                         <div style={{ padding: '20px', background: '#fefcbf', borderRadius: '12px', border: '1px solid #fbd38d', textAlign: 'center' }}>
-                            <p style={{ margin: '0 0 15px 0', color: '#744210', fontWeight: 'bold' }}>Upload an educational video to get a summary.</p>
-                            <input
-                                type="file"
-                                accept="video/*"
-                                onChange={(e) => setVideoFile(e.target.files[0])}
-                                style={{ marginBottom: '15px', width: '100%' }}
-                            />
+                            <p style={{ margin: '0 0 8px 0', color: '#744210', fontWeight: 'bold', fontSize: '1rem' }}>🎥 {content?.title}</p>
+                            <p style={{ margin: '0 0 15px 0', color: '#975a16', fontSize: '0.85rem' }}>Click the button below to generate an AI-powered summary of this video.</p>
                             <button
-                                onClick={handleVideoUpload}
-                                disabled={!videoFile}
+                                onClick={handleVideoSummary}
                                 style={{
                                     padding: '10px 20px',
-                                    background: !videoFile ? '#cbd5e0' : '#d69e2e',
+                                    background: '#d69e2e',
                                     color: 'white',
                                     border: 'none',
                                     borderRadius: '8px',
                                     fontWeight: 'bold',
-                                    cursor: !videoFile ? 'not-allowed' : 'pointer',
+                                    cursor: 'pointer',
                                     width: '100%'
                                 }}
                             >
-                                Generate Summary 🎥
+                                ✨ Generate Video Summary
                             </button>
                         </div>
                     )}
@@ -470,10 +465,10 @@ const AIAssistantSidebar = ({ content, activeFeature, aiSummary, setAiSummary, i
                             </div>
 
                             <button
-                                onClick={() => { setVideoSummaryResult(null); setVideoFile(null); }}
+                                onClick={() => { setVideoSummaryResult(null); }}
                                 style={{ padding: '10px', background: '#edf2f7', color: '#4a5568', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
                             >
-                                Analyze Another Video
+                                🔄 Generate Again
                             </button>
                         </div>
                     )}
