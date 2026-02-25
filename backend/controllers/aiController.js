@@ -181,15 +181,28 @@ exports.analyzePerformanceNew = async (req, res) => {
 
         let analysis = null;
 
-        // 2. Check User's Cached Analysis
+        // 2. Check User's Cached Analysis (with validity check to bust stale/incomplete cache)
         const user = await User.findById(studentId);
-        if (user && user.performanceAnalysis && user.performanceAnalysis.hash === currentHash) {
-            console.log(`[AI Cache] Returning cached analysis for student ${studentId}`);
-            analysis = user.performanceAnalysis.data;
-        } else {
-            console.log(`[AI Cache] Miss or Stale for student ${studentId}. Generating new analysis...`);
+        const cached = user?.performanceAnalysis;
+        const isCacheValid = cached &&
+            cached.hash === currentHash &&
+            cached.data?.overallScore !== undefined &&
+            cached.data?.overallLevel &&
+            Array.isArray(cached.data?.strengths) && cached.data.strengths.length > 0 &&
+            Array.isArray(cached.data?.weaknesses) && cached.data.weaknesses.length > 0 &&
+            Array.isArray(cached.data?.improvementSuggestions) && cached.data.improvementSuggestions.length > 0;
 
-            // 3. Generate New Analysis (Cache Miss)
+        if (isCacheValid) {
+            console.log(`[AI Cache] Returning cached analysis for student ${studentId}`);
+            analysis = cached.data;
+        } else {
+            if (cached) {
+                console.log(`[AI Cache] Stale or incomplete cache for student ${studentId}. Regenerating...`);
+            } else {
+                console.log(`[AI Cache] Miss for student ${studentId}. Generating new analysis...`);
+            }
+
+            // 3. Generate New Analysis (Cache Miss or Invalid Cache)
             analysis = await aiService.analyzePerformance(performanceData);
 
             // 4. Update Cache

@@ -67,34 +67,70 @@ class AIService {
             this.geminiKeys = [];
         }
 
-        // Initialize PV Gemini Keys (Exclusively for Roadmap Generator)
+        // Initialize AI Tutor Groq Keys (API_KEYS - exclusively for AI Tutor chat)
+        if (process.env.API_KEYS) {
+            this.aiTutorGroqKeys = process.env.API_KEYS.split(',').map(k => k.trim()).filter(k => k);
+            this.currentAITutorKeyIndex = 0;
+            console.log(`AI Tutor Groq Keys initialized with ${this.aiTutorGroqKeys.length} key(s)`);
+        } else {
+            console.warn("API_KEYS is not set. AI Tutor chat will fall back to CV Gemini keys.");
+            this.aiTutorGroqKeys = [];
+        }
+
+        // Initialize Performance Groq Keys (Performance_API_Key - for AI Learning Hub Performance Analysis)
+        if (process.env.Performance_API_Key) {
+            this.performanceGroqKeys = process.env.Performance_API_Key.split(',').map(k => k.trim()).filter(k => k);
+            this.currentPerformanceKeyIndex = 0;
+            console.log(`Performance Groq Keys initialized with ${this.performanceGroqKeys.length} key(s)`);
+        } else {
+            console.warn("Performance_API_Key is not set. Performance analysis will fall back to Gemini.");
+            this.performanceGroqKeys = [];
+        }
+
+        // Initialize PV Groq Keys (Primary for Roadmap Generator - PV_API_KEYS)
+        if (process.env.PV_API_KEYS) {
+            this.pvGroqKeys = process.env.PV_API_KEYS.split(',').map(k => k.trim()).filter(k => k);
+            this.currentPvGroqKeyIndex = 0;
+            console.log(`PV Groq Keys (Roadmap) initialized with ${this.pvGroqKeys.length} key(s)`);
+        } else {
+            this.pvGroqKeys = [];
+            console.warn('PV_API_KEYS is not set. Roadmap generator will fall back to Gemini.');
+        }
+        // Legacy PV Gemini Keys (Fallback for Roadmap Generator)
         if (process.env.PV_GEMINI_API_KEYS) {
             this.pvGeminiKeys = process.env.PV_GEMINI_API_KEYS.split(',').map(k => k.trim()).filter(k => k);
             this.currentTvGeminiKeyIndex = 0;
-            if (this.pvGeminiKeys.length === 0) {
-                console.warn("PV_GEMINI_API_KEYS is set but empty.");
-            }
         } else {
-            console.warn("PV_GEMINI_API_KEYS is not set. Roadmap generator might fail or fall back.");
             this.pvGeminiKeys = [];
         }
 
-        // Initialize CV Gemini Keys (Exclusively for My Courses Summary/Quiz/Doubt)
-        if (process.env.CV_GEMINI_API_KEYS) {
-            this.cvGeminiKeys = process.env.CV_GEMINI_API_KEYS.split(',').map(k => k.trim()).filter(k => k);
-            this.currentCvGeminiKeyIndex = 0;
-            if (this.cvGeminiKeys.length === 0) {
-                console.warn("CV_GEMINI_API_KEYS is set but empty.");
-            }
-            console.log(`CV_GEMINI_API_KEYS initialized with ${this.cvGeminiKeys.length} key(s)`);
+        // Initialize CV Groq Keys (Exclusively for My Courses Summary/Quiz/Doubt)
+        if (process.env.CV_API_KEYS) {
+            this.cvGroqKeys = process.env.CV_API_KEYS.split(',').map(k => k.trim()).filter(k => k);
+            this.currentCvGroqKeyIndex = 0;
+            console.log(`CV Groq Keys (CV_API_KEYS) initialized with ${this.cvGroqKeys.length} key(s)`);
         } else {
-            console.warn("CV_GEMINI_API_KEYS is not set. Summary/Quiz/Doubt features might fail or fall back.");
-            this.cvGeminiKeys = [];
+            console.warn("CV_API_KEYS is not set. Summary/Quiz/Doubt features will fall back to Gemini keys.");
+            this.cvGroqKeys = [];
         }
+        // Keep legacy CV Gemini keys as fallback if they exist
+        this.cvGeminiKeys = process.env.CV_GEMINI_API_KEYS
+            ? process.env.CV_GEMINI_API_KEYS.split(',').map(k => k.trim()).filter(k => k)
+            : [];
+        this.currentCvGeminiKeyIndex = 0;
 
         // ============ TEACHER DASHBOARD KEYS ============
 
-        // 1. Assignment Feedback Keys
+        // 1. Assignment Feedback Keys (Groq - TEACHER_ASSIGNMENT_KEYS)
+        if (process.env.TEACHER_ASSIGNMENT_KEYS) {
+            this.teacherAssignmentGroqKeys = process.env.TEACHER_ASSIGNMENT_KEYS.split(',').map(k => k.trim()).filter(k => k);
+            this.currentAssignmentGroqKeyIndex = 0;
+            console.log(`Teacher Assignment Groq Keys initialized with ${this.teacherAssignmentGroqKeys.length} key(s)`);
+        } else {
+            this.teacherAssignmentGroqKeys = [];
+            console.warn('TEACHER_ASSIGNMENT_KEYS is not set. Assignment feedback will fall back to Gemini.');
+        }
+        // Legacy Gemini fallback for assignment feedback
         if (process.env.TEACHER_ASSIGNMENT_GEMINI_KEYS) {
             this.teacherAssignmentKeys = process.env.TEACHER_ASSIGNMENT_GEMINI_KEYS.split(',').map(k => k.trim()).filter(k => k);
             this.currentAssignmentKeyIndex = 0;
@@ -102,7 +138,16 @@ class AIService {
             this.teacherAssignmentKeys = [];
         }
 
-        // 2. Question Analyzer Keys
+        // 2. Question Analyzer Keys (Groq - TEACHER_QUESTION_ANALYZER_KEYS)
+        if (process.env.TEACHER_QUESTION_ANALYZER_KEYS) {
+            this.teacherQuestionGroqKeys = process.env.TEACHER_QUESTION_ANALYZER_KEYS.split(',').map(k => k.trim()).filter(k => k);
+            this.currentQuestionGroqKeyIndex = 0;
+            console.log(`Teacher Question Analyzer Groq Keys initialized with ${this.teacherQuestionGroqKeys.length} key(s)`);
+        } else {
+            this.teacherQuestionGroqKeys = [];
+            console.warn('TEACHER_QUESTION_ANALYZER_KEYS is not set. Question analyzer will fall back to Gemini.');
+        }
+        // Legacy Gemini fallback for question analyzer
         if (process.env.TEACHER_QUESTION_ANALYZER_GEMINI_KEYS) {
             this.teacherQuestionKeys = process.env.TEACHER_QUESTION_ANALYZER_GEMINI_KEYS.split(',').map(k => k.trim()).filter(k => k);
             this.currentQuestionKeyIndex = 0;
@@ -245,32 +290,294 @@ class AIService {
         return this._executeGeminiCall(finalPrompt, systemInstruction, jsonMode, this.geminiKeys, 'Default');
     }
 
-    // Dedicated PV Key LLM Call (Uses PV keys)
+    // Dedicated PV Key LLM Call (Primary: Groq PV_API_KEYS, Fallback: PV_GEMINI_API_KEYS)
     async callPVLLM(prompt, systemInstruction = "", jsonMode = false) {
-        if (this.pvGeminiKeys.length === 0) throw new Error("No PV Gemini API keys configured for Roadmap Generator.");
-        return this._executeGeminiCall(prompt, systemInstruction, jsonMode, this.pvGeminiKeys, 'PV');
-    }
+        // Primary: Use PV_API_KEYS (Groq)
+        if (this.pvGroqKeys && this.pvGroqKeys.length > 0) {
+            const maxAttempts = this.pvGroqKeys.length;
+            let attempts = 0;
+            let currentIndex = this.currentPvGroqKeyIndex;
 
-    // Dedicated CV Key LLM Call (Uses CV keys - Exclusively for My Courses Summary/Quiz/Doubt)
-    async callCVLLM(prompt, systemInstruction = "", jsonMode = false) {
-        if (this.cvGeminiKeys.length === 0) {
-            console.warn("No CV Gemini API keys configured. Falling back to default keys.");
-            return this.callLLM(prompt, systemInstruction, jsonMode);
+            while (attempts < maxAttempts) {
+                const key = this.pvGroqKeys[currentIndex];
+                try {
+                    const groqClient = new OpenAI({
+                        apiKey: key,
+                        baseURL: 'https://api.groq.com/openai/v1'
+                    });
+
+                    const messages = [];
+                    if (systemInstruction) {
+                        messages.push({ role: 'system', content: systemInstruction });
+                    }
+                    messages.push({ role: 'user', content: prompt });
+
+                    const completion = await groqClient.chat.completions.create({
+                        model: 'llama-3.3-70b-versatile',
+                        messages,
+                        temperature: 0.6,
+                        max_tokens: 8192
+                    });
+
+                    let response = completion.choices[0].message.content;
+                    if (jsonMode) {
+                        response = response.replace(/```json/g, '').replace(/```/g, '').trim();
+                    }
+                    console.log(`[PV Groq Roadmap] Used key index ${currentIndex} (ending: ...${key.slice(-4)}) successfully.`);
+                    this.currentPvGroqKeyIndex = (currentIndex + 1) % this.pvGroqKeys.length;
+                    return response;
+
+                } catch (err) {
+                    console.error(`[PV Groq Roadmap] Key index ${currentIndex} (ending: ...${key.slice(-4)}) failed:`, err.message);
+                    currentIndex = (currentIndex + 1) % this.pvGroqKeys.length;
+                    this.currentPvGroqKeyIndex = currentIndex;
+                    attempts++;
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                }
+            }
+            console.warn('[PV Groq Roadmap] All Groq keys failed. Falling back to Gemini PV keys.');
         }
-        const finalPrompt = jsonMode ? prompt : (prompt + FORMATTING_SUFFIX);
-        return this._executeGeminiCall(finalPrompt, systemInstruction, jsonMode, this.cvGeminiKeys, 'CV');
+
+        // Fallback: Legacy PV Gemini keys
+        if (this.pvGeminiKeys.length > 0) {
+            return this._executeGeminiCall(prompt, systemInstruction, jsonMode, this.pvGeminiKeys, 'PV');
+        }
+
+        throw new Error('No PV keys configured for Roadmap Generator (neither Groq nor Gemini).');
     }
 
-    // Dedicated Teacher Assignment Feedback Call
+    // Dedicated CV Groq Call (Uses CV_API_KEYS - Exclusively for My Courses Summary/Quiz/Doubt)
+    async callCVGroqLLM(prompt, systemInstruction = "", jsonMode = false) {
+        if (this.cvGroqKeys.length === 0) return null; // Signal caller to use fallback
+
+        const maxAttempts = this.cvGroqKeys.length;
+        let attempts = 0;
+        let currentIndex = this.currentCvGroqKeyIndex;
+
+        while (attempts < maxAttempts) {
+            const key = this.cvGroqKeys[currentIndex];
+            try {
+                const groqClient = new OpenAI({
+                    apiKey: key,
+                    baseURL: 'https://api.groq.com/openai/v1'
+                });
+
+                const messages = [];
+                if (systemInstruction) {
+                    messages.push({ role: 'system', content: systemInstruction });
+                }
+                messages.push({ role: 'user', content: prompt });
+
+                const completion = await groqClient.chat.completions.create({
+                    model: 'llama-3.3-70b-versatile',
+                    messages,
+                    temperature: 0.5,
+                    max_tokens: 4096
+                });
+
+                let response = completion.choices[0].message.content;
+                // Strip JSON fences when jsonMode is true
+                if (jsonMode) {
+                    response = response.replace(/```json/g, '').replace(/```/g, '').trim();
+                }
+                console.log(`[CV Groq] Used key index ${currentIndex} (ending: ...${key.slice(-4)}) successfully.`);
+                // Rotate key for next usage (load balancing)
+                this.currentCvGroqKeyIndex = (currentIndex + 1) % this.cvGroqKeys.length;
+                return response;
+
+            } catch (err) {
+                console.error(`[CV Groq] Key index ${currentIndex} (ending: ...${key.slice(-4)}) failed:`, err.message);
+                currentIndex = (currentIndex + 1) % this.cvGroqKeys.length;
+                this.currentCvGroqKeyIndex = currentIndex;
+                attempts++;
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+        }
+
+        console.warn('[CV Groq] All CV Groq keys failed. Returning null to trigger fallback.');
+        return null;
+    }
+
+    // Dedicated CV Key LLM Call (Primary: CV_API_KEYS Groq, Fallback: CV Gemini → Default Gemini)
+    async callCVLLM(prompt, systemInstruction = "", jsonMode = false) {
+        // 1. Try CV Groq keys first (CV_API_KEYS) — pass jsonMode to clean fences
+        const groqResult = await this.callCVGroqLLM(prompt, systemInstruction, jsonMode);
+        if (groqResult !== null) return groqResult;
+
+        // 2. Fall back to CV Gemini keys (if any legacy keys set)
+        if (this.cvGeminiKeys.length > 0) {
+            console.warn('[CV] Falling back to CV Gemini keys.');
+            const finalPrompt = jsonMode ? prompt : (prompt + FORMATTING_SUFFIX);
+            return this._executeGeminiCall(finalPrompt, systemInstruction, jsonMode, this.cvGeminiKeys, 'CV');
+        }
+
+        // 3. Last resort: default Gemini keys
+        console.warn('[CV] No CV keys available. Falling back to default Gemini keys.');
+        return this.callLLM(prompt, systemInstruction, jsonMode);
+    }
+
+    // Dedicated AI Tutor Groq Call (Uses API_KEYS - Exclusively for Student AI Tutor chat)
+    async callAITutorLLM(prompt, systemInstruction = "") {
+        if (this.aiTutorGroqKeys.length === 0) {
+            console.warn("No AI Tutor Groq Keys (API_KEYS) configured. Falling back to CV Gemini.");
+            return this.callCVLLM(prompt, systemInstruction);
+        }
+
+        const maxAttempts = this.aiTutorGroqKeys.length;
+        let attempts = 0;
+        let currentIndex = this.currentAITutorKeyIndex;
+
+        while (attempts < maxAttempts) {
+            const key = this.aiTutorGroqKeys[currentIndex];
+            try {
+                const groqClient = new OpenAI({
+                    apiKey: key,
+                    baseURL: 'https://api.groq.com/openai/v1'
+                });
+
+                const messages = [];
+                if (systemInstruction) {
+                    messages.push({ role: 'system', content: systemInstruction });
+                }
+                messages.push({ role: 'user', content: prompt });
+
+                const completion = await groqClient.chat.completions.create({
+                    model: 'llama-3.3-70b-versatile',
+                    messages,
+                    temperature: 0.6,
+                    max_tokens: 4096
+                });
+
+                const response = completion.choices[0].message.content;
+                console.log(`[AI Tutor Groq] Used key index ${currentIndex} (ending: ...${key.slice(-4)}) successfully.`);
+                // Rotate key for next usage (load balancing)
+                this.currentAITutorKeyIndex = (currentIndex + 1) % this.aiTutorGroqKeys.length;
+                return response;
+
+            } catch (err) {
+                console.error(`[AI Tutor Groq] Key index ${currentIndex} (ending: ...${key.slice(-4)}) failed:`, err.message);
+                currentIndex = (currentIndex + 1) % this.aiTutorGroqKeys.length;
+                this.currentAITutorKeyIndex = currentIndex;
+                attempts++;
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+        }
+
+        // All Groq keys failed — fall back to CV Gemini
+        console.warn('[AI Tutor Groq] All Groq keys failed. Falling back to CV Gemini.');
+        return this.callCVLLM(prompt, systemInstruction);
+    }
+
+    // Dedicated Teacher Assignment Feedback Call (Primary: Groq, Fallback: Gemini)
     async callAssignmentFeedbackLLM(prompt, systemInstruction = "", jsonMode = false) {
-        if (this.teacherAssignmentKeys.length === 0) throw new Error("No Teacher Assignment Gemini keys configured.");
-        return this._executeGeminiCall(prompt, systemInstruction, jsonMode, this.teacherAssignmentKeys, 'TeacherAssignment');
+        // Primary: Use TEACHER_ASSIGNMENT_KEYS (Groq)
+        if (this.teacherAssignmentGroqKeys.length > 0) {
+            const maxAttempts = this.teacherAssignmentGroqKeys.length;
+            let attempts = 0;
+            let currentIndex = this.currentAssignmentGroqKeyIndex;
+
+            while (attempts < maxAttempts) {
+                const key = this.teacherAssignmentGroqKeys[currentIndex];
+                try {
+                    const groqClient = new OpenAI({
+                        apiKey: key,
+                        baseURL: 'https://api.groq.com/openai/v1'
+                    });
+
+                    const messages = [];
+                    if (systemInstruction) {
+                        messages.push({ role: 'system', content: systemInstruction });
+                    }
+                    messages.push({ role: 'user', content: prompt });
+
+                    const completion = await groqClient.chat.completions.create({
+                        model: 'llama-3.3-70b-versatile',
+                        messages,
+                        temperature: 0.5,
+                        max_tokens: 4096
+                    });
+
+                    let response = completion.choices[0].message.content;
+                    if (jsonMode) {
+                        response = response.replace(/```json/g, '').replace(/```/g, '').trim();
+                    }
+                    console.log(`[Assignment Groq] Used key index ${currentIndex} (ending: ...${key.slice(-4)}) successfully.`);
+                    this.currentAssignmentGroqKeyIndex = (currentIndex + 1) % this.teacherAssignmentGroqKeys.length;
+                    return response;
+
+                } catch (err) {
+                    console.error(`[Assignment Groq] Key index ${currentIndex} (ending: ...${key.slice(-4)}) failed:`, err.message);
+                    currentIndex = (currentIndex + 1) % this.teacherAssignmentGroqKeys.length;
+                    this.currentAssignmentGroqKeyIndex = currentIndex;
+                    attempts++;
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                }
+            }
+            console.warn('[Assignment Groq] All Groq keys failed. Falling back to Gemini.');
+        }
+
+        // Fallback: Legacy Gemini keys
+        if (this.teacherAssignmentKeys.length > 0) {
+            return this._executeGeminiCall(prompt, systemInstruction, jsonMode, this.teacherAssignmentKeys, 'TeacherAssignment');
+        }
+
+        throw new Error('No Teacher Assignment keys configured (neither Groq nor Gemini).');
     }
 
-    // Dedicated Teacher Question Analyzer Call
+    // Dedicated Teacher Question Analyzer Call (Primary: Groq, Fallback: Gemini)
     async callQuestionAnalyzerLLM(prompt, systemInstruction = "", jsonMode = false) {
-        if (this.teacherQuestionKeys.length === 0) throw new Error("No Teacher Question Analyzer Gemini keys configured.");
-        return this._executeGeminiCall(prompt, systemInstruction, jsonMode, this.teacherQuestionKeys, 'TeacherQuestion');
+        // Primary: Use TEACHER_QUESTION_ANALYZER_KEYS (Groq)
+        if (this.teacherQuestionGroqKeys && this.teacherQuestionGroqKeys.length > 0) {
+            const maxAttempts = this.teacherQuestionGroqKeys.length;
+            let attempts = 0;
+            let currentIndex = this.currentQuestionGroqKeyIndex;
+
+            while (attempts < maxAttempts) {
+                const key = this.teacherQuestionGroqKeys[currentIndex];
+                try {
+                    const groqClient = new OpenAI({
+                        apiKey: key,
+                        baseURL: 'https://api.groq.com/openai/v1'
+                    });
+
+                    const messages = [];
+                    if (systemInstruction) {
+                        messages.push({ role: 'system', content: systemInstruction });
+                    }
+                    messages.push({ role: 'user', content: prompt });
+
+                    const completion = await groqClient.chat.completions.create({
+                        model: 'llama-3.3-70b-versatile',
+                        messages,
+                        temperature: 0.4,
+                        max_tokens: 2048
+                    });
+
+                    let response = completion.choices[0].message.content;
+                    if (jsonMode) {
+                        response = response.replace(/```json/g, '').replace(/```/g, '').trim();
+                    }
+                    console.log(`[Question Analyzer Groq] Used key index ${currentIndex} (ending: ...${key.slice(-4)}) successfully.`);
+                    this.currentQuestionGroqKeyIndex = (currentIndex + 1) % this.teacherQuestionGroqKeys.length;
+                    return response;
+
+                } catch (err) {
+                    console.error(`[Question Analyzer Groq] Key index ${currentIndex} (ending: ...${key.slice(-4)}) failed:`, err.message);
+                    currentIndex = (currentIndex + 1) % this.teacherQuestionGroqKeys.length;
+                    this.currentQuestionGroqKeyIndex = currentIndex;
+                    attempts++;
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                }
+            }
+            console.warn('[Question Analyzer Groq] All Groq keys failed. Falling back to Gemini.');
+        }
+
+        // Fallback: Legacy Gemini keys
+        if (this.teacherQuestionKeys.length > 0) {
+            return this._executeGeminiCall(prompt, systemInstruction, jsonMode, this.teacherQuestionKeys, 'TeacherQuestion');
+        }
+
+        throw new Error('No Teacher Question Analyzer keys configured (neither Groq nor Gemini).');
     }
 
     // Unified Gemini Execution Logic
@@ -353,7 +660,42 @@ class AIService {
             }
         }
 
-        // Fallback Logic when all keys fail
+        // All Gemini keys failed - Try Groq as fallback (QUIZ_GENERATOR_KEY)
+        console.log(`All ${keyType} Gemini API keys exhausted. Trying Groq fallback...`);
+        const groqKey = process.env.QUIZ_GENERATOR_KEY;
+        if (groqKey) {
+            try {
+                const OpenAI = require('openai');
+                const groqClient = new OpenAI({
+                    apiKey: groqKey,
+                    baseURL: 'https://api.groq.com/openai/v1'
+                });
+
+                const messages = [];
+                if (systemInstruction) {
+                    messages.push({ role: 'system', content: systemInstruction });
+                }
+                messages.push({ role: 'user', content: prompt });
+
+                const completion = await groqClient.chat.completions.create({
+                    model: 'llama-3.3-70b-versatile',
+                    messages,
+                    temperature: 0.6,
+                    max_tokens: 4096
+                });
+
+                let groqResponse = completion.choices[0].message.content;
+                if (jsonMode) {
+                    groqResponse = groqResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+                }
+                console.log(`[Groq Fallback] ${keyType} - Successfully generated response.`);
+                return groqResponse;
+            } catch (groqErr) {
+                console.error(`[Groq Fallback] Failed for ${keyType}:`, groqErr.message);
+            }
+        }
+
+        // Last resort fallback
         console.log(`All ${keyType} Gemini API keys exhausted. Using fallback response.`);
         return this.getFallbackResponse(prompt, jsonMode);
     }
@@ -458,20 +800,13 @@ class AIService {
 
     // Feature 3: Performance Analyzer (Now using OpenAI)
     async analyzePerformance(performanceData) {
-        // OpenAI Keys from environment variables
-        let openAIKeys = [];
-        if (process.env.OPENAI_API_KEYS) {
-            openAIKeys = process.env.OPENAI_API_KEYS.split(',').map(k => k.trim()).filter(k => k);
-        } else if (process.env.OPENAI_API_KEY) {
-            openAIKeys = [process.env.OPENAI_API_KEY];
-        }
+        // Primary: Use Performance Groq Keys (Performance_API_Key)
+        if (this.performanceGroqKeys && this.performanceGroqKeys.length > 0) {
+            const maxAttempts = this.performanceGroqKeys.length;
+            let attempts = 0;
+            let currentIndex = this.currentPerformanceKeyIndex;
 
-        if (openAIKeys.length === 0) {
-            console.warn("No OpenAI API keys configured, falling back to Gemini");
-            return this.analyzePerformanceWithGemini(performanceData);
-        }
-
-        const prompt = `Analyze this student performance data in detail: ${JSON.stringify(performanceData)}.
+            const prompt = `Analyze this student performance data in detail: ${JSON.stringify(performanceData)}.
         
         Provide a comprehensive analysis including:
         1. overallLevel: Performance level (High: 90-100%, Good: 70-89%, Average: 50-69%, Low: <50%)
@@ -481,7 +816,7 @@ class AIService {
         5. weaknesses: Array of 3-5 weaknesses with specific subject examples
         6. improvementSuggestions: Array of 5-7 actionable improvement tips
         7. subjectAnalysis: Array of objects with subject name, average score, trend (improving/declining/stable), and specific feedback
-        8. futurePrediction: Object with predictedScore (next performance), trend (Upward/Stable/Downward), and insight paragraph
+        8. futurePrediction: Object with predictedScore (number), trend (Upward/Stable/Downward), and insight paragraph
         
         Output ONLY valid JSON with this structure:
         {
@@ -506,49 +841,67 @@ class AIService {
             }
         }`;
 
-        // Simple Random Load Balancing
-        const randomKey = openAIKeys[Math.floor(Math.random() * openAIKeys.length)];
-        const openai = new OpenAI({ apiKey: randomKey });
+            while (attempts < maxAttempts) {
+                const key = this.performanceGroqKeys[currentIndex];
+                try {
+                    const groqClient = new OpenAI({
+                        apiKey: key,
+                        baseURL: 'https://api.groq.com/openai/v1'
+                    });
 
-        try {
-            const completion = await openai.chat.completions.create({
-                messages: [
-                    { role: "system", content: SYSTEM_INSTRUCTION_CONFIG + "\n\nYou are a performance analyst. Return ONLY valid JSON." },
-                    { role: "user", content: prompt }
-                ],
-                model: "gpt-3.5-turbo",
-            });
+                    const completion = await groqClient.chat.completions.create({
+                        model: 'llama-3.3-70b-versatile',
+                        messages: [
+                            { role: 'system', content: 'You are a student performance analyst. Return ONLY valid JSON.' },
+                            { role: 'user', content: prompt }
+                        ],
+                        temperature: 0.4,
+                        max_tokens: 4096
+                    });
 
-            const responseText = completion.choices[0].message.content;
-            // Clean markdown if present
-            const jsonStr = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
-            const data = JSON.parse(jsonStr);
+                    let responseText = completion.choices[0].message.content;
+                    responseText = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
+                    const data = JSON.parse(responseText);
 
-            // SANITIZATION: Ensure simple arrays of strings
-            const sanitizeArray = (arr) => {
-                if (!Array.isArray(arr)) return [];
-                return arr.map(item => {
-                    if (typeof item === 'string') return item;
-                    if (typeof item === 'object' && item !== null) {
-                        // If AI returns object { area, example }, convert to string
-                        const parts = Object.values(item);
-                        return parts.join(': ');
-                    }
-                    return String(item);
-                });
-            };
+                    // SANITIZATION: Ensure simple arrays of strings
+                    const sanitizeArray = (arr) => {
+                        if (!Array.isArray(arr)) return [];
+                        return arr.map(item => {
+                            if (typeof item === 'string') return item;
+                            if (typeof item === 'object' && item !== null) {
+                                return Object.values(item).join(': ');
+                            }
+                            return String(item);
+                        });
+                    };
+                    data.strengths = sanitizeArray(data.strengths);
+                    data.weaknesses = sanitizeArray(data.weaknesses);
+                    data.improvementSuggestions = sanitizeArray(data.improvementSuggestions);
 
-            data.strengths = sanitizeArray(data.strengths);
-            data.weaknesses = sanitizeArray(data.weaknesses);
-            data.improvementSuggestions = sanitizeArray(data.improvementSuggestions);
+                    console.log(`[Performance Groq] Used key index ${currentIndex} (ending: ...${key.slice(-4)}) successfully.`);
+                    // Rotate key for next usage
+                    this.currentPerformanceKeyIndex = (currentIndex + 1) % this.performanceGroqKeys.length;
+                    return data;
 
-            return data;
+                } catch (err) {
+                    console.error(`[Performance Groq] Key index ${currentIndex} failed:`, err.message);
+                    currentIndex = (currentIndex + 1) % this.performanceGroqKeys.length;
+                    this.currentPerformanceKeyIndex = currentIndex;
+                    attempts++;
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                }
+            }
 
-        } catch (e) {
-            console.error("Failed to analyze performance with OpenAI:", e.message);
-            throw new Error("Failed to analyze performance");
+            console.warn('[Performance Groq] All performance Groq keys failed. Falling back to Gemini.');
+        } else {
+            console.warn("No Performance Groq Keys configured, falling back to Gemini");
         }
+
+        // Fallback: Gemini-based analysis
+        return this.analyzePerformanceWithGemini(performanceData);
     }
+
+
 
     // Fallback: Analyze performance using Gemini if OpenAI keys are not configured
     async analyzePerformanceWithGemini(performanceData) {
@@ -680,16 +1033,16 @@ class AIService {
         const historyContext = history.map(h => `${h.role}: ${h.content}`).join('\n');
         const prompt = `History:\n${historyContext}\n\nStudent: ${question}\n\nIMPORTANT: FORCE the output into the 'RESPONSE STRUCTURE' defined above. Use ### Headers, Bullet points, and **Bold** text. DO NOT WRITE PARAGRAPHS.`;
 
-        // First try CV Gemini with timeout, then fall back to simple responses
+        // First try AI Tutor Groq Keys (API_KEYS), then fall back to simple responses
         try {
-            const cvResult = await Promise.race([
-                this.callCVLLM(prompt, systemPrompt),
-                new Promise((_, reject) => setTimeout(() => reject(new Error("CV Gemini timeout")), 15000))
+            const tutorResult = await Promise.race([
+                this.callAITutorLLM(prompt, systemPrompt),
+                new Promise((_, reject) => setTimeout(() => reject(new Error("AI Tutor timeout")), 20000))
             ]);
-            return cvResult;
-        } catch (cvError) {
-            console.error("CV Gemini fallback failed:", cvError.message);
-            // If CV Gemini fails or times out, use simple fallback responses
+            return tutorResult;
+        } catch (tutorError) {
+            console.error("AI Tutor LLM failed:", tutorError.message);
+            // If all keys fail or timeout, use simple fallback responses
             return this.getSimpleFallbackResponse(question);
         }
     }
@@ -1111,9 +1464,6 @@ class AIService {
 
     // Feature 5: Quiz Generator from PDF (Teacher Dashboard)
     async generateQuizFromPDF(text, numQuestions = 10, difficultyDistribution = { easy: 30, average: 40, hard: 30 }) {
-        // Use Quiz Generator Key
-        let keys = [process.env.GEMINI_QUIZ_GENERATOR_KEY];
-
         const prompt = `Generate a quiz strictly based on the following content context. Do not use any external knowledge.
         
         Content: "${text.substring(0, 50000)}..."
@@ -1142,8 +1492,48 @@ class AIService {
         
         Ensure equal distribution of difficulties as requested. Return ONLY valid JSON.`;
 
+        // Primary: Use QUIZ_GENERATOR_KEY (Groq) - fast and free
+        const groqKey = process.env.QUIZ_GENERATOR_KEY;
+        if (groqKey) {
+            try {
+                const OpenAI = require('openai');
+                const groqClient = new OpenAI({
+                    apiKey: groqKey,
+                    baseURL: 'https://api.groq.com/openai/v1'
+                });
+
+                const completion = await groqClient.chat.completions.create({
+                    model: 'llama-3.3-70b-versatile',
+                    messages: [
+                        { role: 'system', content: 'You are an expert quiz generator. Return ONLY valid JSON.' },
+                        { role: 'user', content: prompt }
+                    ],
+                    temperature: 0.5,
+                    max_tokens: 4096
+                });
+
+                let responseText = completion.choices[0].message.content;
+                responseText = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
+
+                // Extract JSON object
+                const firstBrace = responseText.indexOf('{');
+                const lastBrace = responseText.lastIndexOf('}');
+                if (firstBrace !== -1 && lastBrace !== -1) {
+                    responseText = responseText.substring(firstBrace, lastBrace + 1);
+                }
+
+                const parsed = JSON.parse(responseText);
+                console.log(`[PDF Quiz] Generated ${parsed.questions?.length} questions via Groq.`);
+                return parsed;
+            } catch (groqErr) {
+                console.error('[PDF Quiz] Groq failed, trying Gemini fallback:', groqErr.message);
+            }
+        }
+
+        // Fallback: Use Gemini keys
         try {
-            return await this._executeGeminiCall(prompt, "You are an expert quiz generator. Return ONLY valid JSON.", true, keys, 'QuizGenerator');
+            const geminiKeys = [process.env.GEMINI_QUIZ_GENERATOR_KEY, ...(this.cvGeminiKeys || []), ...(this.geminiKeys || [])].filter(k => k);
+            return await this._executeGeminiCall(prompt, "You are an expert quiz generator. Return ONLY valid JSON.", true, geminiKeys, 'QuizGenerator');
         } catch (e) {
             console.error("PDF Quiz Generation Error:", e);
             throw new Error("Failed to generate quiz from PDF: " + e.message);
