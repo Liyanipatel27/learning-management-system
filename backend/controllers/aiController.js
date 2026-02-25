@@ -321,25 +321,61 @@ exports.generateQuiz = async (req, res) => {
         Topic: "${topic}"
         Context: "${context ? context.substring(0, 50000) : "No specific context provided, generate based on topic."}"
        
-        Return ONLY a JSON array of objects with this structure (no markdown, just raw JSON):
+        Return ONLY a JSON array of objects with this exact structure (no markdown, no extra text, just raw JSON array):
         [
             {
                 "question": "Question text",
                 "options": ["Option A", "Option B", "Option C", "Option D"],
-                "correctAnswer": 0, // Index (0-3)
+                "correctAnswer": 0,
                 "explanation": "Brief explanation of the answer",
                 "difficulty": "medium"
             }
         ]`;
 
-        // 3. Call AI
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        let text = response.text();
+        // 3. Call Groq API using QUIZ_GENERATOR_KEY (OpenAI-compatible)
+        const quizKey = process.env.QUIZ_GENERATOR_KEY;
+        let text = '';
+
+        if (quizKey) {
+            try {
+                const OpenAI = require('openai');
+                const groqClient = new OpenAI({
+                    apiKey: quizKey,
+                    baseURL: 'https://api.groq.com/openai/v1'
+                });
+
+                const completion = await groqClient.chat.completions.create({
+                    model: 'llama-3.3-70b-versatile',
+                    messages: [
+                        {
+                            role: 'system',
+                            content: 'You are an expert quiz generator. Return ONLY valid JSON arrays. No markdown, no explanation, just raw JSON.'
+                        },
+                        { role: 'user', content: prompt }
+                    ],
+                    temperature: 0.5,
+                    max_tokens: 4096
+                });
+
+                text = completion.choices[0].message.content;
+                console.log('[Quiz Generator] Used QUIZ_GENERATOR_KEY (Groq) successfully');
+            } catch (groqErr) {
+                console.warn('[Quiz Generator] Groq API failed, falling back to Gemini:', groqErr.message);
+                // Fallback to Gemini model
+                const result = await model.generateContent(prompt);
+                const response = await result.response;
+                text = response.text();
+            }
+        } else {
+            // No Groq key, use Gemini
+            console.warn('[Quiz Generator] QUIZ_GENERATOR_KEY not set, using Gemini model');
+            const result = await model.generateContent(prompt);
+            const response = await result.response;
+            text = response.text();
+        }
 
         // 4. Clean and Parse
         text = text.replace(/```json|```/g, "").trim();
-        // Sometimes AI adds extra text, try to find the array
         const firstBracket = text.indexOf('[');
         const lastBracket = text.lastIndexOf(']');
         if (firstBracket !== -1 && lastBracket !== -1) {
@@ -348,12 +384,10 @@ exports.generateQuiz = async (req, res) => {
 
         const quizData = JSON.parse(text);
 
-        // Map to ensure compatibility with our frontend expected structure if needed
-        // Our Course model expects 'correctAnswerIndex', User prompt says 'correctAnswer'
-        // Let's standarize to what our model expects: 'correctAnswerIndex'
+        // Map to standardize 'correctAnswer' -> 'correctAnswerIndex'
         const mappedQuizData = quizData.map(q => ({
             ...q,
-            correctAnswerIndex: q.correctAnswer !== undefined ? q.correctAnswer : 0 // Handle both
+            correctAnswerIndex: q.correctAnswer !== undefined ? q.correctAnswer : 0
         }));
 
         res.json({ success: true, data: mappedQuizData });
