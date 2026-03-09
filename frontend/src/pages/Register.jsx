@@ -26,6 +26,7 @@ function Register() {
         }
 
         setLoading(true);
+        console.log('VITE_API_URL:', import.meta.env.VITE_API_URL);
         try {
             await axios.post(`${import.meta.env.VITE_API_URL}/api/auth/register`, formData);
             alert('Registration successful! Please login.');
