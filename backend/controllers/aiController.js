@@ -11,9 +11,9 @@ const User = require('../models/User');
 // Initialize Gemini for Quiz Generation (using specific key if available, or fallback)
 // Initialize Gemini
 // Prioritize CV_GEMINI_API_KEYS or GEMINI_API_KEYS
-const keys = (process.env.CV_GEMINI_API_KEYS || process.env.GEMINI_API_KEYS || '').split(',').map(k => k.trim()).filter(k => k);
+const keys = (process.env.CV_GEMINI_API_KEYS || process.env.CV_API_KEYS || process.env.GEMINI_API_KEYS || process.env.API_KEYS || '').split(',').map(k => k.trim()).filter(k => k);
 // Use 3rd key if available, else 2nd, else 1st, else fallback to single env var
-const activeKey = keys[2] || keys[1] || keys[0] || process.env.GEMINI_QUIZ_GENERATOR_KEY || process.env.GEMINI_API_KEY;
+const activeKey = keys[2] || keys[1] || keys[0] || process.env.GEMINI_QUIZ_GENERATOR_KEY || process.env.QUIZ_GENERATOR_KEY || process.env.GEMINI_API_KEY;
 
 const genAI = new GoogleGenerativeAI(activeKey);
 const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });

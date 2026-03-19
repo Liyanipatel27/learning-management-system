@@ -55,40 +55,35 @@ const FORMATTING_SUFFIX = "\n\nCRITICAL: FAILURE TO USE BULLET POINTS WILL CAUSE
 
 class AIService {
     constructor() {
-        // Initialize Gemini Keys
-        if (process.env.GEMINI_API_KEYS) {
-            this.geminiKeys = process.env.GEMINI_API_KEYS.split(',').map(k => k.trim()).filter(k => k);
+        // Initialize Gemini/Groq Keys
+        const geminiEnvKeys = process.env.GEMINI_API_KEYS || process.env.API_KEYS;
+        if (geminiEnvKeys) {
+            this.geminiKeys = geminiEnvKeys.split(',').map(k => k.trim()).filter(k => k);
             this.currentGeminiKeyIndex = 0;
             if (this.geminiKeys.length === 0) {
-                console.warn("GEMINI_API_KEYS is set but empty. AI Tutor might fail.");
+                console.warn("GEMINI_API_KEYS/API_KEYS is set but empty. AI Tutor might fail.");
             }
         } else {
-            console.warn("GEMINI_API_KEYS is not set. AI Tutor will fail.");
+            console.warn("GEMINI_API_KEYS/API_KEYS is not set. AI Tutor will fail.");
             this.geminiKeys = [];
         }
 
-        // Initialize PV Gemini Keys (Exclusively for Roadmap Generator)
-        if (process.env.PV_GEMINI_API_KEYS) {
-            this.pvGeminiKeys = process.env.PV_GEMINI_API_KEYS.split(',').map(k => k.trim()).filter(k => k);
+        // Initialize PV Gemini/Groq Keys (Exclusively for Roadmap Generator)
+        const pvEnvKeys = process.env.PV_GEMINI_API_KEYS || process.env.PV_API_KEYS;
+        if (pvEnvKeys) {
+            this.pvGeminiKeys = pvEnvKeys.split(',').map(k => k.trim()).filter(k => k);
             this.currentTvGeminiKeyIndex = 0;
-            if (this.pvGeminiKeys.length === 0) {
-                console.warn("PV_GEMINI_API_KEYS is set but empty.");
-            }
         } else {
-            console.warn("PV_GEMINI_API_KEYS is not set. Roadmap generator might fail or fall back.");
             this.pvGeminiKeys = [];
         }
 
-        // Initialize CV Gemini Keys (Exclusively for My Courses Summary/Quiz/Doubt)
-        if (process.env.CV_GEMINI_API_KEYS) {
-            this.cvGeminiKeys = process.env.CV_GEMINI_API_KEYS.split(',').map(k => k.trim()).filter(k => k);
+        // Initialize CV Gemini/Groq Keys (Exclusively for My Courses Summary/Quiz/Doubt)
+        const cvEnvKeys = process.env.CV_GEMINI_API_KEYS || process.env.CV_API_KEYS;
+        if (cvEnvKeys) {
+            this.cvGeminiKeys = cvEnvKeys.split(',').map(k => k.trim()).filter(k => k);
             this.currentCvGeminiKeyIndex = 0;
-            if (this.cvGeminiKeys.length === 0) {
-                console.warn("CV_GEMINI_API_KEYS is set but empty.");
-            }
-            console.log(`CV_GEMINI_API_KEYS initialized with ${this.cvGeminiKeys.length} key(s)`);
+            console.log(`CV_API_KEYS initialized with ${this.cvGeminiKeys.length} key(s)`);
         } else {
-            console.warn("CV_GEMINI_API_KEYS is not set. Summary/Quiz/Doubt features might fail or fall back.");
             this.cvGeminiKeys = [];
         }
 
@@ -273,12 +268,14 @@ class AIService {
         return this._executeGeminiCall(prompt, systemInstruction, jsonMode, this.teacherQuestionKeys, 'TeacherQuestion');
     }
 
-    // Unified Gemini Execution Logic
+    // Unified AI Execution Logic (Handles both Gemini and Groq/OpenAI)
     async _executeGeminiCall(prompt, systemInstruction, jsonMode, keys, keyType) {
         if (!keys || keys.length === 0) {
-            console.warn(`No ${keyType} Gemini API keys configured. Using fallback response.`);
+            console.warn(`No ${keyType} AI API keys configured. Using fallback response.`);
             return this.getFallbackResponse(prompt, jsonMode);
         }
+
+        // Merge Global Instruction with specific instruction
 
         // Merge Global Instruction with specific instruction
         let combinedSystemInstruction = SYSTEM_INSTRUCTION_CONFIG;
@@ -318,43 +315,61 @@ class AIService {
         // Rotate Key - REMOVED for Sticky Session (Only rotate on failure)
         // this[currentIndexName] = (this[currentIndexName] + 1) % keys.length;
 
-        this[callCountName] = (this[callCountName] || 0) + 1;
-        console.log(`[Gemini ${keyType} Usage] Call #${this[callCountName]} | Initial Key Index: ${this[currentIndexName]} (Key ending: ...${keys[this[currentIndexName]].slice(-4)})`);
-
         const maxAttempts = keys.length;
         let attempts = 0;
         let currentTryIndex = this[currentIndexName];
 
         while (attempts < maxAttempts) {
+            const currentKey = keys[currentTryIndex];
+            const isGroq = currentKey && currentKey.startsWith('gsk_');
+
             try {
-                // Pass combined system instruction to model initialization
-                const model = this._getGenerativeModel(currentTryIndex, keys, combinedSystemInstruction);
+                if (isGroq) {
+                    console.log(`[Groq ${keyType} Usage] Call #${this[callCountName] || 0 + 1} | Key Index: ${currentTryIndex} (Key ending: ...${currentKey.slice(-4)})`);
+                    
+                    const groq = new OpenAI({
+                        apiKey: currentKey,
+                        baseURL: 'https://api.groq.com/openai/v1'
+                    });
 
-                // Prompt is now just the user prompt, system instruction is handled by the model
-                let result = await model.generateContent(prompt);
-                let response = result.response.text();
+                    const completion = await groq.chat.completions.create({
+                        messages: [
+                            { role: "system", content: combinedSystemInstruction },
+                            { role: "user", content: prompt }
+                        ],
+                        model: "llama-3.3-70b-versatile",
+                        response_format: jsonMode ? { type: "json_object" } : undefined
+                    });
 
-                if (jsonMode) {
-                    response = response.replace(/```json/g, '').replace(/```/g, '').trim();
+                    return completion.choices[0].message.content;
+                } else {
+                    // Gemini Logic
+                    console.log(`[Gemini ${keyType} Usage] Call #${this[callCountName] || 0 + 1} | Key Index: ${currentTryIndex} (Key ending: ...${currentKey.slice(-4)})`);
+                    const model = this._getGenerativeModel(currentTryIndex, keys, combinedSystemInstruction);
+                    let result = await model.generateContent(prompt);
+                    let response = result.response.text();
+
+                    if (jsonMode) {
+                        response = response.replace(/```json/g, '').replace(/```/g, '').trim();
+                    }
+                    return response;
                 }
-                return response;
 
             } catch (err) {
-                console.error(`Gemini ${keyType} Error (Key Index ${currentTryIndex}):`, err.message);
+                console.error(`${isGroq ? 'Groq' : 'Gemini'} ${keyType} Error (Key Index ${currentTryIndex}):`, err.message);
 
                 // Rotate to next key on error
                 currentTryIndex = (currentTryIndex + 1) % keys.length;
-                this[currentIndexName] = currentTryIndex; // Update global index to stick to new key
+                this[currentIndexName] = currentTryIndex;
                 attempts++;
-                console.log(`Retrying with ${keyType} Key Index: ${currentTryIndex}`);
+                console.log(`Retrying with next ${keyType} Key Index: ${currentTryIndex}`);
 
-                // Add delay between retries
                 await new Promise(resolve => setTimeout(resolve, 1000));
             }
         }
 
         // Fallback Logic when all keys fail
-        console.log(`All ${keyType} Gemini API keys exhausted. Using fallback response.`);
+        console.log(`All ${keyType} AI API keys exhausted. Using fallback response.`);
         return this.getFallbackResponse(prompt, jsonMode);
     }
 
