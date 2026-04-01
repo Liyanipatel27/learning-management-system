@@ -594,9 +594,8 @@ Return ONLY valid JSON with this exact structure (no markdown, no extra text):
   "concepts": ["Concept 1", "Concept 2", "Concept 3", "Concept 4"]
 }`;
 
-        // Use Groq with CV_API_KEYS (same keys used for My Courses features)
-        const groqKeys = (process.env.CV_API_KEYS || process.env.API_KEYS || '').split(',').map(k => k.trim()).filter(k => k);
-        const groqKey = groqKeys[0];
+        // Use Groq with QUIZ_GENERATOR_KEY (as defined in .env)
+        const groqKey = process.env.QUIZ_GENERATOR_KEY || process.env.API_KEYS;
 
         if (!groqKey) {
             return res.status(500).json({ message: "AI service not configured. Please contact admin." });

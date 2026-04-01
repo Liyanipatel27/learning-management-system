@@ -9,7 +9,7 @@ const upload = require('../middleware/uploadMiddleware');
 router.post('/summary', aiController.getSummary);
 
 // 1b. Video To Summary
-router.post('/video-summary', upload.single('video'), aiController.generateVideoSummary);
+router.post('/video-summary', aiController.generateVideoSummary);
 
 // 2. Study Roadmap
 router.post('/roadmap', aiController.createRoadmap);
