@@ -19,36 +19,6 @@ const userSchema = new mongoose.Schema({
     enum: ['student', 'teacher', 'admin'],
     default: 'student',
     required: true
-  },
-  enrollment: {
-    type: Number
-  },
-  branch: {
-    type: String
-  },
-  employeeId: {
-    type: Number
-  },
-  qualification: {
-    type: String
-  },
-  plainPassword: {
-    type: String
-  },
-  resetOTP: {
-    type: String
-  },
-  resetOTPExpire: {
-    type: Date
-  },
-  performanceAnalysis: {
-    hash: String,
-    data: Object,
-    lastAnalyzed: Date
-  },
-  enrolledClass: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Class'
   }
 }, { timestamps: true });
 
