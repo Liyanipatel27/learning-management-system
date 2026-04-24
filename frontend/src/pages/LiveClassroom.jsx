@@ -254,7 +254,7 @@ const LiveClassroom = () => {
 
             try {
                 console.log("Attempting to load Jitsi via fetch-eval...");
-                const response = await fetch('https://meet.element.io/external_api.js');
+                const response = await fetch('https://meet.jit.si/external_api.js');
                 if (!response.ok) throw new Error("Network response was not ok");
                 const scriptText = await response.text();
 
@@ -276,7 +276,7 @@ const LiveClassroom = () => {
                 window.define = undefined;
 
                 const script = document.createElement('script');
-                script.src = 'https://meet.element.io/external_api.js';
+                script.src = 'https://meet.jit.si/external_api.js';
                 script.async = true;
                 script.onload = () => {
                     setTimeout(() => {
@@ -398,7 +398,7 @@ const LiveClassroom = () => {
         if (!jitsiContainerRef.current || jitsiApiRef.current) return;
 
         try {
-            const domain = 'meet.element.io';
+            const domain = 'meet.jit.si';
             const options = {
                 roomName: roomId,
                 width: '100%',

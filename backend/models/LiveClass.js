@@ -22,6 +22,9 @@ const liveClassSchema = new mongoose.Schema({
         type: Boolean,
         default: true
     },
+    scheduledTime: {
+        type: Date
+    },
     slides: {
         type: [String], // Array of DataURLs
         default: []

@@ -451,6 +451,7 @@ const CourseCard = ({ course, onEdit, onDelete }) => (
 const LiveClassSection = ({ teacherId, teacherName }) => {
     const navigate = useNavigate();
     const [title, setTitle] = useState('');
+    const [scheduledTime, setScheduledTime] = useState('');
     const [activeClasses, setActiveClasses] = useState([]);
 
     useEffect(() => {
@@ -479,23 +480,53 @@ const LiveClassSection = ({ teacherId, teacherName }) => {
         }
     };
 
+    const handleScheduleClass = async (e) => {
+        e.preventDefault();
+        if (!title.trim()) return alert('Please enter class title');
+        if (!scheduledTime) return alert('Please select a scheduled time');
+
+        const roomId = `LMS_${Date.now()}`;
+        try {
+            await axios.post(`${import.meta.env.VITE_API_URL}/api/live-class/create`, {
+                title, roomId, teacherId, teacherName, scheduledTime
+            });
+            alert('Meeting Scheduled Successfully!');
+            fetchActiveClasses();
+            setTitle('');
+            setScheduledTime('');
+        } catch (err) {
+            alert("Failed to schedule class");
+        }
+    };
+
     return (
         <div style={{ background: 'white', padding: '30px', borderRadius: '20px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
             <h2 style={{ fontSize: '1.5rem', fontWeight: '800', marginBottom: '30px' }}>📽️ Live Class Management</h2>
 
-            <form onSubmit={handleStartClass} style={{ background: '#f8fafc', padding: '24px', borderRadius: '16px', marginBottom: '40px', border: '1px solid #e2e8f0' }}>
-                <h3 style={{ fontSize: '1.1rem', marginBottom: '20px' }}>Start New Live Session</h3>
-                <div style={{ display: 'flex', gap: '15px' }}>
+            <form style={{ background: '#f8fafc', padding: '24px', borderRadius: '16px', marginBottom: '40px', border: '1px solid #e2e8f0' }}>
+                <h3 style={{ fontSize: '1.1rem', marginBottom: '20px' }}>Start or Schedule Live Session</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                     <input
                         type="text"
                         placeholder="Enter Class Title (e.g. Intro to React)"
                         value={title}
                         onChange={(e) => setTitle(e.target.value)}
-                        style={{ flex: 1, padding: '12px 16px', borderRadius: '10px', border: '1px solid #cbd5e0', fontSize: '1rem', outline: 'none' }}
+                        style={{ padding: '12px 16px', borderRadius: '10px', border: '1px solid #cbd5e0', fontSize: '1rem', outline: 'none' }}
                     />
-                    <button type="submit" style={{ padding: '0 30px', background: '#6366f1', color: 'white', border: 'none', borderRadius: '10px', fontWeight: '700', cursor: 'pointer' }}>
-                        Go Live Now 🚀
-                    </button>
+                    <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+                        <input
+                            type="datetime-local"
+                            value={scheduledTime}
+                            onChange={(e) => setScheduledTime(e.target.value)}
+                            style={{ flex: 1, padding: '12px 16px', borderRadius: '10px', border: '1px solid #cbd5e0', fontSize: '1rem', outline: 'none', background: 'white' }}
+                        />
+                        <button onClick={handleScheduleClass} style={{ padding: '12px 24px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '10px', fontWeight: '700', cursor: 'pointer' }}>
+                            📅 Schedule
+                        </button>
+                        <button onClick={handleStartClass} style={{ padding: '12px 24px', background: '#6366f1', color: 'white', border: 'none', borderRadius: '10px', fontWeight: '700', cursor: 'pointer' }}>
+                            🚀 Go Live Direct
+                        </button>
+                    </div>
                 </div>
             </form>
 
@@ -508,10 +539,15 @@ const LiveClassSection = ({ teacherId, teacherName }) => {
                         <div key={c._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 20px', background: '#f0f4ff', borderRadius: '12px', borderLeft: '4px solid #6366f1' }}>
                             <div>
                                 <h4 style={{ margin: 0, fontSize: '1.05rem', color: '#1a202c' }}>{c.title}</h4>
-                                <small style={{ color: '#718096' }}>Room ID: {c.roomId}</small>
+                                <small style={{ color: '#718096', display: 'block' }}>Room ID: {c.roomId}</small>
+                                {c.scheduledTime && (
+                                    <small style={{ color: '#3b82f6', fontWeight: 'bold' }}>
+                                        Scheduled: {new Date(c.scheduledTime).toLocaleString()}
+                                    </small>
+                                )}
                             </div>
                             <button onClick={() => navigate(`/live-class/${c.roomId}`)} style={{ padding: '8px 20px', background: '#6366f1', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>
-                                Resume Class
+                                {c.scheduledTime && new Date(c.scheduledTime) > new Date() ? 'Start Early' : 'Resume / Start'}
                             </button>
                         </div>
                     ))

@@ -15,7 +15,7 @@ router.get('/active', async (req, res) => {
 // Create a new live class
 router.post('/create', async (req, res) => {
     try {
-        const { title, roomId, teacherId, teacherName } = req.body;
+        const { title, roomId, teacherId, teacherName, scheduledTime } = req.body;
 
         // Deactivate any old classes by this teacher
         console.log(`[LIVE CLASS DEBUG] Creating/Restarting class for teacher ${teacherId}. Title: ${title}`);
@@ -26,6 +26,7 @@ router.post('/create', async (req, res) => {
             roomId,
             teacher: teacherId,
             teacherName,
+            scheduledTime,
             isActive: true
         });
 

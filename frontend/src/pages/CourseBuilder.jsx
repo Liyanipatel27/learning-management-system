@@ -199,7 +199,9 @@ const CourseBuilder = ({ teacherId, onCourseCreated, initialCourse }) => {
 
     const uploadContent = async (chapterId, moduleId, file, contentData) => {
         const formData = new FormData();
-        formData.append('file', file);
+        if (file) {
+            formData.append('file', file);
+        }
         formData.append('title', contentData.title);
         formData.append('type', contentData.type);
         formData.append('description', contentData.description);
@@ -349,6 +351,10 @@ const CourseBuilder = ({ teacherId, onCourseCreated, initialCourse }) => {
                             <button
                                 onClick={() => {
                                     const el = document.getElementById('new-chapter');
+                                    if (!el.value.trim()) {
+                                        alert("Please enter a chapter title");
+                                        return;
+                                    }
                                     addChapter(el.value);
                                     el.value = '';
                                 }}
@@ -384,6 +390,10 @@ const CourseBuilder = ({ teacherId, onCourseCreated, initialCourse }) => {
                                         <button
                                             onClick={() => {
                                                 const el = document.getElementById(`new-mod-${chapter._id}`);
+                                                if (!el.value.trim()) {
+                                                    alert("Please enter a module title");
+                                                    return;
+                                                }
                                                 addModule(chapter._id, el.value);
                                                 el.value = '';
                                             }}
@@ -817,6 +827,10 @@ const ContentUploader = ({ onUpload }) => {
     const [minTime, setMinTime] = useState(0);
 
     const handleSubmit = () => {
+        if (!title.trim()) return alert("Please enter a content title");
+        if (type !== 'link' && !file) return alert("Please select a file to upload");
+        if (type === 'link' && !url.trim()) return alert("Please enter a valid URL");
+
         onUpload(file, { title, type, url, minTime });
         setTitle('');
         setFile(null);
