@@ -1,0 +1,25 @@
+                        </div>
+                    ))}
+                </div>
+
+                <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                    <button onClick={addQuestion} style={{ padding: '10px 20px', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white', cursor: 'pointer', color: '#374151', fontWeight: '600' }}>
+                        + Add Question
+                    </button>
+                    <button onClick={onClose} style={{ padding: '10px 20px', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white', cursor: 'pointer', color: '#374151' }}>
+                        Cancel
+                    </button>
+                    <button onClick={() => onSave({
+                        ...quiz,
+                        questions,
+                        passingScore,
+                        fastTrackScore,
+                        configuration: quizConfiguration
+                    })} style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: '#7c3aed', color: 'white', cursor: 'pointer', fontWeight: '600' }}>
+                        Save Quiz
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};

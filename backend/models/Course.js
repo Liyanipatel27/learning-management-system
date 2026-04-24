@@ -6,7 +6,8 @@ const ContentSchema = new mongoose.Schema({
     url: { type: String }, // For files (path) or external links
     originalName: { type: String }, // Original file name
     description: { type: String },
-    minTime: { type: Number, default: 0 } // Minimum read/watch time in seconds
+    minTime: { type: Number, default: 0 }, // Minimum read/watch time in seconds
+    extractedText: { type: String } // FIELD FOR AI CONTEXT
 });
 
 const QuestionSchema = new mongoose.Schema({
@@ -42,6 +43,7 @@ const CourseSchema = new mongoose.Schema({
     subject: { type: String, required: true },
     description: { type: String },
     teacher: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    isPublished: { type: Boolean, default: false },
     chapters: [ChapterSchema],
     createdAt: { type: Date, default: Date.now }
 });

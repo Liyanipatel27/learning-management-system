@@ -23,3 +23,14 @@ backend/uploads/*
 .vscode/
 .idea/
 .DS_Store
+
+# Debug/Temporary files
+debug_*.txt
+*_output.txt
+backend/debug_*.txt
+backend/*_output.txt
+*.log
+
+node_modules/
+backend/node_modules/
+frontend/node_modules/
