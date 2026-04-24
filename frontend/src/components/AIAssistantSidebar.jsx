@@ -7,6 +7,8 @@ const AIAssistantSidebar = ({ content, activeFeature, aiSummary, setAiSummary, i
     const [quizQuestions, setQuizQuestions] = useState([]);
     const [isGeneratingQuiz, setIsGeneratingQuiz] = useState(false);
     const [quizError, setQuizError] = useState(null);
+    const [selectedAnswers, setSelectedAnswers] = useState({});
+    const [showResults, setShowResults] = useState(false);
 
     // Doubt State
     const [chatHistory, setChatHistory] = useState([]); // [{role: 'user'|'model', content: ''}]
@@ -97,6 +99,8 @@ const AIAssistantSidebar = ({ content, activeFeature, aiSummary, setAiSummary, i
                 setQuizError("No questions were generated. Please try again.");
             } else {
                 setQuizQuestions(questions);
+                setSelectedAnswers({});
+                setShowResults(false);
             }
         } catch (err) {
             console.error(err);
@@ -201,35 +205,83 @@ const AIAssistantSidebar = ({ content, activeFeature, aiSummary, setAiSummary, i
                                     <div key={idx} style={{ background: '#f7fafc', padding: '15px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
                                         <p style={{ fontWeight: 'bold', marginBottom: '10px', color: '#2d3748' }}>{idx + 1}. {q.question}</p>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                            {(q.options || []).map((opt, oIdx) => (
-                                                <div
-                                                    key={oIdx}
-                                                    style={{
-                                                        padding: '8px 12px',
-                                                        background: opt === correctDisplay ? '#C6F6D5' : 'white',
-                                                        border: opt === correctDisplay ? '1px solid #68D391' : '1px solid #e2e8f0',
-                                                        borderRadius: '6px',
-                                                        fontSize: '0.9rem',
-                                                        color: opt === correctDisplay ? '#276749' : '#4a5568',
-                                                        fontWeight: opt === correctDisplay ? 'bold' : 'normal'
-                                                    }}
-                                                >
-                                                    {opt === correctDisplay ? '✅ ' : ''}{opt}
-                                                </div>
-                                            ))}
+                                            {(q.options || []).map((opt, oIdx) => {
+                                                const isSelected = selectedAnswers[idx] === oIdx;
+                                                const isCorrect = opt === correctDisplay;
+                                                
+                                                let bgColor = 'white';
+                                                let borderColor = '#e2e8f0';
+                                                let textColor = '#4a5568';
+                                                let fontWeight = 'normal';
+                                                let prefix = '';
+
+                                                if (showResults) {
+                                                    if (isCorrect) {
+                                                        bgColor = '#C6F6D5';
+                                                        borderColor = '#68D391';
+                                                        textColor = '#276749';
+                                                        fontWeight = 'bold';
+                                                        prefix = '✅ ';
+                                                    } else if (isSelected) {
+                                                        bgColor = '#FED7D7';
+                                                        borderColor = '#FC8181';
+                                                        textColor = '#9B2C2C';
+                                                        fontWeight = 'bold';
+                                                        prefix = '❌ ';
+                                                    }
+                                                } else {
+                                                    if (isSelected) {
+                                                        bgColor = '#EBF8FF';
+                                                        borderColor = '#63B3ED';
+                                                        textColor = '#2B6CB0';
+                                                        fontWeight = 'bold';
+                                                    }
+                                                }
+
+                                                return (
+                                                    <div
+                                                        key={oIdx}
+                                                        onClick={() => !showResults && setSelectedAnswers(prev => ({ ...prev, [idx]: oIdx }))}
+                                                        style={{
+                                                            padding: '8px 12px',
+                                                            background: bgColor,
+                                                            border: borderColor !== '#e2e8f0' ? `1px solid ${borderColor}` : '1px solid #e2e8f0',
+                                                            borderRadius: '6px',
+                                                            fontSize: '0.9rem',
+                                                            color: textColor,
+                                                            fontWeight: fontWeight,
+                                                            cursor: showResults ? 'default' : 'pointer',
+                                                            transition: 'all 0.2s'
+                                                        }}
+                                                    >
+                                                        {prefix}{opt}
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
-                                        <div style={{ marginTop: '10px', fontSize: '0.8rem', color: '#38A169', fontWeight: 'bold' }}>
-                                            ✔ Answer: {correctDisplay}
-                                        </div>
+                                        {showResults && (
+                                            <div style={{ marginTop: '10px', fontSize: '0.8rem', color: '#38A169', fontWeight: 'bold' }}>
+                                                ✔ Answer: {correctDisplay}
+                                            </div>
+                                        )}
                                     </div>
                                 );
                             })}
-                            <button
-                                onClick={() => setQuizQuestions([])}
-                                style={{ marginTop: '10px', padding: '8px 16px', background: '#e2e8f0', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
-                            >
-                                🔄 Try Another Quiz
-                            </button>
+                            {!showResults ? (
+                                <button
+                                    onClick={() => setShowResults(true)}
+                                    style={{ marginTop: '10px', padding: '8px 16px', background: '#6C63FF', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
+                                >
+                                    Submit Answers
+                                </button>
+                            ) : (
+                                <button
+                                    onClick={() => { setQuizQuestions([]); setSelectedAnswers({}); setShowResults(false); }}
+                                    style={{ marginTop: '10px', padding: '8px 16px', background: '#e2e8f0', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
+                                >
+                                    🔄 Try Another Quiz
+                                </button>
+                            )}
                         </div>
                     )}
                 </div>
